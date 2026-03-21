@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+
+# Pytest
+.pytest_cache/
+.cache/
+
+# Reports
+reports/html/
+reports/allure/
+
+# Logs
+logs/
+
+# Test data (dynamic)
+testdata/dynamic/
+
+# IDE
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Playwright
+test-results/
+playwright-report/
+
+# Coverage
+.coverage
+htmlcov/
+coverage.xml
+
+# Secrets
+*.env
+.env.*
+secrets.py
+
+# Playwright auth state
+auth/
+**/auth.json
+**/storage_state.json

@@ -1,155 +1,228 @@
 # HRlens Playwright Automation Framework
 
-End-to-end automation framework for the HRlens Increment Module using **Playwright, Pytest, and API validation strategy**.
+> End-to-end test automation framework for the HRlens Increment Module — built on Playwright, pytest, and a layered API-first validation strategy.
+
+![Python](https://img.shields.io/badge/Python-3.9+-blue)
+![Playwright](https://img.shields.io/badge/Playwright-latest-green)
+![pytest](https://img.shields.io/badge/pytest-latest-orange)
+![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ---
 
-## 🚀 Tech Stack
+## Table of Contents
 
-| Tool        | Purpose              |
-| ----------- | -------------------- |
-| Python 3.9+ | Programming language |
-| Playwright  | UI automation        |
-| pytest      | Test runner          |
-| Allure      | Reporting            |
-| Requests    | API validation       |
+- [Tech Stack](#tech-stack)
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [Setup](#setup)
+- [Configuration](#configuration)
+- [Running Tests](#running-tests)
+- [Reports](#reports)
+- [Design Principles](#design-principles)
+- [Future Enhancements](#future-enhancements)
 
 ---
 
-## 🧠 Automation Strategy
+## Tech Stack
 
-This framework follows a **layered automation architecture**:
+| Tool        | Version  | Purpose              |
+| ----------- | -------- | -------------------- |
+| Python      | 3.9+     | Programming language |
+| Playwright  | Latest   | Browser automation   |
+| pytest      | Latest   | Test runner          |
+| Allure      | Latest   | Test reporting       |
+| Requests    | Latest   | API validation       |
+
+---
+
+## Architecture
+
+This framework follows a **layered automation architecture** where the API is the source of truth and the UI is the representation layer.
 
 ```
-API Layer (Core Logic Validation)
-        ↓
-UI Layer (Representation Validation)
-        ↓
-E2E Layer (Business Flow Validation)
+┌─────────────────────────────────┐
+│   API Layer  (Core Validation)  │  ← Calculation accuracy, business logic
+├─────────────────────────────────┤
+│   UI Layer   (Representation)   │  ← Rendering, display, user interactions
+├─────────────────────────────────┤
+│   E2E Layer  (Business Flow)    │  ← Full workflow validation
+└─────────────────────────────────┘
 ```
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 HRlens_Playwright/
 │
-├── core/                  # Framework core (config, browser, fixtures)
-├── hooks/                 # Pytest hooks
-├── pages/                 # Page Object Model
+├── core/
+│   ├── config/
+│   │   └── settings.py              # Env config, base URL, credentials
+│   └── fixtures/
+│       └── base_fixture.py          # Browser + page fixtures
+│
+├── hooks/
+│   └── test_hooks.py                # pytest session hooks
+│
+├── pages/
+│   ├── base_page.py                 # Core page actions
 │   ├── common/
-│   └── modules/increment/
-├── locators/              # UI locators
+│   │   ├── login_page.py
+│   │   └── navbar.py
+│   └── modules/
+│       └── increment/
+│           ├── increment_page.py
+│           ├── increment_summary_page.py
+│           └── negotiation_page.py
+│
+├── locators/
+│   └── modules/
+│       ├── login_locators.py
+│       └── increment_locators.py
+│
 ├── utils/
-│   ├── api/               # API clients (source of truth)
-│   ├── validators/        # Assertions + calculation validation
-│   └── helpers/           # Utility functions
-├── testdata/              # Static and dynamic test data
+│   ├── api/
+│   │   ├── base_client.py           # Base HTTP client
+│   │   └── increment_api.py         # Increment module API calls
+│   ├── validators/
+│   │   ├── assertions.py            # UI assertions
+│   │   └── calculation_validator.py # Business logic validators
+│   └── helpers/
+│       └── common_utils.py          # Shared utilities
+│
+├── testdata/
+│   ├── static/
+│   │   └── increment_testdata.json
+│   └── dynamic/                     # Runtime-generated data
+│
 ├── tests/
-│   ├── api/               # Backend calculation tests
-│   ├── integration/       # UI vs API validation
-│   ├── regression/        # UI functional tests
-│   ├── smoke/             # Basic sanity tests
-│   └── e2e/               # Full workflow tests
-├── reports/               # Test reports
-├── logs/                  # Execution logs
+│   ├── smoke/                       # Sanity checks
+│   │   └── test_login.py
+│   ├── regression/                  # Full UI coverage
+│   │   ├── test_increment_ui.py
+│   │   └── test_negotiation_flow.py
+│   ├── api/                         # Backend logic tests
+│   │   └── test_increment_calculation.py
+│   ├── integration/                 # UI vs API cross-validation
+│   │   └── test_ui_api_validation.py
+│   └── e2e/                         # Full workflow tests
+│       └── test_increment_full_flow.py
+│
+├── reports/
+│   ├── html/
+│   └── allure/
+│
+├── logs/
+├── .env                             # Local secrets (not committed)
 ├── .gitignore
 ├── pytest.ini
 ├── requirements.txt
+├── setup.bat                        # One-click setup for new members
 └── README.md
 ```
 
 ---
 
-## 🔥 What This Framework Covers
+## Setup
 
-### ✅ API Validation (Core Engine)
+### Prerequisites
 
-* Raw deduction calculation
-* Discipline score logic
-* Aggregate score computation
-* Slab → increment mapping
-* Eligibility validation
+- Python 3.9+
+- Git
 
----
-
-### ✅ UI Validation
-
-* Appraisal summary rendering
-* Discipline breakdown display
-* Increment percentage visibility
-* Negotiation UI behavior
-
----
-
-### ✅ Integration Validation
-
-* UI score = API score
-* UI increment = API increment
-* UI deduction = API deduction
-
----
-
-### ✅ E2E Flow
-
-* Login → Appraisal → Score Calculation → Increment Suggestion → Negotiation → Finalization
-
----
-
-## ⚙️ Setup
+### Quick Start
 
 ```bash
-# Clone repository
+# Clone the repository
 git clone https://github.com/Adarsh-tiwari1223/HRlens_Playwright.git
 cd HRlens_Playwright
+```
 
-# Create virtual environment
+### Windows — One-Click Setup
+
+```bash
+setup.bat
+```
+
+`setup.bat` automatically:
+1. Creates a Python virtual environment (`venv`)
+2. Activates the virtual environment
+3. Installs all dependencies from `requirements.txt`
+4. Installs Playwright browsers
+
+### Mac/Linux — Manual Setup
+
+```bash
 python -m venv venv
-
-# Activate environment
-venv\Scripts\activate        # Windows
-source venv/bin/activate     # Mac/Linux
-
-# Install dependencies
+source venv/bin/activate
 pip install -r requirements.txt
-
-# Install Playwright browsers
 playwright install
 ```
 
+### Environment Configuration
+
+Create a `.env` file in the project root:
+
+```env
+BASE_URL=https://stg-hrlense.jobvritta.com
+HEADLESS=False
+
+ADMIN_USERNAME=admin@hrlens.com
+ADMIN_PASSWORD=your_password
+```
+
+> `.env` is gitignored — never commit credentials.
+
 ---
 
-## ▶️ Running Tests
+## Configuration
+
+| Variable         | Description              | Default |
+| ---------------- | ------------------------ | ------- |
+| `BASE_URL`       | Application base URL     | —       |
+| `HEADLESS`       | Run browser headless     | `False` |
+| `ADMIN_USERNAME` | Admin login email        | —       |
+| `ADMIN_PASSWORD` | Admin login password     | —       |
+| `ENV`            | Target environment       | `dev`   |
+
+Switch environments:
 
 ```bash
-# Run all tests
-pytest
-
-# Run API tests
-pytest tests/api/
-
-# Run UI tests
-pytest tests/regression/
-
-# Run integration tests
-pytest tests/integration/
-
-# Run E2E tests
-pytest tests/e2e/
+ENV=staging pytest   # loads .env.staging
+ENV=prod pytest      # loads .env.prod
 ```
 
 ---
 
-## 📊 Reports
+## Running Tests
 
-### HTML Report
+```bash
+# All tests
+pytest
+
+# By suite
+pytest tests/smoke/
+pytest tests/regression/
+pytest tests/api/
+pytest tests/integration/
+pytest tests/e2e/
+
+# Verbose output
+pytest tests/smoke/ -vs
+```
+
+---
+
+## Reports
+
+### HTML
 
 ```bash
 pytest --html=reports/html/report.html
 ```
 
-### Allure Report
+### Allure
 
 ```bash
 pytest --alluredir=reports/allure
@@ -158,41 +231,27 @@ allure serve reports/allure
 
 ---
 
-## 🧪 Example Validation
+## Design Principles
 
-```python
-def test_discipline_score():
-    api_data = increment_api.get_employee(emp_id)
-
-    expected = calculate_discipline_score(api_data)
-    actual = api_data["discipline"]["disciplineScore"]
-
-    assert expected == actual
 ```
+API  = Source of Truth
+UI   = Representation Layer
+Test = Validation of both
+```
+
+| Layer       | Validates                          |
+| ----------- | ---------------------------------- |
+| API         | Calculation logic, data integrity  |
+| UI          | Rendering, display accuracy        |
+| Integration | UI value == API value              |
+| E2E         | Full business workflow             |
 
 ---
 
-## 💣 Key Design Principle
+## Future Enhancements
 
-```
-API = Source of Truth
-UI = Representation Layer
-```
-
----
-
-## 🎯 Testing Focus
-
-* Calculation accuracy
-* Data integrity
-* Business workflow validation
-* Cross-layer consistency (API ↔ UI)
-
----
-
-## 🚀 Future Enhancements
-
-* GitHub Actions (CI/CD pipeline)
-* Parallel test execution
-* Data-driven test execution
-* Docker-based execution environment
+- [ ] GitHub Actions CI/CD pipeline
+- [ ] Parallel test execution
+- [ ] Data-driven test execution
+- [ ] Docker-based execution environment
+- [ ] Slack/email test result notifications

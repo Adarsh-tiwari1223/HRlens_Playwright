@@ -1,5 +1,5 @@
 import pytest
-from pages.common.Login import LoginPage
+from pages.login_page import LoginPage
 from core.config import settings
 
 
@@ -12,10 +12,21 @@ def login_page(page):
 def test_valid_login(login_page):
     creds = settings.USERS["admin"]
     login_page.login(creds["username"], creds["password"])
-    assert login_page.is_visible("//div[contains(text(), 'Dashboard')]")  # Adjust the locator as needed
+    assert login_page.is_visible("text=Logged in Successfully")
 
 
-def test_login_empty_fields(login_page):
-    login_page.click_login_button()
-    assert login_page.is_email_error_visible()
-    assert login_page.is_password_error_visible()
+def test_empty_fields(login_page):
+    login_page.click_login()
+    assert login_page.is_visible(LoginPage.EMAIL_REQUIRED)
+    assert login_page.is_visible(LoginPage.PASSWORD_REQUIRED)
+
+
+def test_invalid_credentials(login_page):
+    login_page.login("admin@gmail.com", "wrongpassword")
+    assert login_page.is_visible(LoginPage.INVALID_CREDS)
+
+
+def test_forgot_password_empty_email(login_page):
+    login_page.click_forgot_password()
+    login_page.click_send_otp()
+    assert login_page.is_visible(LoginPage.OTP_EMAIL_REQUIRED)

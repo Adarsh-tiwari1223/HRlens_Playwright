@@ -1,0 +1,10 @@
+{
+  "valid_admin": {
+    "username": "admin@gmail.com",
+    "password": "abcd123!@#"
+  },
+  "invalid": {
+    "username": "admin@gmail.com",
+    "password": "wrongpassword"
+  }
+}

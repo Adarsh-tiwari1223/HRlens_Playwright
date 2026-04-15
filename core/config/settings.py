@@ -5,6 +5,7 @@ ENV = os.getenv("ENV", "dev")
 load_dotenv(f".env.{ENV}" if ENV != "dev" else ".env")
 
 BASE_URL = os.getenv("BASE_URL")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://audit.jobvritta.com/api")
 HEADLESS = os.getenv("HEADLESS", "False").lower() == "true"
 
 USERS = {
@@ -12,39 +13,20 @@ USERS = {
         "username": os.getenv("ADMIN_USERNAME"),
         "password": os.getenv("ADMIN_PASSWORD")
     },
-    "hr_manager": {
-        "username": os.getenv("HR_MANAGER_USERNAME"),
-        "password": os.getenv("HR_MANAGER_PASSWORD")
+    "vivek": {
+        "username": os.getenv("VIVEK_USERNAME"),
+        "password": os.getenv("VIVEK_PASSWORD")
     },
-    "recruiter": {
-        "username": os.getenv("RECRUITER_USERNAME"),
-        "password": os.getenv("RECRUITER_PASSWORD")
+    "satyarth": {
+        "username": os.getenv("SATYARTH_USERNAME"),
+        "password": os.getenv("SATYARTH_PASSWORD")
     },
-    "finance": {
-        "username": os.getenv("FINANCE_USERNAME"),
-        "password": os.getenv("FINANCE_PASSWORD")
-    }
-}
-
-EMPLOYEES = {
-    "nitin": {
-        "username": os.getenv("NITIN_USERNAME"),
-        "password": os.getenv("NITIN_PASSWORD")
+    "sanidhy": {
+        "username": os.getenv("SANIDHY_USERNAME"),
+        "password": os.getenv("SANIDHY_PASSWORD")
     },
-    "anil": {
-        "username": os.getenv("ANIL_USERNAME"),
-        "password": os.getenv("ANIL_PASSWORD")
-    },
-    "neha": {
-        "username": os.getenv("NEHA_USERNAME"),
-        "password": os.getenv("NEHA_PASSWORD")
-    },
-    "praveen": {
-        "username": os.getenv("PRAVEEN_USERNAME"),
-        "password": os.getenv("PRAVEEN_PASSWORD")
-    },
-    "sunita": {
-        "username": os.getenv("SUNITA_USERNAME"),
-        "password": os.getenv("SUNITA_PASSWORD")
+    "kumar_piyush": {
+        "username": os.getenv("KUMAR_PIYUSH_USERNAME"),
+        "password": os.getenv("KUMAR_PIYUSH_PASSWORD")
     }
 }

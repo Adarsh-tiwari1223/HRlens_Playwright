@@ -3,8 +3,8 @@
 End-to-end test automation for the HRlens Increment Module — Playwright + pytest + API validation.
 
 ![Python](https://img.shields.io/badge/Python-3.9+-blue)
-![Playwright](https://img.shields.io/badge/Playwright-latest-green)
-![pytest](https://img.shields.io/badge/pytest-latest-orange)
+![Playwright](https://img.shields.io/badge/Playwright-1.44.0-green)
+![pytest](https://img.shields.io/badge/pytest-8.2.2-orange)
 
 ---
 
@@ -25,8 +25,7 @@ End-to-end test automation for the HRlens Increment Module — Playwright + pyte
 ```
 HRlens_Playwright/
 ├── core/
-│   ├── config/settings.py        # Env config, credentials
-│   └── fixtures/base_fixture.py  # Browser + page fixtures
+│   └── config/settings.py        # Env config, credentials
 ├── pages/
 │   ├── base_page.py              # Core page actions
 │   ├── login_page.py
@@ -35,14 +34,12 @@ HRlens_Playwright/
 │       └── negotiation_page.py
 ├── utils/
 │   ├── api_client.py             # API calls
-│   ├── assertions.py             # UI assertions
-│   └── helpers.py                # Shared utilities
+│   └── helpers.py                # load_test_data
 ├── testdata/
 │   └── static/                   # JSON test data
 ├── tests/
-│   ├── smoke/
-│   ├── regression/
-│   └── e2e/
+│   ├── conftest.py               # browser + page fixtures
+│   └── test_login.py
 ├── .env                          # Local secrets (not committed)
 ├── pytest.ini
 ├── requirements.txt
@@ -71,6 +68,7 @@ playwright install
 Add a `.env` file in the root:
 ```env
 BASE_URL=https://stg-hrlense.jobvritta.com
+API_BASE_URL=https://audit.jobvritta.com/api
 HEADLESS=False
 ADMIN_USERNAME=admin@hrlens.com
 ADMIN_PASSWORD=your_password
@@ -80,10 +78,14 @@ ADMIN_PASSWORD=your_password
 
 ## Running Tests
 
+Tests are categorized using pytest markers, not folders.
+
 ```bash
-pytest tests/smoke/
-pytest tests/regression/
-pytest tests/e2e/
+pytest tests/ -m smoke
+pytest tests/ -m regression
+pytest tests/ -m e2e
+pytest tests/ -m "smoke or regression"
+pytest tests/                          # run everything
 ```
 
 ---

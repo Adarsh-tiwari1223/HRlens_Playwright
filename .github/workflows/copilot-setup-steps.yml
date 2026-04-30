@@ -23,7 +23,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.10' # Adjust to your MCA/Project version
+        python-version: '3.10' 
 
     # 2. Create and Activate Virtual Environment
     - name: Install dependencies

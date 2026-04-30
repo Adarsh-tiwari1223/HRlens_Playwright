@@ -20,12 +20,12 @@ def test_valid_login(login_page):
 def test_empty_fields(login_page):
     login_page.click_login()
     assert login_page.is_visible(LoginPage.EMAIL_REQUIRED)
-    assert login_page.is_visible(LoginPage.PASSWORD_REQUIRED)
+    assert login_page.is_visible(LoginPage.PWD_REQUIRED)
 
 
 @pytest.mark.regression
 def test_invalid_credentials(login_page):
-    login_page.login("admin@gmail.com", "wrongpassword")
+    login_page.login("admin@gmail.com", "wrongpwd")
     assert login_page.is_visible(LoginPage.INVALID_CREDS)
 
 

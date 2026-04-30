@@ -39,3 +39,13 @@ The Healer should utilize the following specific locators verified on the dashbo
 - **Module Navigation**: Verify clicking links in the primary navigation successfully loads the targeted modules (e.g., Employees, Increment Setting).
 - **Data Loading & Views**: Ensure the primary employee grids load without errors, and verify the toggle functionality between Card View and List View.
 - **Search Functionality**: Verify that inputting an employee name into the search bar correctly filters the displayed employee cards or list rows.
+
+## 3. Auto-Healing Workflow
+
+The HRlens testing suite is designed to integrate with AI-powered "Healer" tools found in modern IDEs (like the terminal's "Fix with AI" or Sparkle icons). 
+
+When a test fails:
+1. **Trigger the Healer**: Click the "Fix with AI" / Sparkle icon next to the failed test output in your terminal.
+2. **Context Resolution**: The Healer will automatically read the stack trace, the failed test script, and this document (`hr_lens_plan.md`) to understand the intended interaction.
+3. **Automated Fixes**: Because we rely on robust ARIA roles and accessibility locators (detailed in sections 1.1 and 2.1), the Healer can intelligently identify if a locator has changed in the DOM and automatically update the script for you.
+4. **Best Practice**: If a test fails due to a UI update, **always use the Healer first** to attempt an automatic locator update before manually rewriting the test logic.

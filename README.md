@@ -71,7 +71,7 @@ BASE_URL=https://stg-hrlense.jobvritta.com
 API_BASE_URL=https://audit.jobvritta.com/api
 HEADLESS=False
 ADMIN_USERNAME=admin@hrlens.com
-ADMIN_PASSWORD=your_password
+ADMIN_PASSWORD=<your_password>
 ```
 
 ---

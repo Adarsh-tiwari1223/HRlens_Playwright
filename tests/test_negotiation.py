@@ -10,7 +10,7 @@ def employee_page(page):
     # Using 'vivek' as a placeholder for employee login
     creds = settings.USERS["vivek"]
     login_page.login(creds["username"], creds["password"])
-    page.wait_for_selector("text=Logged in Successfully", state="visible")
+    page.wait_for_url("**/dashboard")
     return page
 
 @pytest.mark.regression
@@ -34,3 +34,11 @@ def test_counter_offer(employee_page):
     negotiation_page.enter_counter_offer("10000")
     negotiation_page.submit()
     assert negotiation_page.is_success_visible()
+
+
+@pytest.mark.smoke
+def test_negotiation_page_loads(employee_page):
+    negotiation_page = NegotiationPage(employee_page)
+    negotiation_page.navigate_to_negotiation()
+    assert negotiation_page.is_visible(negotiation_page.ACCEPT_BTN)
+    assert negotiation_page.is_visible(negotiation_page.REJECT_BTN)

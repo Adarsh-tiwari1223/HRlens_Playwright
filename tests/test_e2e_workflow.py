@@ -5,26 +5,28 @@ from pages.increment.increment_page import IncrementPage
 from pages.increment.increment_summary_page import IncrementSummaryPage
 from pages.increment.negotiation_page import NegotiationPage
 
-@pytest.mark.e2e
-def test_full_increment_cycle(page):
-    # 1. Admin Login
+def module_admin_login(page):
+    """Module: Perform Admin Login"""
     page.goto(settings.BASE_URL)
     login_page = LoginPage(page)
     admin_creds = settings.USERS["admin"]
     login_page.login(admin_creds["username"], admin_creds["password"])
-    page.wait_for_selector("text=Logged in Successfully", state="visible")
+    page.wait_for_url("**/dashboard")
 
-    # 2. Setup Assessment
+
+def module_setup_assessment(page):
+    """Module: Admin Setup Assessment"""
     increment_page = IncrementPage(page)
     increment_page.go_to_increment()
-    increment_page.select_company("Tekinspirations")
-    increment_page.select_branch("HQ")
-    increment_page.select_department("Engineering")
-    increment_page.select_date_range("15")
+    increment_page.select_company("TEK Inspirations LLC")
+    increment_page.select_branch("Varanasi")
+    increment_page.select_department("Developer")
     increment_page.run_assessment()
     assert increment_page.is_assessment_open()
 
-    # 3. View Summary (Admin assigns increment - simulated/simplified)
+
+def module_view_summary(page):
+    """Module: Admin View Summary & Assessment Form"""
     summary_page = IncrementSummaryPage(page)
     page.goto(f"{settings.BASE_URL}/increment/summary")
     summary_page.wait_for_grid()
@@ -32,16 +34,29 @@ def test_full_increment_cycle(page):
     summary_page.select_employee("Vivek")
     summary_page.open_assessment_form()
 
-    # 4. Employee Login & Negotiation
+
+def module_employee_negotiation(page):
+    """Module: Employee Login & Negotiation"""
     # Clear context or logout then login as employee
     page.context.clear_cookies()
     page.goto(settings.BASE_URL)
+    
+    login_page = LoginPage(page)
     emp_creds = settings.USERS["vivek"]
     login_page.login(emp_creds["username"], emp_creds["password"])
-    page.wait_for_selector("text=Logged in Successfully", state="visible")
+    page.wait_for_url("**/dashboard")
 
     negotiation_page = NegotiationPage(page)
     negotiation_page.navigate_to_negotiation()
     negotiation_page.enter_counter_offer("15000")
     negotiation_page.submit()
     assert negotiation_page.is_success_visible()
+
+
+@pytest.mark.e2e
+def test_full_increment_cycle(page):
+    """Execute the complete E2E Increment workflow sequentially."""
+    module_admin_login(page)
+    module_setup_assessment(page)
+    module_view_summary(page)
+    module_employee_negotiation(page)

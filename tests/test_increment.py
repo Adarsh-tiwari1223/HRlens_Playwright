@@ -10,7 +10,7 @@ def admin_page(page):
     login_page = LoginPage(page)
     creds = settings.USERS["admin"]
     login_page.login(creds["username"], creds["password"])
-    page.wait_for_selector("text=Logged in Successfully", state="visible")
+    page.wait_for_url("**/dashboard")
     return page
 
 @pytest.mark.regression
@@ -18,9 +18,9 @@ def test_filter_selections(admin_page):
     increment_page = IncrementPage(admin_page)
     increment_page.go_to_increment()
     # Mocking data selection
-    increment_page.select_company("Tekinspirations")
-    increment_page.select_branch("HQ")
-    increment_page.select_department("Engineering")
+    increment_page.select_company("TEK Inspirations LLC")
+    increment_page.select_branch("Varanasi")
+    increment_page.select_department("Developer")
     assert increment_page.is_visible(increment_page.DATE_RANGE)
 
 @pytest.mark.regression
@@ -43,3 +43,12 @@ def test_employee_drilldown(admin_page):
     summary_page.open_assessment_form()
     # Assuming an assessment form modal or page appears
     assert summary_page.is_visible("text=Assessment Form")
+
+
+@pytest.mark.smoke
+def test_increment_page_loads(admin_page):
+    increment_page = IncrementPage(admin_page)
+    increment_page.go_to_increment()
+    assert increment_page.is_visible(increment_page.COMPANY_DROPDOWN)
+    assert increment_page.is_visible(increment_page.BRANCH_DROPDOWN)
+    assert increment_page.is_visible(increment_page.DEPT_DROPDOWN)

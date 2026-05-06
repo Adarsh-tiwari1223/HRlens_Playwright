@@ -30,8 +30,7 @@ ENV/
 pytest_cache/
 
 # Reports
-reports/html/
-reports/allure/
+reports/
 
 # Logs
 logs/
@@ -69,3 +68,14 @@ secrets.py
 auth/
 **/auth.json
 **/storage_state.json
+
+# Trace files
+*.zip
+
+# Logs
+*.log
+
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini

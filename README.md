@@ -3,7 +3,7 @@
 End-to-end test automation for the HRlens Increment Module — Playwright + pytest + API validation.
 
 ![Python](https://img.shields.io/badge/Python-3.9+-blue)
-![Playwright](https://img.shields.io/badge/Playwright-1.44.0-green)
+![Playwright](https://img.shields.io/badge/Playwright-1.49.0-green)
 ![pytest](https://img.shields.io/badge/pytest-8.2.2-orange)
 
 ---

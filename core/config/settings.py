@@ -10,6 +10,7 @@ HEADLESS = os.getenv("HEADLESS", "False").lower() == "true"
 DEFAULT_TIMEOUT = int(os.getenv("DEFAULT_TIMEOUT", "60000"))
 LEAVE_FROM_OFFSET = int(os.getenv("LEAVE_FROM_OFFSET", "1"))
 LEAVE_TO_OFFSET = int(os.getenv("LEAVE_TO_OFFSET", "1"))
+LEAVE_BACK_DATE_OFFSET = int(os.getenv("LEAVE_BACK_DATE_OFFSET", "1"))
 EMPLOYEE_USER = os.getenv("EMPLOYEE_USER", "sanidhy")
 
 USERS = {
@@ -40,6 +41,10 @@ USERS = {
     "ritesh_singh": {
         "username": os.getenv("RITESH_SINGH_USERNAME"),
         "password": os.getenv("RITESH_SINGH_PASSWORD")
+    },
+    "adarsh_tiwari": {
+        "username": os.getenv("ADARSH_TIWARI"),
+        "password": os.getenv("ADARSH_TIWARI_PASSWORD")
     }
 }
 
@@ -49,4 +54,5 @@ APPROVERS = {
     "Vivek Singh": "vivek",
     "Tejaswini Rishivanshi": "tejaswini",
     "Shiva Singh": "shiva",
+    "Ritesh Singh": "ritesh_singh",
 }

@@ -156,6 +156,7 @@ def test_duplicate_leave_shows_error(leave_page):
 @pytest.mark.leave_validation
 def test_blank_required_fields_shows_error(leave_page):
     leave_page.click_submit()
+    leave_page.click_confirm()
     toasts = leave_page.get_all_toasts(leave_page.TOAST)
     assert any("required" in t.lower() for t in toasts), f"Expected validation errors, got: {toasts}"
 
@@ -171,8 +172,9 @@ def test_blank_subject_shows_error(leave_page):
     leave_page.select_leave_type("Vacation Leave")
     leave_page.click_submit()
 
-    toast = leave_page.wait_for_toast(leave_page.TOAST)
-    assert toast, "Expected subject validation error but got nothing"
+    toasts = leave_page.get_all_toasts(leave_page.TOAST)
+    assert any("subject" in t.lower() or "required" in t.lower() for t in toasts), \
+        f"Expected subject validation error, got: {toasts}"
 
 
 @pytest.mark.regression

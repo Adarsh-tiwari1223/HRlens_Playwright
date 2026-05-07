@@ -41,8 +41,12 @@ def headers(user: str = "admin") -> dict:
     return {"Authorization": f"Bearer {get_token(user)}"}
 
 
+def _fmt(data) -> str:
+    return json.dumps(data, indent=2, default=str)
+
+
 def get(endpoint: str, user: str = "admin", params: dict = None) -> dict:
-    logger.info("GET %s | user: %s | params: %s", endpoint, user, params)
+    logger.info("GET %s | user: %s\nparams:\n%s", endpoint, user, _fmt(params))
     response = requests.get(
         f"{settings.API_BASE_URL}/{endpoint}",
         headers=headers(user),
@@ -50,12 +54,12 @@ def get(endpoint: str, user: str = "admin", params: dict = None) -> dict:
     )
     response.raise_for_status()
     body = response.json()
-    logger.info("GET %s → %s: %s", endpoint, response.status_code, body)
+    logger.info("GET %s → %s\n%s", endpoint, response.status_code, _fmt(body))
     return body
 
 
 def post(endpoint: str, user: str = "admin", payload: dict = None) -> dict:
-    logger.info("POST %s | user: %s | payload: %s", endpoint, user, json.dumps(payload, default=str))
+    logger.info("POST %s | user: %s\npayload:\n%s", endpoint, user, _fmt(payload))
     response = requests.post(
         f"{settings.API_BASE_URL}/{endpoint}",
         headers=headers(user),
@@ -66,16 +70,16 @@ def post(endpoint: str, user: str = "admin", payload: dict = None) -> dict:
             body = response.json()
         except Exception:
             body = {"message": response.text}
-        logger.warning("POST %s → 400: %s", endpoint, body)
+        logger.warning("POST %s → 400\n%s", endpoint, _fmt(body))
         return body
     response.raise_for_status()
     body = response.json()
-    logger.info("POST %s → %s: %s", endpoint, response.status_code, body)
+    logger.info("POST %s → %s\n%s", endpoint, response.status_code, _fmt(body))
     return body
 
 
 def put(endpoint: str, user: str = "admin", payload: dict = None) -> dict:
-    logger.info("PUT %s | user: %s | payload: %s", endpoint, user, json.dumps(payload, default=str))
+    logger.info("PUT %s | user: %s\npayload:\n%s", endpoint, user, _fmt(payload))
     response = requests.put(
         f"{settings.API_BASE_URL}/{endpoint}",
         headers=headers(user),
@@ -86,9 +90,9 @@ def put(endpoint: str, user: str = "admin", payload: dict = None) -> dict:
             body = response.json()
         except Exception:
             body = {"message": response.text}
-        logger.warning("PUT %s → 400: %s", endpoint, body)
+        logger.warning("PUT %s → 400\n%s", endpoint, _fmt(body))
         return body
     response.raise_for_status()
     body = response.json()
-    logger.info("PUT %s → %s: %s", endpoint, response.status_code, body)
+    logger.info("PUT %s → %s\n%s", endpoint, response.status_code, _fmt(body))
     return body

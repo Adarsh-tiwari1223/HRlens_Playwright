@@ -47,6 +47,9 @@ def payroll_response(payroll_status):
 @pytest.fixture(scope="module")
 def payroll_records(payroll_response):
     return payroll_response.get("data", [])
+    if not records:
+        pytest.skip("No payroll records returned. Skipping downstream validations to prevent silent passes.")
+    return records
 
 
 # ── Step 3: Fetch employee detail for each record ────────────────────────────

@@ -1,16 +1,12 @@
-name: "Copilot Setup Steps"
+name: "CI - Run Automation Tests"
 
 on:
-  workflow_dispatch:
   push:
-    paths:
-      - .github/workflows/copilot-setup-steps.yml
+    branches: [ main, develop ]
   pull_request:
-    paths:
-      - .github/workflows/copilot-setup-steps.yml
 
 jobs:
-  copilot-setup-steps:
+  test:
     runs-on: ubuntu-latest
 
     permissions:
@@ -19,30 +15,39 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    # 1. Setup Python (Matches your local version)
+    # 1. Python setup
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.10' 
+        python-version: '3.10'
 
-    # 2. Create and Activate Virtual Environment
+    # 2. Install dependencies
     - name: Install dependencies
       run: |
         python -m venv venv
-        source venv/bin/activate  # On Linux/Ubuntu runners
+        source venv/bin/activate
         pip install --upgrade pip
-        pip install pytest-playwright playwright
+        pip install pytest pytest-playwright playwright
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-    # 3. Install Playwright Browsers (Required for the Healer)
+    # 3. Install browsers
     - name: Install Playwright Browsers
       run: |
         source venv/bin/activate
         playwright install --with-deps chromium
 
-    # 4. Verify Environment for Copilot
-    - name: Verify Setup
+    # 4. Run Tests (IMPORTANT)
+    - name: Run Smoke + API Tests
       run: |
         source venv/bin/activate
-        pytest --version
-        python -c "import playwright; print('Playwright Ready')"
+        pytest -m "smoke or api" --maxfail=1 --disable-warnings -v
+
+    # 5. Upload Reports (Optional but recommended)
+    - name: Upload Test Report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: pytest-report
+        path: |
+          .pytest_cache
+          test-results

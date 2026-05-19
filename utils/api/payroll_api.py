@@ -1,6 +1,8 @@
 import json
 import time
 import logging
+import os
+from datetime import datetime
 from utils.api.base_api import get
 
 logger = logging.getLogger(__name__)
@@ -60,7 +62,11 @@ def find_branch_id(branch_name: str, company_name: str = None, user: str = "admi
         return matches[0]["id"]
     if len(matches) == 0:
         available = sorted({b["branch_Name"] for b in branches})
-        raise ValueError(f"Branch '{branch_name}' not found. Available: {available}")
+        msg = f"Branch '{branch_name}'"
+        if company_name:
+            msg += f" for company '{company_name}'"
+        msg += f" not found. Available branches: {available}"
+        raise ValueError(msg)
     # Ambiguous — show options
     options = "\n".join(
         f"  id={b['id']}  branch='{b['branch_Name']}'  company='{b['company_Name']}'"
@@ -122,3 +128,37 @@ def wait_for_payroll_complete(year: int, month: int, branch_id: int,
         f"Payroll not complete after {timeout}s "
         f"(year={year}, month={month}, branchId={branch_id})"
     )
+
+
+def flag_payroll_generated(year: int, month: int, branch_id: int,
+                           branch_name: str = None, company_name: str = None,
+                           department_id: int = 0, user: str = "admin") -> str:
+    """
+    Check payroll status and create a flag file if payroll is fully generated.
+    Returns the path to the flag file if created, otherwise None.
+    """
+    status_list = get_payroll_status(year, month, branch_id, department_id, user)
+    pending_count = next(
+        (s["count"] for s in status_list if s.get("status") == "pending"), 0
+    )
+
+    if pending_count == 0:
+        # Create flag file with current date
+        logs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "logs")
+        os.makedirs(logs_dir, exist_ok=True)
+
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        flag_file_path = os.path.join(logs_dir, "payroll_generated_flag.txt")
+
+        with open(flag_file_path, "w") as f:
+            f.write(f"Payroll fully generated on {current_date}\n")
+            f.write(f"Year: {year}, Month: {month}, Branch ID: {branch_id}\n")
+            if branch_name:
+                f.write(f"Branch Name: {branch_name}\n")
+            if company_name:
+                f.write(f"Company Name: {company_name}\n")
+
+        logger.info(f"Payroll flag file created: {flag_file_path}")
+        return flag_file_path
+
+    return None

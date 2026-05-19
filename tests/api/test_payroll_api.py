@@ -9,7 +9,7 @@ from pages.payroll.payroll_page import PayrollPage
 YEAR = 2026
 MONTH = 4
 BRANCH_NAME = "Varanasi"
-COMPANY_NAME = "TEK Inspirations LLC"
+COMPANY_NAME = "Infoserv LLC"
 BRANCH_ID = find_branch_id(BRANCH_NAME, COMPANY_NAME)
 REQUIRED_FIELDS = {"employeeCode", "employeeName", "basic", "hra", "netSalary", "tds",
                    "totalEarnings", "totalDeductions",}

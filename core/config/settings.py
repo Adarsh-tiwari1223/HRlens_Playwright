@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
-ENV = os.getenv("ENV", "dev")
+ENV = os.getenv("ENV", "dev").strip()
 # Load .env file first, then environment-specific .env.stg or .env.prod
 load_dotenv(".env")  # Always load base .env first
 if ENV != "dev":
@@ -21,17 +21,17 @@ API_BASE_URL_LEGACY = os.getenv("API_BASE_URL")
 
 # Determine active API_BASE_URL based on ENV
 if ENV == "prod":
-    API_BASE_URL = API_BASE_URL_PROD or API_BASE_URL_LEGACY
+    API_BASE_URL = (API_BASE_URL_PROD or API_BASE_URL_LEGACY or "").strip()
 elif ENV == "stg":
-    API_BASE_URL = API_BASE_URL_STG or API_BASE_URL_LEGACY
+    API_BASE_URL = (API_BASE_URL_STG or API_BASE_URL_LEGACY or "").strip()
 else:
-    API_BASE_URL = API_BASE_URL_LEGACY
+    API_BASE_URL = (API_BASE_URL_LEGACY or "").strip()
 
 print("\n" + "="*50)
 print("🚀 HRlens Playwright - Active Configuration")
 print("="*50)
 print("ENV:        " + ENV)
-print("API URL:    " + API_BASE_URL)
+print("API URL:    " + str(API_BASE_URL))
 print("="*50 + "\n")
 
 logger.info(f"Active ENV: {ENV}")

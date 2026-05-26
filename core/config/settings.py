@@ -1,11 +1,42 @@
 import os
+import logging
 from dotenv import load_dotenv
 
-ENV = os.getenv("ENV", "dev")
-load_dotenv(f".env.{ENV}" if ENV != "dev" else ".env")
+logger = logging.getLogger(__name__)
+
+ENV = os.getenv("ENV", "dev").strip()
+# Load .env file first, then environment-specific .env.stg or .env.prod
+load_dotenv(".env")  # Always load base .env first
+if ENV != "dev":
+    load_dotenv(f".env.{ENV}", override=True)  # Override with stg/prod values
 
 BASE_URL = os.getenv("BASE_URL")
-API_BASE_URL = os.getenv("API_BASE_URL")
+
+# New: Explicit STG and PROD API URLs
+API_BASE_URL_STG = os.getenv("API_BASE_URL_STG")
+API_BASE_URL_PROD = os.getenv("API_BASE_URL_PROD")
+
+# Legacy fallback
+API_BASE_URL_LEGACY = os.getenv("API_BASE_URL")
+
+# Determine active API_BASE_URL based on ENV
+if ENV == "prod":
+    API_BASE_URL = (API_BASE_URL_PROD or API_BASE_URL_LEGACY or "").strip()
+elif ENV == "stg":
+    API_BASE_URL = (API_BASE_URL_STG or API_BASE_URL_LEGACY or "").strip()
+else:
+    API_BASE_URL = (API_BASE_URL_LEGACY or "").strip()
+
+print("\n" + "="*50)
+print("🚀 HRlens Playwright - Active Configuration")
+print("="*50)
+print("ENV:        " + ENV)
+print("API URL:    " + str(API_BASE_URL))
+print("="*50 + "\n")
+
+logger.info(f"Active ENV: {ENV}")
+logger.info(f"Active API URL: {API_BASE_URL}")
+
 HEADLESS = os.getenv("HEADLESS", "False").lower() == "true"
 DEFAULT_TIMEOUT = int(os.getenv("DEFAULT_TIMEOUT", "60000"))
 LEAVE_FROM_OFFSET = int(os.getenv("LEAVE_FROM_OFFSET", "1"))

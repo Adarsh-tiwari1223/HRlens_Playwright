@@ -1,6 +1,8 @@
 import os
+import re
 import pytest
 from datetime import datetime
+from typing import Any
 from utils.api.payroll_api import (
     get_payroll_status,
     get_payroll_list,
@@ -9,6 +11,7 @@ from utils.api.payroll_api import (
     get_balance_leave,
     get_branches,
     find_branch_id,
+    
 )
 
 YEAR = 2026
@@ -35,7 +38,7 @@ def pending_employees():
 
 
 @pytest.fixture(scope="module")
-def pending_employee_data(pending_employees):
+def pending_employee_data(pending_employees: Any):
     result = []
     for emp in pending_employees:
         result.append({
@@ -115,7 +118,7 @@ def _missing_blockers(e: dict) -> list[str]:
 
 @pytest.mark.api
 @pytest.mark.payroll
-def test_pending_payroll_blocker_report(pending_employee_data):
+def test_pending_payroll_blocker_report(pending_employee_data: list):
     total = len(pending_employee_data)
     blocked_by = {}  # field -> list of names
     all_blocked = []
@@ -165,12 +168,12 @@ def test_pending_payroll_blocker_report(pending_employee_data):
         existing = open(filename, "r", encoding="utf-8").read()
         if section_marker in existing:
             # Replace the existing section for this branch+month
-            import re
+            # Use [=]{70} to match "=" repeated 70 times (not literal "=70")
             pattern = re.compile(
-                r"={70}\nPENDING PAYROLL BLOCKER REPORT — " + re.escape(section_marker) + r".*?={70}",
+                r"[=]{70}\nPENDING PAYROLL BLOCKER REPORT — " + re.escape(section_marker) + r".*?[=]{70}",
                 re.DOTALL
             )
-            updated = pattern.sub(report.strip().lstrip("\n"), existing)
+            updated = pattern.sub(report.strip(), existing)
             with open(filename, "w", encoding="utf-8") as f:
                 f.write(updated)
         else:

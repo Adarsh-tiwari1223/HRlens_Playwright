@@ -23,12 +23,18 @@ def _is_token_expired(token: str) -> bool:
 def get_token(user: str = "admin") -> str:
     if user not in _token_cache or _is_token_expired(_token_cache[user]):
         creds = settings.USERS[user]
-        response = requests.post(f"{settings.API_BASE_URL}/user/login", json={
+        login_url = f"{settings.API_BASE_URL}/user/login"
+        payload = {
             "email": creds["username"],
             "user": creds["username"],
             "password": creds["password"]
-        })
-        response.raise_for_status()
+        }
+        logger.info(f"Attempting login to: {login_url}")
+        logger.info(f"Payload: {json.dumps(payload, default=str)}")
+        response = requests.post(login_url, json=payload)
+        if response.status_code != 200:
+            logger.error(f"Login failed: {response.status_code} - {response.text}")
+            response.raise_for_status()
         _token_cache[user] = response.json()["token"]
     return _token_cache[user]
 

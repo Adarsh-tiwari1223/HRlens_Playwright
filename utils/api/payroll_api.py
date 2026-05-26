@@ -237,6 +237,29 @@ def map_payroll_to_excel(year: int, month: int, payroll_company_id: int,
     }
 
 
+def get_payroll_companies(user: str = "admin") -> list:
+    """GET /Hrlense_PayrollCompany — returns all payroll companies with id and payrollCompanyName."""
+    resp = get("Hrlense_PayrollCompany", user=user)
+    return resp if isinstance(resp, list) else resp.get("data", [])
+
+
+def find_payroll_company_id(name_fragment: str, user: str = "admin") -> int:
+    """
+    Look up payroll company ID by partial name match (case-insensitive).
+    Raises ValueError if no match or ambiguous.
+    """
+    companies = get_payroll_companies(user=user)
+    fragment = name_fragment.strip().lower()
+    matches = [c for c in companies if fragment in c["payrollCompanyName"].strip().lower()]
+    if len(matches) == 1:
+        return matches[0]["id"]
+    if len(matches) == 0:
+        available = [c["payrollCompanyName"] for c in companies]
+        raise ValueError(f"No payroll company matching '{name_fragment}'. Available: {available}")
+    options = [(c["id"], c["payrollCompanyName"]) for c in matches]
+    raise ValueError(f"Ambiguous match for '{name_fragment}': {options}")
+
+
 def get_branches(user: str = "admin") -> list:
     """GET /Hrlense_Branch — fetch all branches."""
     resp = get("Hrlense_Branch", user=user, params={

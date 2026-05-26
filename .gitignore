@@ -40,6 +40,7 @@ allure-results/
 
 # Test data (dynamic)
 testdata/dynamic/
+testdata/static/PayrollData
 
 # IDE
 .idea/
@@ -71,6 +72,7 @@ auth/
 
 # Trace files
 *.zip
+*.xlsx
 
 # Logs
 *.log

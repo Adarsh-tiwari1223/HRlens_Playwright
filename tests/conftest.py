@@ -7,7 +7,7 @@ from core.config import settings
 def pytest_configure(config):
     """Print active configuration at start of test session."""
     print("\n" + "="*50)
-    print("🚀 HRlens Playwright - Active Configuration")
+    print("HRlens Playwright - Active Configuration")
     print("="*50)
     print("ENV:        " + settings.ENV)
     print("API URL:    " + settings.API_BASE_URL)

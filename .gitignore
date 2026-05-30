@@ -40,7 +40,7 @@ allure-results/
 
 # Test data (dynamic)
 testdata/dynamic/
-testdata/static/PayrollData
+testdata/static/PayrollData/
 
 # IDE
 .idea/

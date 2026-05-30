@@ -4,9 +4,9 @@ from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
-ENV = os.getenv("ENV", "dev").strip()
 # Load .env file first, then environment-specific .env.stg or .env.prod
 load_dotenv(".env")  # Always load base .env first
+ENV = os.getenv("ENV", "dev").strip()
 if ENV != "dev":
     load_dotenv(f".env.{ENV}", override=True)  # Override with stg/prod values
 
@@ -28,7 +28,7 @@ else:
     API_BASE_URL = (API_BASE_URL_LEGACY or "").strip()
 
 print("\n" + "="*50)
-print("🚀 HRlens Playwright - Active Configuration")
+print("HRlens Playwright - Active Configuration")
 print("="*50)
 print("ENV:        " + ENV)
 print("API URL:    " + str(API_BASE_URL))

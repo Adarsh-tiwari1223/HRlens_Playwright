@@ -31,7 +31,7 @@ def get_token(user: str = "admin") -> str:
         }
         logger.info(f"Attempting login to: {login_url}")
         logger.info(f"Payload: {json.dumps(payload, default=str)}")
-        response = requests.post(login_url, json=payload)
+        response = requests.post(login_url, json=payload, timeout=30)
         if response.status_code != 200:
             logger.error(f"Login failed: {response.status_code} - {response.text}")
             response.raise_for_status()
@@ -56,7 +56,8 @@ def get(endpoint: str, user: str = "admin", params: dict = None) -> dict:
     response = requests.get(
         f"{settings.API_BASE_URL}/{endpoint}",
         headers=headers(user),
-        params=params
+        params=params,
+        timeout=30
     )
     response.raise_for_status()
     body = response.json()
@@ -69,7 +70,8 @@ def post(endpoint: str, user: str = "admin", payload: dict = None) -> dict:
     response = requests.post(
         f"{settings.API_BASE_URL}/{endpoint}",
         headers=headers(user),
-        json=payload
+        json=payload,
+        timeout=30
     )
     if response.status_code == 400:
         try:
@@ -89,7 +91,8 @@ def put(endpoint: str, user: str = "admin", payload: dict = None) -> dict:
     response = requests.put(
         f"{settings.API_BASE_URL}/{endpoint}",
         headers=headers(user),
-        json=payload
+        json=payload,
+        timeout=30
     )
     if response.status_code == 400:
         try:

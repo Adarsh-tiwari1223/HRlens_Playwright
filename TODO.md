@@ -7,7 +7,7 @@ When payroll status shows "SKIPPED (No pending employees — payroll fully gener
 
 - [x] 1. Add `flag_payroll_generated()` function in utils/api/payroll_api.py
 - [x] 2. The function checks if pending == 0 and creates a flag file with date
-- [ ] 3. Test the implementation
+- [x] 3. Test the implementation (integrated in [test_payroll_pending.py](file:///c:/Users/User/Desktop/Tekinspirations/HRlens_Playwright/tests/api/test_payroll_pending.py) and added a mock unit test in [test_flag_payroll_mocked.py](file:///c:/Users/User/Desktop/Tekinspirations/HRlens_Playwright/scratch/test_flag_payroll_mocked.py))
 
 ## Details
 - Flag file location: logs/payroll_generated_flag.txt

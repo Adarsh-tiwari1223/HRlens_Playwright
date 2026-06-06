@@ -81,3 +81,10 @@ auth/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Documentation and Specs
+specs/
+
+# Scratch files
+scratch/
+TODO.md

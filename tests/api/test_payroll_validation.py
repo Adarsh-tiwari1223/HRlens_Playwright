@@ -44,20 +44,30 @@ FUZZY_CUTOFF       = 0.85
 COL_NAME = 4
 COL_CODE = 7
 
-# (col_index, label, api_field, is_numeric, needs_confirmation)
-FIELD_MAP = [
-    (9,  "Salary Days",               "paidDays",             True,  False),
-    (15, "Basic Amt. (Earned)",        "basic",                True,  False),
-    (16, "H.R.A Amt. (Earned)",        "hra",                  True,  False),
-    (17, "Conv. Amt. (Earned)",        "conveyance_Allowance", True,  False),
-    (18, "INCENTIVE",                  "incentive",            True,  False),
-    (20, "DEDUCTIONS P.F.",            "employee_PF",          True,  False),
-    (21, "DEDUCTIONS E.S.I.",          "esic_Employee",        True,  False),
-    (23, "DEDUCTIONS T.D.S.",          "tds",                  True,  False),
-    (24, "TOT. Ded.",                  "totalDeductions",      True,  False),
-    (25, "Net Payable",                "netSalary",            True,  False),
-    (26, "Reserve Leave after Apr'26", "balance_Leave",        True,  True),
+# (Label, Excel_Col_Idx, Profile_Field, Release_Field)
+VALIDATION_FIELDS = [
+    ("Basic",          15,   "basic_salary",        "basic"),
+    ("HRA",            16,   "hra",                 "hra"),
+    ("Conveyance",     17,   "conveyance",          "conveyance_Allowance"),
+    ("Incentive",      18,   None,                  "incentive"),
+    ("Employee PF",    20,   "employeePF",          "employee_PF"),
+    ("Employer PF",    None, "employerPF",          "employer_PF"),
+    ("TDS",            23,   None,                  "tds"),
+    ("Net Salary",     25,   "netTakeHomeSalary",   "netSalary"),
+    ("Balance Leave",  26,   None,                  "balance_Leave"),
 ]
+
+FIELD_HEADERS = {
+    "Basic": ["Basic Excel", "Basic Profile", "Basic Payroll Release", "Basic Payroll Diff"],
+    "HRA": ["HRA Excel", "HRA Profile", "HRA Payroll Release", "HRA Payroll Diff"],
+    "Conveyance": ["Conveyance Excel", "Conveyance Profile", "Conveyance Payroll Release", "Conveyance Payroll Diff"],
+    "Incentive": ["Incentive Excel", "Incentive Payroll Release", "Incentive Payroll Diff"],
+    "Employee PF": ["Employee PF Excel", "Employee PF Profile", "Employee PF Payroll Release", "Employee PF Diff"],
+    "Employer PF": ["Employer PF Excel", "Employer PF Profile", "Employer PF Payroll Release", "Employer PF Diff"],
+    "TDS": ["TDS Excel", "TDS Payroll Release", "TDS Diff"],
+    "Net Salary": ["Net Salary Excel", "Net Salary Profile", "Net Salary Payroll Release", "Net Salary Diff"],
+    "Balance Leave": ["Balance Leave Excel", "Balance Leave Payroll Release", "Balance Leave Diff"],
+}
 
 # ---------------------------------------------------------------------------
 # HELPERS
@@ -96,8 +106,7 @@ def is_blank(val) -> bool:
 # ---------------------------------------------------------------------------
 
 def read_excel(path: str, sheet: str) -> pd.DataFrame:
-    df = pd.read_excel(path, sheet_name=sheet, header=None)
-    return df.iloc[7:].reset_index(drop=True)
+    return pd.read_excel(path, sheet_name=sheet, header=None)
 
 
 # ---------------------------------------------------------------------------
@@ -135,32 +144,64 @@ def find_api_record(excel_name, excel_code, composite_lookup, name_lookup):
     return None, None
 
 
+# Profile Cache to minimize API calls
+_profile_cache = {}
+
+def get_cached_profile(emp_id: int) -> dict:
+    if emp_id not in _profile_cache:
+        try:
+            from utils.api.payroll_api import get_employee_detail
+            _profile_cache[emp_id] = get_employee_detail(emp_id)
+        except Exception:
+            _profile_cache[emp_id] = {}
+    return _profile_cache[emp_id]
+
+
 # ---------------------------------------------------------------------------
 # STEP 4: Compare fields for one matched employee row
 # ---------------------------------------------------------------------------
 
-def compare_fields(raw_row, excel_name, excel_code, api_rec, match_type) -> list:
+def compare_fields(raw_row, excel_name, excel_code, api_rec, match_type, validation_fields_to_use=None) -> list:
+    emp_id = api_rec.get("employeeId")
+    profile_rec = get_cached_profile(emp_id) if emp_id else {}
+
+    if validation_fields_to_use is None:
+        validation_fields_to_use = VALIDATION_FIELDS
+
     results = []
-    for col_idx, label, api_field, is_numeric, needs_confirm in FIELD_MAP:
-        excel_val = raw_row.iloc[col_idx] if col_idx < len(raw_row) else None
-        if needs_confirm:
-            results.append({
-                "Employee Name": excel_name, "Employee Code": excel_code,
-                "Match Type": match_type,    "Field Name": label,
-                "Excel Value": safe_float(excel_val), "API Value": api_rec.get(api_field, "—"),
-                "Status": "Skipped", "Remarks": "Needs Business Confirmation",
-            })
-            continue
-        api_val   = api_rec.get(api_field)
-        excel_num = safe_float(excel_val)
-        api_num   = safe_float(api_val)
-        passed    = excel_num == api_num
+    for label, excel_col, profile_field, release_field in validation_fields_to_use:
+        # Excel Value
+        if excel_col is not None:
+            excel_raw = raw_row.iloc[excel_col] if excel_col < len(raw_row) else 0.0
+            excel_val = safe_float(excel_raw)
+        else:
+            excel_val = 0.0
+
+        # Profile Value
+        if profile_field is not None:
+            profile_val = safe_float(profile_rec.get(profile_field))
+        else:
+            profile_val = 0.0
+
+        # Release Value
+        release_val = safe_float(api_rec.get(release_field))
+
+        # Diff Value (Excel - Payroll Release)
+        diff_val = round(excel_val - release_val, 2)
+
+        passed = (excel_val == release_val)
+
         results.append({
-            "Employee Name": excel_name, "Employee Code": excel_code,
-            "Match Type": match_type,    "Field Name": label,
-            "Excel Value": excel_num,    "API Value": api_num,
+            "Employee Name": excel_name,
+            "Employee Code": excel_code,
+            "Match Type": match_type,
+            "Field Name": label,
+            "Excel Value": excel_val,
+            "API Value": release_val,
+            "Profile Value": profile_val,
+            "Payroll Release Value": release_val,
+            "Diff Value": diff_val,
             "Status": "Pass" if passed else "Fail",
-            "Remarks": f"API field: {api_field}",
         })
     return results
 
@@ -169,13 +210,149 @@ def compare_fields(raw_row, excel_name, excel_code, api_rec, match_type) -> list
 # STEP 5: Iterate all Excel rows
 # ---------------------------------------------------------------------------
 
+def compare_fields_no_excel(excel_name, excel_code, api_rec) -> list:
+    emp_id = api_rec.get("employeeId")
+    profile_rec = get_cached_profile(emp_id) if emp_id else {}
+
+    results = []
+    for label, excel_col, profile_field, release_field in VALIDATION_FIELDS:
+        # Excel Value is NA
+        excel_val = "NA"
+
+        # Profile Value
+        if profile_field is not None:
+            profile_val = safe_float(profile_rec.get(profile_field))
+        else:
+            profile_val = 0.0
+
+        # Release Value
+        release_val = safe_float(api_rec.get(release_field))
+
+        # Diff Value is NA
+        diff_val = "NA"
+
+        results.append({
+            "Employee Name": excel_name,
+            "Employee Code": excel_code,
+            "Match Type": "—",
+            "Field Name": label,
+            "Excel Value": excel_val,
+            "API Value": release_val,
+            "Profile Value": profile_val,
+            "Payroll Release Value": release_val,
+            "Diff Value": diff_val,
+            "Status": "Fail",
+        })
+    return results
+
+
 def run_comparison(df, composite_lookup, name_lookup) -> list:
     detail_rows, matched_keys = [], set()
 
-    for _, raw_row in df.iterrows():
-        raw_name = raw_row.iloc[COL_NAME]
-        raw_code = raw_row.iloc[COL_CODE]
+    if df is None or df.empty:
+        # No Excel file, compare all API records with "NA" Excel values
+        for (api_name, api_code), rec in composite_lookup.items():
+            detail_rows.extend(compare_fields_no_excel(rec.get("employeeName", ""), api_code, rec))
+        return detail_rows
+
+    # 1. Detect Header Rows and Merge Consecutive Headers
+    header_row_idx = -1
+    for idx in range(min(15, len(df))):
+        row = df.iloc[idx]
+        row_vals = [str(val).strip().lower() for val in row if pd.notna(val)]
+        has_name = any("name" in val for val in row_vals)
+        has_code = any(any(x in val for x in ["code", "id", "emp.", "emp"]) for val in row_vals)
+        if has_name and has_code:
+            header_row_idx = idx
+            break
+
+    if header_row_idx == -1:
+        header_row_idx = 5
+        header_rows = [5]
+    else:
+        header_rows = [header_row_idx]
+        if header_row_idx + 1 < min(15, len(df)):
+            after_row = df.iloc[header_row_idx + 1]
+            after_vals = [str(val).strip().lower() for val in after_row if pd.notna(val)]
+            sub_terms = ["basic", "hra", "conv", "pf", "esi", "tds", "payable", "days", "leave", "deduction", "stipend"]
+            if any(any(term in val for term in sub_terms) for val in after_vals):
+                header_rows.append(header_row_idx + 1)
+
+    num_cols = len(df.columns)
+    merged_headers = []
+    for c_idx in range(num_cols):
+        parts = []
+        for r_idx in header_rows:
+            cell_val = df.iloc[r_idx, c_idx]
+            if pd.notna(cell_val):
+                cell_str = str(cell_val).replace("\n", " ").strip()
+                cell_str = " ".join(cell_str.split())
+                if cell_str and cell_str not in parts:
+                    parts.append(cell_str)
+        merged = " ".join(parts)
+        merged_headers.append(" ".join(merged.split()).lower())
+
+    # Detect Name and Code columns
+    col_name = -1
+    col_code = -1
+    for idx, h in enumerate(merged_headers):
+        if "name" in h and not any(x in h for x in ["father", "company", "bank", "branch"]):
+            col_name = idx
+            break
+    for idx, h in enumerate(merged_headers):
+        if any(x in h for x in ["code", "emp id", "employee id", "hrlenseid"]) and not "company" in h:
+            col_code = idx
+            break
+    if col_code == -1:
+        for idx, h in enumerate(merged_headers):
+            if h == "emp" or h == "emp.":
+                col_code = idx
+                break
+
+    if col_name == -1:
+        col_name = COL_NAME
+    if col_code == -1:
+        col_code = COL_CODE
+
+    # Map validation fields dynamically
+    field_keywords = {
+        "Basic": ["basic salary", "basic + da", "basic+da", "stipend", "basic"],
+        "HRA": ["h.r.a. amt.", "hra amt.", "h.r.a.", "hra"],
+        "Conveyance": ["conv. amt.", "conveyance", "conv.", "conveyance allowance"],
+        "Incentive": ["incentive", "spcl. alw.", "special allowance", "special alw", "allowance", "incentives"],
+        "Employee PF": ["deductions p.f.", "pf deduction", "employee pf", "pf", "p.f.", "esic & pf", "provident"],
+        "Employer PF": ["employer pf", "employer p.f.", "employer_pf"],
+        "TDS": ["deductions t.d.s.", "tds", "t.d.s."],
+        "Net Salary": ["net payable", "net salary", "net amount", "total net", "net payable salary", "payable"],
+        "Balance Leave": ["earned leave", "casual leave", "reserve leave", "balance leave", "cl", "el"]
+    }
+
+    local_validation_fields = []
+    for label, excel_col_default, profile_field, release_field in VALIDATION_FIELDS:
+        keywords = field_keywords.get(label, [])
+        best_idx = -1
+        for idx, h in enumerate(merged_headers):
+            for kw in keywords:
+                if kw == h or kw in h:
+                    best_idx = idx
+                    break
+        if best_idx != -1:
+            local_validation_fields.append((label, best_idx, profile_field, release_field))
+        else:
+            local_validation_fields.append((label, None, profile_field, release_field))
+
+    start_row = header_rows[-1] + 1
+    data_df = df.iloc[start_row:].reset_index(drop=True)
+
+    for _, raw_row in data_df.iterrows():
+        raw_name = raw_row.iloc[col_name] if col_name < len(raw_row) else None
+        raw_code = raw_row.iloc[col_code] if col_code < len(raw_row) else None
         if is_blank(raw_name) and is_blank(raw_code):
+            continue
+
+        name_str = str(raw_name).strip().lower() if not is_blank(raw_name) else ""
+        code_str = str(raw_code).strip().lower() if not is_blank(raw_code) else ""
+        if any(x in name_str or x in code_str for x in ["total", "subtotal", "grand total", "dept total", "amount", "summary", "total:"]):
             continue
 
         excel_name = normalize_name(raw_name) if not is_blank(raw_name) else ""
@@ -197,7 +374,8 @@ def run_comparison(df, composite_lookup, name_lookup) -> list:
                    normalize_code(api_rec.get("employeeCode", "")))
         matched_keys.add(api_key)
         detail_rows.extend(compare_fields(raw_row, str(raw_name).strip(),
-                                          excel_code, api_rec, match_type))
+                                          excel_code, api_rec, match_type,
+                                          validation_fields_to_use=local_validation_fields))
 
     for (api_name, api_code), rec in composite_lookup.items():
         if (api_name, api_code) not in matched_keys:
@@ -210,6 +388,7 @@ def run_comparison(df, composite_lookup, name_lookup) -> list:
             })
 
     return detail_rows
+
 
 
 # ---------------------------------------------------------------------------
@@ -228,8 +407,7 @@ def build_wide_rows(detail_rows: list):
         emp_fields[key][r["Field Name"]] = r
         emp_match_type[key] = r["Match Type"]
 
-    field_labels = [label for (_, label, _, _, needs_confirm) in FIELD_MAP
-                    if not needs_confirm]
+    field_labels = [f[0] for f in VALIDATION_FIELDS]
 
     wide_rows = []
     for key in emp_order:
@@ -242,20 +420,29 @@ def build_wide_rows(detail_rows: list):
         any_fail = False
         for label in field_labels:
             fr = emp_fields[key].get(label)
+            headers = FIELD_HEADERS[label]
             if fr:
                 excel_v = fr["Excel Value"]
-                api_v   = fr["API Value"]
-                try:
-                    diff = round(float(excel_v) - float(api_v), 2)
-                except (TypeError, ValueError):
-                    diff = "—"
+                profile_v = fr["Profile Value"]
+                release_v = fr["Payroll Release Value"]
+                diff_v = fr["Diff Value"]
                 if fr["Status"] == "Fail":
                     any_fail = True
             else:
-                excel_v = api_v = diff = "—"
-            row[f"{label} Excel"] = excel_v
-            row[f"{label} API"]   = api_v
-            row[f"{label} Diff"]  = diff
+                excel_v = profile_v = release_v = diff_v = "—"
+
+            if len(headers) == 4:
+                excel_col_name, profile_col_name, release_col_name, diff_col_name = headers
+                row[excel_col_name] = excel_v
+                row[profile_col_name] = profile_v
+                row[release_col_name] = release_v
+                row[diff_col_name] = diff_v
+            else:
+                excel_col_name, release_col_name, diff_col_name = headers
+                row[excel_col_name] = excel_v
+                row[release_col_name] = release_v
+                row[diff_col_name] = diff_v
+
         row["Final Status"] = "Fail" if any_fail else "Pass"
         wide_rows.append(row)
 
@@ -295,7 +482,7 @@ def build_tables(detail_rows: list, api_total: int = 0):
         name, code = key
         match_type = emp_match_type[key]
         is_fuzzy   = "FUZZY" in match_type
-        net_row    = fields.get("Net Payable")
+        net_row    = fields.get("Net Salary")
         excel_net  = net_row["Excel Value"] if net_row else "—"
         api_net    = net_row["API Value"]   if net_row else "—"
         net_match  = net_row and net_row["Status"] == "Pass"
@@ -332,13 +519,13 @@ def build_tables(detail_rows: list, api_total: int = 0):
 
     n_exact          = len(exact_paid) + len(exact_diff)
     n_fuzzy          = len(seen_spelling)
-    n_total_matched  = len(emp_fields)   # all employees that were matched (exact + fuzzy)
+    n_total_matched  = len(emp_fields)
     n_salary_match  = len(exact_paid)
     n_salary_diff   = len(exact_diff)
     n_not_api       = len(not_found)
     n_not_excel     = len(not_in_excel)
     n_excel_total   = n_total_matched + n_not_api
-    n_api_total     = api_total  # use actual totalRecords from API response
+    n_api_total     = api_total
 
     t1 = [
         {"Category": "Excel Records (Source)",     "Count": n_excel_total},
@@ -380,20 +567,24 @@ def build_tables(detail_rows: list, api_total: int = 0):
 # STEP 7: Save single multi-sheet Excel workbook
 # ---------------------------------------------------------------------------
 
-def save_workbook(wide_rows, field_labels, t1, t2, t3, t4, t5, t6, t7) -> str:
+def save_workbook(wide_rows, field_labels, t1, t2, t3, t4, t5, t6, t7, custom_path=None, company_name=None) -> str:
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
 
     os.makedirs(REPORTS_DIR, exist_ok=True)
-    ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
-    path = f"{REPORTS_DIR}/payroll_validation_report_{ts}.xlsx"
+    if custom_path:
+        path = custom_path
+    else:
+        ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
+        path = f"{REPORTS_DIR}/payroll_validation_report_{ts}.xlsx"
 
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
 
     MONTH_NAME   = datetime(YEAR, MONTH, 1).strftime("%B %Y").upper()
-    REPORT_TITLE = f"PAYROLL MAPPING REPORT  —  {COMPANY}  —  {BRANCH}  —  {MONTH_NAME}"
+    c_name = company_name if company_name else COMPANY
+    REPORT_TITLE = f"PAYROLL MAPPING REPORT  —  {c_name}  —  {BRANCH}  —  {MONTH_NAME}"
 
     HDR_FILL   = PatternFill("solid", fgColor="1F4E79")
     HDR_FONT   = Font(bold=True, color="FFFFFF", size=11)
@@ -452,7 +643,7 @@ def save_workbook(wide_rows, field_labels, t1, t2, t3, t4, t5, t6, t7) -> str:
     fixed_cols = ["Employee Name", "Employee Code", "Match Type"]
     field_cols = []
     for label in field_labels:
-        field_cols += [f"{label} Excel", f"{label} API", f"{label} Diff"]
+        field_cols += FIELD_HEADERS[label]
     all_cols = fixed_cols + field_cols + ["Final Status"]
     write_header(ws0, all_cols)
 
@@ -462,16 +653,41 @@ def save_workbook(wide_rows, field_labels, t1, t2, t3, t4, t5, t6, t7) -> str:
     for r in wide_rows:
         values = [r["Employee Name"], r["Employee Code"], r["Match Type"]]
         for label in field_labels:
-            values += [r[f"{label} Excel"], r[f"{label} API"], r[f"{label} Diff"]]
+            headers = FIELD_HEADERS[label]
+            if len(headers) == 4:
+                excel_col_name, profile_col_name, release_col_name, diff_col_name = headers
+                values += [r[excel_col_name], r[profile_col_name], r[release_col_name], r[diff_col_name]]
+            else:
+                excel_col_name, release_col_name, diff_col_name = headers
+                values += [r[excel_col_name], r[release_col_name], r[diff_col_name]]
         values.append(r["Final Status"])
         write_row(ws0, values)
 
+    # Find indices of all diff columns (1-indexed for openpyxl)
+    diff_col_indices = []
+    for col_idx, col_name in enumerate(all_cols, 1):
+        if col_name.endswith("Diff"):
+            diff_col_indices.append(col_idx)
+
     for row_idx in range(data_start_row, ws0.max_row + 1):
-        cell = ws0.cell(row=row_idx, column=final_status_col)
-        if cell.value == "Pass":
-            cell.fill = PASS_FILL
-        elif cell.value == "Fail":
-            cell.fill = FAIL_FILL
+        # Color final status
+        status_cell = ws0.cell(row=row_idx, column=final_status_col)
+        if status_cell.value == "Pass":
+            status_cell.fill = PASS_FILL
+        elif status_cell.value == "Fail":
+            status_cell.fill = FAIL_FILL
+
+        # Color non-zero diff columns
+        for diff_col_idx in diff_col_indices:
+            diff_cell = ws0.cell(row=row_idx, column=diff_col_idx)
+            try:
+                val = float(diff_cell.value)
+                if abs(val) > 0.001:
+                    diff_cell.fill = FAIL_FILL
+                    diff_cell.font = Font(bold=True, color="9C0006")
+            except (ValueError, TypeError):
+                pass
+
     autofit(ws0)
 
     # ── T1: Summary ───────────────────────────────────────────────────────
@@ -525,16 +741,46 @@ def save_workbook(wide_rows, field_labels, t1, t2, t3, t4, t5, t6, t7) -> str:
     write_total(ws4, len(t4))
     autofit(ws4)
 
-    # ── T5: All Salary Differences (exact + fuzzy) ────────────────────────
+    # ── T5: All Salary Differences (Wide View for Fails) ──────────────────
     ws5 = make_sheet("T5 Difference")
-    ws5.append(["TABLE 5: DIFFERENCE (Parent Salary != Payroll Salary)"])
+    ws5.append(["TABLE 5: DIFFERENCE (Failed Matches)"])
     ws5[f"A{ws5.max_row}"].font = Font(bold=True, size=12)
-    write_header(ws5, ["#", "Employee Name", "Employee Code",
-                        "Parent Salary", "Payroll Salary", "Difference"])
-    for r in t5:
-        write_row(ws5, [r["#"], r["Employee Name"], r["Employee Code"],
-                        r["Parent Salary"], r["Payroll Salary"], r["Difference"]], FAIL_FILL)
-    write_total(ws5, len(t5))
+
+    write_header(ws5, all_cols)
+
+    fail_rows = [r for r in wide_rows if r["Final Status"] == "Fail"]
+    for r in fail_rows:
+        values = [r["Employee Name"], r["Employee Code"], r["Match Type"]]
+        for label in field_labels:
+            headers = FIELD_HEADERS[label]
+            if len(headers) == 4:
+                excel_col_name, profile_col_name, release_col_name, diff_col_name = headers
+                values += [r[excel_col_name], r[profile_col_name], r[release_col_name], r[diff_col_name]]
+            else:
+                excel_col_name, release_col_name, diff_col_name = headers
+                values += [r[excel_col_name], r[release_col_name], r[diff_col_name]]
+        values.append(r["Final Status"])
+        write_row(ws5, values)
+
+    for row_idx in range(data_start_row, ws5.max_row + 1):
+        # Color final status
+        status_cell = ws5.cell(row=row_idx, column=final_status_col)
+        if status_cell.value == "Pass":
+            status_cell.fill = PASS_FILL
+        elif status_cell.value == "Fail":
+            status_cell.fill = FAIL_FILL
+
+        # Color non-zero diff columns
+        for diff_col_idx in diff_col_indices:
+            diff_cell = ws5.cell(row=row_idx, column=diff_col_idx)
+            try:
+                val = float(diff_cell.value)
+                if abs(val) > 0.001:
+                    diff_cell.fill = FAIL_FILL
+                    diff_cell.font = Font(bold=True, color="9C0006")
+            except (ValueError, TypeError):
+                pass
+
     autofit(ws5)
 
     # ── T6: Not in Payroll (Excel → no API match) ─────────────────────────
@@ -609,13 +855,24 @@ def test_payroll_excel_vs_api_field_level():
     print(f"{'='*58}")
     print(f"  Report: {report_path}")
 
-    if t5:
-        print(f"\nDifferences (first 30 of {len(t5)}):")
-        for r in t5[:30]:
-            print(f"  [{r['Employee Code']}] {r['Employee Name']:<30} "
-                  f"| Excel={r['Parent Salary']}  API={r['Payroll Salary']}  Diff={r['Difference']}")
+    fail_rows = [r for r in wide_rows if r["Final Status"] == "Fail"]
+    if fail_rows:
+        print(f"\nDifferences (first 30 of {len(fail_rows)}):")
+        for r in fail_rows[:30]:
+            mismatches = []
+            for label in field_labels:
+                headers = FIELD_HEADERS[label]
+                if len(headers) == 4:
+                    excel_col_name, _, release_col_name, _ = headers
+                else:
+                    excel_col_name, release_col_name, _ = headers
+                excel_val = r[excel_col_name]
+                release_val = r[release_col_name]
+                if excel_val != release_val:
+                    mismatches.append(f"{label}: Excel={excel_val} API={release_val}")
+            print(f"  [{r['Employee Code']}] {r['Employee Name']:<30} | {', '.join(mismatches)}")
 
-    assert not t5, (
-        f"{len(t5)} employee(s) have Net Payable mismatch. "
+    assert not fail_rows, (
+        f"{len(fail_rows)} employee(s) have field mismatches. "
         "See T5 Difference sheet for details."
     )

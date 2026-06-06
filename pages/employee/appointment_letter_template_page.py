@@ -1,26 +1,27 @@
 import re
+import pytest
 from pages.base_page import BasePage
-from testdata.static.offer_letter_sections import OFFER_LETTER_SECTIONS
+from testdata.static.appointment_letter_sections import APPOINTMENT_LETTER_SECTIONS
 from testdata.static.companies import COMPANIES
 
 
-class OfferLetterTemplatePage(BasePage):
+class AppointmentLetterTemplatePage(BasePage):
     # ── Selectors ─────────────────────────────────────────────────────────────
     ADMIN_CONTROL       = "a:has-text('Admin Control')"
     OFFER_LETTER_MENU   = "a:has-text('Offer Letter Template')"
     TEMPLATE_SELECT_BTN = ".css-9qrvd0"
     ADD_SECTION_BTN     = "button:has-text('Add Section')"
     SEPARATE_ITEMS_TEXT = "text=Use | to separate items ·"
-    TITLE_INPUT         = "[placeholder='e.g. Salary and Perks:-']"
+    TITLE_INPUT         = "[placeholder='e.g. Assignment:-']"
     CONTENT_INPUT       = "[placeholder='Enter content here...']"
     SAVE_BTN            = "button:has-text('Save')"
     UPDATE_BTN          = "button:has-text('Update')"
     ORDER_LABEL         = "label:has-text('Order')"
 
     # ── Navigation ─────────────────────────────────────────────────────────────
-    def navigate_to_offer_letter_template(self):
+    def navigate_to_appointment_letter_template(self):
         self.page.get_by_role("link", name="Admin Control").click()
-        self.page.get_by_role("link", name="• Offer Letter Template").click()
+        self.page.get_by_role("link", name="• Appointment Letter Template").click()
         self.page.wait_for_load_state("networkidle")
 
     def select_company(self, company_name: str):
@@ -61,16 +62,24 @@ class OfferLetterTemplatePage(BasePage):
         self.page.get_by_role("button", name="Add Section").click()
         self.page.get_by_text("Use | to separate items ·").click()
 
-        # Select the Section Key dropdown
+        # Select the Section Key dropdown (Bug fixed by Dev)
         try:
             self.page.get_by_label("Section Key").select_option(section["key"], timeout=5000)
         except Exception as e:
             print(f"[WARN] Could not select Section Key '{section['key']}': {e}")
 
-        # Fill title
-        title_field = self.page.get_by_role("textbox", name="Title").last
+        # Fill title field
+        title_field = self.page.get_by_placeholder("e.g. Assignment:-").first
         title_field.click()
         title_field.fill(section["title"])
+
+        # Select Style dynamically from test data
+        try:
+            style_combo = self.page.get_by_role("combobox", name="Style")
+            style_name = section.get("style", "Paragraph")
+            style_combo.select_option(label=style_name, timeout=3000)
+        except Exception as e:
+            print(f"[WARN] Could not dynamically select Style '{section.get('style')}': {e}")
 
         # Fill content editor
         content_field = self.page.get_by_placeholder("Enter content here...").first
@@ -120,7 +129,7 @@ class OfferLetterTemplatePage(BasePage):
         Tracks the order variable across iterations for speed.
         """
         current_order = 1
-        for section in OFFER_LETTER_SECTIONS:
+        for section in APPOINTMENT_LETTER_SECTIONS:
             success, final_order = self.add_section(section, start_order=current_order)
             if success:
                 # Start searching for the next section's order one slot higher
@@ -134,6 +143,12 @@ class OfferLetterTemplatePage(BasePage):
         # Open the Add Section dialog
         self.page.get_by_role("button", name="Add Section").click()
         self.page.get_by_text("Use | to separate items ·").click()
+
+        # Select the Section Key dropdown
+        try:
+            self.page.get_by_label("Section Key").select_option(section["key"], timeout=5000)
+        except Exception as e:
+            print(f"[WARN] Could not select Section Key '{section['key']}': {e}")
 
         # Fill title and content
         self.page.locator(self.TITLE_INPUT).fill(section["title"])
@@ -160,7 +175,7 @@ class OfferLetterTemplatePage(BasePage):
     # ── READ ───────────────────────────────────────────────────────────────────
     def read_section(self, section_key: str) -> bool:
         """[READ] Assert the section title is visible on the page."""
-        section = next((s for s in OFFER_LETTER_SECTIONS if s["key"] == section_key), None)
+        section = next((s for s in APPOINTMENT_LETTER_SECTIONS if s["key"] == section_key), None)
         assert section, f"Unknown section key: '{section_key}'"
         
         # User provided: page.locator("p").filter(has_text=re.compile(r"^PROBATION$"))
@@ -173,7 +188,7 @@ class OfferLetterTemplatePage(BasePage):
 
     def read_all_sections(self):
         """[READ ALL] Assert every section title is visible on the page."""
-        for section in OFFER_LETTER_SECTIONS:
+        for section in APPOINTMENT_LETTER_SECTIONS:
             self.read_section(section["key"])
 
     def get_current_orders(self) -> dict:
@@ -182,7 +197,7 @@ class OfferLetterTemplatePage(BasePage):
         reading the true Order value, and closing it. Returns a mapping of {section_key: current_order}.
         """
         current_state = {}
-        for section in OFFER_LETTER_SECTIONS:
+        for section in APPOINTMENT_LETTER_SECTIONS:
             section_key = section["key"]
             row = self.page.locator("div").filter(
                 has=self.page.locator("p").filter(has_text=re.compile(f"^{section_key}$"))
@@ -218,7 +233,7 @@ class OfferLetterTemplatePage(BasePage):
         [UPDATE] Click the Edit label for the target section, update title and/or
         content, click Update, and assert the section is still visible after update.
         """
-        section = next((s for s in OFFER_LETTER_SECTIONS if s["key"] == section_key), None)
+        section = next((s for s in APPOINTMENT_LETTER_SECTIONS if s["key"] == section_key), None)
         assert section, f"Unknown section key: '{section_key}'"
 
         # We find a common ancestor <div> that contains both the <p> with our key,
@@ -274,7 +289,6 @@ class OfferLetterTemplatePage(BasePage):
                 order_field.fill(str(enforce_order))
 
         self.page.get_by_role("button", name="Update").click()
-
         
         # Check for errors (like 'Sort order already exists' if there's a conflict)
         try:
@@ -337,7 +351,7 @@ class OfferLetterTemplatePage(BasePage):
                 dialog.get_by_role("button", name="Activate", exact=True).click(timeout=1500)
         except Exception:
             pass # No confirmation modal appeared
-            
+        
         # Capture and assert the resulting toast notification
         try:
             toast = self.page.locator("[role='status'], [role='alert'], .chakra-toast, .Toastify__toast").first

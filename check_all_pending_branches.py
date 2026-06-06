@@ -51,8 +51,8 @@ def _missing_blockers(e: dict) -> list[str]:
         missing.append("Date of Joining (date_Of_Joining is null)")
 
     # 8. Balance Leave
-    if not lv.get("balanceLeaves"):
-        missing.append("Balance Leave (balanceLeaves is empty)")
+    if not lv.get("balanceLeaves", []) and not lv.get("data", []):
+        missing.append("Balance Leave (no balance leave records configured)")
 
     # 9. Salary
     if not (d.get("basic_salary") or 0) > 0:

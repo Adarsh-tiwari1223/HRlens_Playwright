@@ -33,7 +33,6 @@ HRlens_Playwright/
 │   │   ├── leave_page.py
 │   │   └── regularization_page.py
 │   ├── employee/
-│   │   └── employee_page.py
 │   └── increment/
 │       ├── increment_page.py
 │       └── negotiation_page.py

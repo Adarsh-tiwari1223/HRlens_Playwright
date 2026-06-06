@@ -314,13 +314,43 @@ def get_bank_detail(employee_id: int, user: str = "admin") -> dict:
     return get("Hrlense_Employee/bankAccountDetail", user=user, params={"employeeId": employee_id})
 
 
+_balance_leaves_cache = None
+
+
 def get_balance_leave(employee_id: int, user: str = "admin") -> dict:
-    """GET /Hrlense_BalanceLeave — fetch leave balance for an employee."""
-    return get("Hrlense_BalanceLeave", user=user, params={
-        "lazyParams": json.dumps({"first": 0, "rows": 20, "page": 0, "sortField": "", "sortOrder": 1}),
-        "filter": json.dumps({"employeeId": employee_id}),
-        "search": ""
-    })
+    """GET /Hrlense_BalanceLeave — fetch leave balance for an employee (client-side cached)."""
+    global _balance_leaves_cache
+    if _balance_leaves_cache is None:
+        try:
+            # Fetch all records at once (up to 10000)
+            res = get("Hrlense_BalanceLeave", user=user, params={
+                "lazyParams": json.dumps({"first": 0, "rows": 10000, "page": 0, "sortField": "", "sortOrder": 1}),
+                "filter": json.dumps({}),
+                "search": ""
+            })
+            records = res.get("balanceLeaves") or res.get("totalBalanceLeave") or []
+            # Group records by employeeId
+            cache = {}
+            for r in records:
+                eid = r.get("employeeId")
+                if eid:
+                    cache.setdefault(eid, []).append(r)
+            _balance_leaves_cache = cache
+            logger.info("Successfully fetched and cached %d leave balance records.", len(records))
+        except Exception as e:
+            logger.error("Failed to fetch all balance leaves: %s", e)
+            _balance_leaves_cache = {}
+
+    # Look up in cache
+    emp_leaves = _balance_leaves_cache.get(employee_id, [])
+    total_val = emp_leaves[0].get("totalBalanceLeave", 0.0) if emp_leaves else 0.0
+    return {
+        "balanceLeaves": emp_leaves,
+        "data": emp_leaves,
+        "totalBalanceLeave": total_val,
+        "totalCount": len(emp_leaves)
+    }
+
 
 
 def wait_for_payroll_complete(year: int, month: int, branch_id: int,

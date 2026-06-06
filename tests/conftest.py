@@ -2,7 +2,21 @@ import pytest
 from playwright.sync_api import sync_playwright
 from pages.login_page import LoginPage
 from core.config import settings
+from testdata.static.companies import COMPANIES
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--company", action="store", default="Code Crewzs Private Limited", 
+        help="Specify company to test against, or 'all' to run against all companies"
+    )
+
+def pytest_generate_tests(metafunc):
+    if "template_company" in metafunc.fixturenames:
+        company_opt = metafunc.config.getoption("--company")
+        if company_opt.lower() == "all":
+            metafunc.parametrize("template_company", COMPANIES)
+        else:
+            metafunc.parametrize("template_company", [company_opt])
 
 def pytest_configure(config):
     """Print active configuration at start of test session."""

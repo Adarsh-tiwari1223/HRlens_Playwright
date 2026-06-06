@@ -8,6 +8,7 @@ import openpyxl
 import pandas as pd
 from datetime import datetime
 from collections import defaultdict
+from utils.api.payroll_api import get_branches
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
@@ -672,7 +673,19 @@ class PayrollReconciliationAgent:
                 api_field = logical_field
                 
                 # Special handling for field names if they differ in API response
-                api_val = api_rec.get(api_field)
+                if logical_field == "balance_Leave":
+                    try:
+                        from utils.api.payroll_api import get_balance_leave
+                        leave_resp = get_balance_leave(api_rec["employeeId"])
+                        leaves_list = leave_resp.get("balanceLeaves", [])
+                        if leaves_list:
+                            api_val = leaves_list[0].get("totalBalanceLeave", 0.0)
+                        else:
+                            api_val = 0.0
+                    except Exception:
+                        api_val = 0.0
+                else:
+                    api_val = api_rec.get(api_field)
                 
                 if logical_field == "balance_Leave":
                     # Compare leave balance (handle as floats if numeric, else normalized strings)
@@ -786,14 +799,15 @@ class PayrollReconciliationAgent:
         filename = f"payroll_validation_{slug}_{self.sheet_name}.xlsx"
         report_path = os.path.join(output_dir, filename)
 
-        # Back up existing Excel report if it exists
-        if os.path.exists(report_path):
-            backup_path = f"{report_path}.bak_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            try:
-                shutil.copy2(report_path, backup_path)
-                logger.info(f"Backed up existing Excel report to: {backup_path}")
-            except Exception as e:
-                logger.warning(f"Could not back up existing Excel report: {e}")
+        # Fetch branches dynamically from API to map branchId to actual Company and Branch name
+        try:
+            branches = get_branches()
+            branch_map = {b["id"]: {"company": b.get("company_Name", ""), "branch": b.get("branch_Name", "")} for b in branches}
+        except Exception as e:
+            logger.warning(f"Failed to fetch branches from API: {e}")
+            branch_map = {}
+
+        # Overwrite existing Excel report directly without creating a .bak file
 
         wb = openpyxl.Workbook()
         wb.remove(wb.active) # remove default sheet
@@ -903,7 +917,7 @@ class PayrollReconciliationAgent:
             lbl = df_key.replace("_", " ").title()
             field_cols.extend([f"{lbl} Excel", f"{lbl} API", f"{lbl} Diff"])
 
-        all_headers = ["#", "Employee Name", "Employee Code", "Match Type"] + field_cols + ["Final Status"]
+        all_headers = ["#", "Employee Name", "Company", "Branch", "Employee Code", "Match Type"] + field_cols + ["Final Status"]
         write_header(ws0, all_headers)
 
         fs_col = len(all_headers)
@@ -923,15 +937,27 @@ class PayrollReconciliationAgent:
             status_text = "Fail" if row_mismatches else "Pass"
             row_fill = FAIL_FILL if status_text == "Fail" else PASS_FILL
 
-            vals = [t0_idx, excel_name, excel_code, match_info["match_type"]]
-            t0_idx += 1
-            
             # Match against API record
             api_rec = None
             for rec in api_records:
                 if normalize_code(rec.get("employeeCode", "")) == excel_code:
                     api_rec = rec
                     break
+
+            emp_company = self.display_company
+            emp_branch = self.display_branch
+            if api_rec:
+                b_id = api_rec.get("branchId")
+                if b_id and b_id in branch_map:
+                    emp_company = branch_map[b_id]["company"] or emp_company
+                    emp_branch = branch_map[b_id]["branch"] or emp_branch
+
+            if not excel_code:
+                emp_company = ""
+                emp_branch = ""
+
+            vals = [t0_idx, excel_name, emp_company, emp_branch, excel_code, match_info["match_type"]]
+            t0_idx += 1
 
             for df_key in detail_fields:
                 excel_v = er.get(df_key, 0.0)
@@ -1014,7 +1040,7 @@ class PayrollReconciliationAgent:
             lbl = df_key.replace("_", " ").title()
             field_cols.extend([f"{lbl} Excel", f"{lbl} API", f"{lbl} Diff"])
 
-        all_headers_t2 = ["#", "Employee Name", "Employee Code", "Match Type"] + field_cols + ["Mismatched Fields"]
+        all_headers_t2 = ["#", "Employee Name", "Company", "Branch", "Employee Code", "Match Type"] + field_cols + ["Mismatched Fields"]
         write_header(ws2, all_headers_t2)
 
         # Get codes that have mismatches
@@ -1035,14 +1061,26 @@ class PayrollReconciliationAgent:
             mismatched_field_names = [m["field"].replace("_", " ").title() for m in row_mismatches]
             mismatched_str = ", ".join(mismatched_field_names)
 
-            vals = [t2_idx, excel_name, excel_code, match_type]
-            t2_idx += 1
-
             api_rec = None
             for rec in api_records:
                 if normalize_code(rec.get("employeeCode", "")) == excel_code:
                     api_rec = rec
                     break
+
+            emp_company = self.display_company
+            emp_branch = self.display_branch
+            if api_rec:
+                b_id = api_rec.get("branchId")
+                if b_id and b_id in branch_map:
+                    emp_company = branch_map[b_id]["company"] or emp_company
+                    emp_branch = branch_map[b_id]["branch"] or emp_branch
+
+            if not excel_code:
+                emp_company = ""
+                emp_branch = ""
+
+            vals = [t2_idx, excel_name, emp_company, emp_branch, excel_code, match_type]
+            t2_idx += 1
 
             for df_key in detail_fields:
                 excel_v = er.get(df_key, 0.0)
@@ -1067,14 +1105,14 @@ class PayrollReconciliationAgent:
             row_num = ws2.max_row
             mismatch_field_keys = {m["field"] for m in row_mismatches}
             
-            # Highlight Employee Name and Code
-            ws2.cell(row=row_num, column=2).fill = WARN_FILL
-            ws2.cell(row=row_num, column=3).fill = WARN_FILL
+            # Highlight Employee Name, Company, Branch, and Code
+            for c_idx in range(2, 6):
+                ws2.cell(row=row_num, column=c_idx).fill = WARN_FILL
             
             # Highlight each mismatched field's Excel, API, and Diff cells in red
             for f_idx, df_key in enumerate(detail_fields):
                 if df_key in mismatch_field_keys:
-                    start_col = 5 + f_idx * 3 # 1-indexed: # is 1, Name is 2, Code is 3, MatchType is 4, so first field Excel is at col 5
+                    start_col = 7 + f_idx * 3 # 1-indexed: # is 1, Name is 2, Company is 3, Branch is 4, Code is 5, MatchType is 6
                     for col_offset in range(3):
                         cell = ws2.cell(row=row_num, column=start_col + col_offset)
                         cell.fill = FAIL_FILL
@@ -1088,11 +1126,11 @@ class PayrollReconciliationAgent:
         ws3 = make_sheet("T3 Duplicates")
         ws3.append(["TABLE 3: DUPLICATE AND DATA VALIDATION ALERTS"])
         ws3[f"A{ws3.max_row}"].font = Font(bold=True, size=12)
-        write_header(ws3, ["#", "Alert Type", "Excel Row", "Value", "Employee Info"])
+        write_header(ws3, ["#", "Alert Type", "Company", "Branch", "Excel Row", "Value", "Employee Info"])
         
         for idx, d in enumerate(self.duplicates, 1):
             emp_info = d.get("employee_name", d.get("employee_code", ""))
-            write_row(ws3, [idx, d["type"], d["row"], d.get("value", "—"), emp_info], WARN_FILL)
+            write_row(ws3, [idx, d["type"], self.display_company, self.display_branch, d["row"], d.get("value", "—"), emp_info], WARN_FILL)
         write_total(ws3, len(self.duplicates))
         autofit(ws3)
 
@@ -1102,10 +1140,12 @@ class PayrollReconciliationAgent:
         ws4 = make_sheet("T4 Missing in API")
         ws4.append(["TABLE 4: UNMATCHED EMPLOYEES (In Excel, No Match in API)"])
         ws4[f"A{ws4.max_row}"].font = Font(bold=True, size=12)
-        write_header(ws4, ["#", "Employee Name", "Employee Code", "Excel Row", "Net Payable Salary"])
+        write_header(ws4, ["#", "Employee Name", "Company", "Branch", "Employee Code", "Excel Row", "Net Payable Salary"])
         
         for idx, u in enumerate(comparison_results["missing_in_api"], 1):
-            write_row(ws4, [idx, u["employee_name"], u["employee_code"], u["excel_row"], u["net_payable"]], WARN_FILL)
+            emp_company = self.display_company if u["employee_code"] else ""
+            emp_branch = self.display_branch if u["employee_code"] else ""
+            write_row(ws4, [idx, u["employee_name"], emp_company, emp_branch, u["employee_code"], u["excel_row"], u["net_payable"]], WARN_FILL)
         write_total(ws4, len(comparison_results["missing_in_api"]))
         autofit(ws4)
 
@@ -1115,10 +1155,12 @@ class PayrollReconciliationAgent:
         ws5 = make_sheet("T5 Missing in Excel")
         ws5.append(["TABLE 5: UNMATCHED EMPLOYEES (In API, Not found in Excel)"])
         ws5[f"A{ws5.max_row}"].font = Font(bold=True, size=12)
-        write_header(ws5, ["#", "Employee Name (API)", "Employee Code (API)", "Expected Net Payable"])
+        write_header(ws5, ["#", "Employee Name (API)", "Company", "Branch", "Employee Code (API)", "Expected Net Payable"])
         
         for idx, u in enumerate(comparison_results["missing_in_payroll"], 1):
-            write_row(ws5, [idx, u["employee_name"], u["employee_code"], u["net_payable"]], WARN_FILL)
+            emp_company = self.display_company if u["employee_code"] else ""
+            emp_branch = self.display_branch if u["employee_code"] else ""
+            write_row(ws5, [idx, u["employee_name"], emp_company, emp_branch, u["employee_code"], u["net_payable"]], WARN_FILL)
         write_total(ws5, len(comparison_results["missing_in_payroll"]))
         autofit(ws5)
 

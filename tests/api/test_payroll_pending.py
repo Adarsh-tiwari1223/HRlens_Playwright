@@ -11,13 +11,13 @@ from utils.api.payroll_api import (
     get_balance_leave,
     get_branches,
     find_branch_id,
-    
+    flag_payroll_generated,
 )
 
 YEAR = 2026
 MONTH = 4
 BRANCH_NAME = "Varanasi"
-COMPANY_NAME = "TEK Inspirations LLC"  # set to None if branch name is unique
+COMPANY_NAME = "Jobvritta Inc"  # set to None if branch name is unique
 BRANCH_ID = find_branch_id(BRANCH_NAME, COMPANY_NAME)
 
 
@@ -30,6 +30,17 @@ def pending_employees():
         (s["count"] for s in status_list if s.get("status") == "pending"), 0
     )
     if pending_count == 0:
+        branches = get_branches()
+        branch_info = next((b for b in branches if b["id"] == BRANCH_ID), {})
+        b_name = branch_info.get("branch_Name", BRANCH_NAME)
+        c_name = branch_info.get("company_Name", COMPANY_NAME)
+        flag_payroll_generated(
+            year=YEAR,
+            month=MONTH,
+            branch_id=BRANCH_ID,
+            branch_name=b_name,
+            company_name=c_name
+        )
         pytest.skip("No pending employees — payroll fully generated.")
     response = get_payroll_list(year=YEAR, month=MONTH, branch_id=BRANCH_ID, status="pending")
     records = response.get("data", [])
@@ -91,9 +102,9 @@ def _missing_blockers(e: dict) -> list[str]:
     if not d.get("date_Of_Joining"):
         missing.append("Date of Joining (date_Of_Joining is null)")
 
-    # 8. Balance Leave — balanceLeaves key, empty list = not configured
-    if not lv.get("balanceLeaves"):
-        missing.append("Balance Leave (balanceLeaves is empty)")
+    # 8. Balance Leave — empty list = not configured
+    if not lv.get("balanceLeaves", []) and not lv.get("data", []):
+        missing.append("Balance Leave (no balance leave records configured)")
 
     # 9. Salary — basic_salary from employee detail must be > 0
     if not (d.get("basic_salary") or 0) > 0:

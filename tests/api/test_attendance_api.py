@@ -11,7 +11,10 @@ FROM_DATE    = f"{YEAR}-{MONTH:02d}-01"
 TO_DATE      = f"{YEAR}-{MONTH:02d}-{calendar.monthrange(YEAR, MONTH)[1]}"
 BRANCH_NAME  = "Varanasi"
 COMPANY_NAME = "TEK Inspirations LLC"
-BRANCH_ID    = find_branch_id(BRANCH_NAME, COMPANY_NAME)
+
+@pytest.fixture(scope="module")
+def branch_id():
+    return find_branch_id(BRANCH_NAME, COMPANY_NAME)
 
 REQUIRED_ATTENDANCE_FIELDS = {"employeeId", "employeeName", "present", "absent", "halfDay", "totalDays"}
 
@@ -19,9 +22,9 @@ REQUIRED_ATTENDANCE_FIELDS = {"employeeId", "employeeName", "present", "absent",
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
 @pytest.fixture(scope="module")
-def payroll_records():
+def payroll_records(branch_id):
     """Only generated records have meaningful salary data."""
-    records = get_payroll_list(year=YEAR, month=MONTH, branch_id=BRANCH_ID).get("data", [])
+    records = get_payroll_list(year=YEAR, month=MONTH, branch_id=branch_id).get("data", [])
     generated = [r for r in records if r.get("status") == "generated"]
     if not generated:
         pytest.skip("No generated payroll records — skipping attendance tests.")

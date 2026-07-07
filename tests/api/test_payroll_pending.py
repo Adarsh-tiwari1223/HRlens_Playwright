@@ -18,31 +18,34 @@ YEAR = 2026
 MONTH = 4
 BRANCH_NAME = "Varanasi"
 COMPANY_NAME = "Jobvritta Inc"  # set to None if branch name is unique
-BRANCH_ID = find_branch_id(BRANCH_NAME, COMPANY_NAME)
+
+@pytest.fixture(scope="module")
+def branch_id():
+    return find_branch_id(BRANCH_NAME, COMPANY_NAME)
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
 @pytest.fixture(scope="module")
-def pending_employees():
-    status_list = get_payroll_status(year=YEAR, month=MONTH, branch_id=BRANCH_ID)
+def pending_employees(branch_id):
+    status_list = get_payroll_status(year=YEAR, month=MONTH, branch_id=branch_id)
     pending_count = next(
         (s["count"] for s in status_list if s.get("status") == "pending"), 0
     )
     if pending_count == 0:
         branches = get_branches()
-        branch_info = next((b for b in branches if b["id"] == BRANCH_ID), {})
+        branch_info = next((b for b in branches if b["id"] == branch_id), {})
         b_name = branch_info.get("branch_Name", BRANCH_NAME)
         c_name = branch_info.get("company_Name", COMPANY_NAME)
         flag_payroll_generated(
             year=YEAR,
             month=MONTH,
-            branch_id=BRANCH_ID,
+            branch_id=branch_id,
             branch_name=b_name,
             company_name=c_name
         )
         pytest.skip("No pending employees — payroll fully generated.")
-    response = get_payroll_list(year=YEAR, month=MONTH, branch_id=BRANCH_ID, status="pending")
+    response = get_payroll_list(year=YEAR, month=MONTH, branch_id=branch_id, status="pending")
     records = response.get("data", [])
     assert records, f"Status shows {pending_count} pending but /Payroll returned empty list"
     return records

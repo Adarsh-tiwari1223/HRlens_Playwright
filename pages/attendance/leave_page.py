@@ -22,7 +22,7 @@ class LeavePage(BasePage):
     ATTENDANCE_LINK = "a:has-text('Attendance')"
     LEAVES_REQUEST_LINK = "a:has-text('Leaves Request')"
     SEARCH_INPUT = "input[placeholder*='Search Employee by name']"
-    SUBMIT_BTN = "button:has-text('Apply')"
+    SUBMIT_BTN = "button:has-text('Apply') >> nth=0"
     CONFIRM_BTN = "button:has-text('Confirm')"
 
     def click_my_leave(self):

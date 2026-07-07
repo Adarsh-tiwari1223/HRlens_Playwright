@@ -28,9 +28,13 @@ def pytest_configure(config):
     print("="*50 + "\n")
 
 CONTEXT_OPTIONS = {
-    "viewport": {"width": 1920, "height": 1080},
     "permissions": ["clipboard-read", "clipboard-write"]
 }
+
+if settings.HEADLESS:
+    CONTEXT_OPTIONS["viewport"] = {"width": 1920, "height": 1080}
+else:
+    CONTEXT_OPTIONS["no_viewport"] = True
 
 
 @pytest.fixture(scope="session")

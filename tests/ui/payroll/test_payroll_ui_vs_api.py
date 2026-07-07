@@ -6,7 +6,10 @@ YEAR = 2026
 MONTH = 4
 BRANCH_NAME = "Varanasi"
 COMPANY_NAME = "TEK Inspirations LLC"
-BRANCH_ID = find_branch_id(BRANCH_NAME, COMPANY_NAME)
+
+@pytest.fixture(scope="module")
+def branch_id():
+    return find_branch_id(BRANCH_NAME, COMPANY_NAME)
 
 
 # ── Step 1: Run payroll via UI ────────────────────────────────────────────────
@@ -29,9 +32,9 @@ def ui_rows(payroll_page):
 # ── Step 2: Poll status until complete, then fetch API data ───────────────────
 
 @pytest.fixture(scope="module")
-def api_response(payroll_page):
-    wait_for_payroll_complete(year=YEAR, month=MONTH, branch_id=BRANCH_ID)
-    return get_payroll_list(year=YEAR, month=MONTH, branch_id=BRANCH_ID)
+def api_response(payroll_page, branch_id):
+    wait_for_payroll_complete(year=YEAR, month=MONTH, branch_id=branch_id)
+    return get_payroll_list(year=YEAR, month=MONTH, branch_id=branch_id)
 
 
 @pytest.fixture(scope="module")

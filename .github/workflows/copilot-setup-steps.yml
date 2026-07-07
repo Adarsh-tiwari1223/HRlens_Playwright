@@ -5,6 +5,9 @@ on:
     branches: [ main, develop ]
   pull_request:
 
+env:
+  ENV: stg
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -14,6 +17,12 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+
+    - name: Create .env file
+      run: |
+        cat << 'EOF' > .env
+        ${{ secrets.ENV_FILE }}
+        EOF
 
     # 1. Python setup
     - name: Set up Python
@@ -51,3 +60,41 @@ jobs:
         path: |
           .pytest_cache
           test-results
+
+  merge:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set Git Identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge to main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref_name }}" = "develop" ]; then
+            echo "Merging develop into main..."
+            git checkout main
+            git merge origin/develop --no-ff -m "Merge branch 'develop' into main [skip ci]"
+            git push origin main
+          elif [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.base_ref }}" = "main" ]; then
+            echo "Merging pull request #${{ github.event.pull_request.number }} into main..."
+            gh pr merge ${{ github.event.pull_request.number }} --merge --delete-branch || {
+              # Fallback: if gh cli fails, try git merge
+              git checkout main
+              git merge FETCH_HEAD --no-ff -m "Merge PR #${{ github.event.pull_request.number }} into main [skip ci]"
+              git push origin main
+            }
+          else
+            echo "Skipping merge for event: ${{ github.event_name }} on branch: ${{ github.ref_name }}"
+          fi

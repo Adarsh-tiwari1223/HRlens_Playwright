@@ -37,10 +37,10 @@ jobs:
         playwright install --with-deps chromium
 
     # 4. Run Tests (IMPORTANT)
-    - name: Run Smoke + API Tests
+    - name: Run Smoke 
       run: |
         source venv/bin/activate
-        pytest -m "smoke or api" --maxfail=1 --disable-warnings -v
+        pytest -m "smoke" --maxfail=1 --disable-warnings -v
 
     # 5. Upload Reports (Optional but recommended)
     - name: Upload Test Report

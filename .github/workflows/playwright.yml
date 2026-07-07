@@ -1,16 +1,16 @@
-name: "Copilot Setup Steps"
+name: "Playwright Tests"
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - .github/workflows/copilot-setup-steps.yml
+      - .github/workflows/playwright.yml
   pull_request:
     paths:
-      - .github/workflows/copilot-setup-steps.yml
+      - .github/workflows/playwright.yml
 
 jobs:
-  copilot-setup-steps:
+  playwright-tests:
     runs-on: ubuntu-latest
 
     permissions:

@@ -7,6 +7,7 @@ on:
 
 env:
   ENV: stg
+  HEADLESS: "True"
 
 jobs:
   test:

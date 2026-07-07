@@ -17,36 +17,32 @@ class LeavePage(BasePage):
     FROM_DATE_COL = "td:nth-child(4)"
     TO_DATE_COL = "td:nth-child(6)"
     TOAST = "#chakra-toast-manager-top-right"
-
-    
-    
+    MY_LEAVES_LINK = "role=link[name=/MyLeaves/i], a:has-text('MyLeaves')"
+    LEAVE_APPLY_LINK = "a:has-text('Leave Apply')"
+    ATTENDANCE_LINK = "a:has-text('Attendance')"
+    LEAVES_REQUEST_LINK = "a:has-text('Leaves Request')"
+    SEARCH_INPUT = "input[placeholder*='Search Employee by name']"
+    SUBMIT_BTN = "button:has-text('Apply')"
+    CONFIRM_BTN = "text=Confirm, button:has-text('Confirm')"
 
     def click_my_leave(self):
-        logger.info("Clicking MyLeaves nav link")
-        self.page.get_by_role("link", name=re.compile(r"MyLeaves", re.IGNORECASE)).click()
+        self.click(self.MY_LEAVES_LINK)
 
     def click_leave_apply(self):
-        logger.info("Clicking Leave Apply sub-menu")
-        self.page.get_by_role("link", name="• Leave Apply").click()
+        self.click(self.LEAVE_APPLY_LINK)
 
     def click_attendance(self):
-        logger.info("Clicking Attendance nav link")
-        self.page.get_by_role("link", name="Attendance", exact=True).click()
+        self.click(self.ATTENDANCE_LINK)
+
     def click_leave_request(self, employee_name: str = None):
-        logger.info("Clicking Leaves Request sub-menu")
-        self.page.get_by_role("link", name="• Leaves Request").click()
+        self.click(self.LEAVES_REQUEST_LINK)
         if employee_name:
             logger.info(f"Searching for employee: {employee_name}")
-            search = self.page.get_by_role("textbox", name="Search Employee by name....")
-            search.click()
-            for char in employee_name:
-                search.type(char)
-                self.page.wait_for_timeout(50)
+            self.click(self.SEARCH_INPUT)
+            self.page.locator(self.SEARCH_INPUT).press_sequentially(employee_name, delay=50)
             self.page.wait_for_load_state("networkidle")
             self.page.locator(f"tbody tr:has-text('{employee_name}')").first.wait_for(state="visible")
             logger.info(f"Employee {employee_name} found in table")
-
-
 
     def get_logged_in_employee_name(self) -> str:
         name = self.page.locator("button[aria-haspopup='menu']:has(h1)").first.locator("h1").inner_text().strip()
@@ -61,7 +57,7 @@ class LeavePage(BasePage):
 
     def _select_date_from_calendar(self, trigger_locator: str, target_date: date):
         logger.info(f"Selecting date: {target_date}")
-        self.page.locator(trigger_locator).click()
+        self.click(trigger_locator)
         calendar = self.page.locator(".react-calendar:visible")
         calendar.wait_for(state="visible")
 
@@ -80,13 +76,11 @@ class LeavePage(BasePage):
         logger.info(f"Date selected: {target_label}")
 
     def select_leave_type(self, leave_type: str):
-        logger.info(f"Selecting leave type: {leave_type}")
-        self.page.locator(self.LEAVE_TYPE).click()
-        self.page.locator(self.LEAVE_TYPE).select_option(label=leave_type)
+        self.click(self.LEAVE_TYPE)
+        self.select_option(self.LEAVE_TYPE, leave_type)
 
     def enter_subject(self, subject: str):
-        logger.info(f"Entering subject: {subject}")
-        self.page.get_by_placeholder("e.g., Leave Application - Personal Reasons").fill(subject)
+        self.fill("input[placeholder*='Leave Application']", subject)
 
     def fill_mail_body(self, body: str):
         logger.info(f"Filling mail body: {body}")
@@ -100,12 +94,10 @@ class LeavePage(BasePage):
         self.page.keyboard.press("Control+v")
 
     def click_submit(self):
-        logger.info("Clicking Submit/Apply button")
-        self.page.locator("button").filter(has_text="Apply").first.click()
+        self.click(self.SUBMIT_BTN)
 
     def click_confirm(self):
-        logger.info("Clicking Confirm button")
-        self.page.get_by_text("Confirm").click()
+        self.click(self.CONFIRM_BTN)
 
     def extract_dates_from_toast(self, toast: str) -> tuple[date, date] | None:
         match = re.search(r'from (\d{1,2} \w{3} \d{4}) to (\d{1,2} \w{3} \d{4})', toast)

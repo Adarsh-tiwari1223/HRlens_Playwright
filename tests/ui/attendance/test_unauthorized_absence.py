@@ -20,7 +20,7 @@ def manager_page(logged_in_page):
 
 # --- Absence & Absconding Settings Tests ---
 
-@pytest.mark.smoke
+@pytest.mark.regression
 @pytest.mark.settings
 def test_unauthorized_absence_settings_save(admin_page):
     """Verify that Admin can configure and save global absence settings."""
@@ -68,7 +68,7 @@ def test_branch_override_settings_independent(admin_page):
 
 # --- Dashboard & Metrics Tests ---
 
-@pytest.mark.smoke
+@pytest.mark.regression
 @pytest.mark.dashboard
 def test_dashboard_metrics_counts(admin_page):
     """Verify that dashboard stats cards show valid numeric counts."""
@@ -142,7 +142,7 @@ def test_search_edge_cases(admin_page):
 
 # --- Communication Workflow Detail Modal Tests ---
 
-@pytest.mark.smoke
+@pytest.mark.regression
 @pytest.mark.communication
 def test_view_case_details_and_send_email(admin_page):
     """Verify Admin can view case details and click send email."""

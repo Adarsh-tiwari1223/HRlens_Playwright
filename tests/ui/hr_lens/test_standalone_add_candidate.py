@@ -13,6 +13,7 @@ def dummy_resume_path():
 
 @pytest.mark.ui
 @pytest.mark.standalone
+@pytest.mark.smoke
 def test_create_candidate_only(page, dummy_resume_path):
     """
     STANDALONE TEST: Only generates and adds a candidate.

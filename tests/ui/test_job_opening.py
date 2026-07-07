@@ -3,6 +3,7 @@ from core.config import settings
 from pages.recruitment.job_opening_page import JobOpeningPage
 
 @pytest.mark.ui
+@pytest.mark.smoke
 def test_create_job_opening(logged_in_page):
     """
     Test creating a new job opening using the JobOpeningPage POM.

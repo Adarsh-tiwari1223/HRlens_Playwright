@@ -28,7 +28,7 @@ def pytest_configure(config):
     print("="*50 + "\n")
 
 CONTEXT_OPTIONS = {
-    "no_viewport": True,
+    "viewport": {"width": 1920, "height": 1080},
     "permissions": ["clipboard-read", "clipboard-write"]
 }
 

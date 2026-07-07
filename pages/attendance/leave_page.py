@@ -17,13 +17,13 @@ class LeavePage(BasePage):
     FROM_DATE_COL = "td:nth-child(4)"
     TO_DATE_COL = "td:nth-child(6)"
     TOAST = "#chakra-toast-manager-top-right"
-    MY_LEAVES_LINK = "role=link[name=/MyLeaves/i], a:has-text('MyLeaves')"
+    MY_LEAVES_LINK = "role=link[name='MyLeaves' i]"
     LEAVE_APPLY_LINK = "a:has-text('Leave Apply')"
     ATTENDANCE_LINK = "a:has-text('Attendance')"
     LEAVES_REQUEST_LINK = "a:has-text('Leaves Request')"
     SEARCH_INPUT = "input[placeholder*='Search Employee by name']"
     SUBMIT_BTN = "button:has-text('Apply')"
-    CONFIRM_BTN = "text=Confirm, button:has-text('Confirm')"
+    CONFIRM_BTN = "button:has-text('Confirm')"
 
     def click_my_leave(self):
         self.click(self.MY_LEAVES_LINK)

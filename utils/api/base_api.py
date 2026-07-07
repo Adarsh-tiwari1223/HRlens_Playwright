@@ -20,6 +20,17 @@ def _is_token_expired(token: str) -> bool:
         return True
 
 
+def _redact(data):
+    if isinstance(data, dict):
+        return {
+            k: ("[REDACTED]" if any(s in k.lower() for s in ["password", "token", "secret"]) else _redact(v))
+            for k, v in data.items()
+        }
+    elif isinstance(data, list):
+        return [_redact(item) for item in data]
+    return data
+
+
 def get_token(user: str = "admin") -> str:
     if user not in _token_cache or _is_token_expired(_token_cache[user]):
         creds = settings.USERS[user]
@@ -30,7 +41,7 @@ def get_token(user: str = "admin") -> str:
             "password": creds["password"]
         }
         logger.info(f"Attempting login to: {login_url}")
-        logger.info(f"Payload: {json.dumps(payload, default=str)}")
+        logger.info(f"Payload: {json.dumps(_redact(payload), default=str)}")
         response = requests.post(login_url, json=payload, timeout=30)
         if response.status_code != 200:
             logger.error(f"Login failed: {response.status_code} - {response.text}")
@@ -48,7 +59,7 @@ def headers(user: str = "admin") -> dict:
 
 
 def _fmt(data) -> str:
-    return json.dumps(data, indent=2, default=str)
+    return json.dumps(_redact(data), indent=2, default=str)
 
 
 def get(endpoint: str, user: str = "admin", params: dict = None) -> dict:

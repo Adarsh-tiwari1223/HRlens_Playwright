@@ -1,16 +1,16 @@
 name: "Playwright Tests"
 
 on:
-  workflow_dispatch:
   push:
-    paths:
-      - .github/workflows/playwright.yml
+    branches: [ main, develop ]
   pull_request:
-    paths:
-      - .github/workflows/playwright.yml
+
+env:
+  ENV: stg
+  HEADLESS: "True"
 
 jobs:
-  playwright-tests:
+  test:
     runs-on: ubuntu-latest
 
     permissions:
@@ -19,30 +19,83 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    # 1. Setup Python (Matches your local version)
+    - name: Create .env file
+      run: |
+        cat << 'EOF' > .env
+        ${{ secrets.ENV_FILE }}
+        EOF
+
+    # 1. Python setup
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.10' 
+        python-version: '3.12'
 
-    # 2. Create and Activate Virtual Environment
+    # 2. Install dependencies
     - name: Install dependencies
       run: |
         python -m venv venv
-        source venv/bin/activate  # On Linux/Ubuntu runners
+        source venv/bin/activate
         pip install --upgrade pip
-        pip install pytest-playwright playwright
+        pip install pytest pytest-playwright playwright
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-    # 3. Install Playwright Browsers (Required for the Healer)
+    # 3. Install browsers
     - name: Install Playwright Browsers
       run: |
         source venv/bin/activate
         playwright install --with-deps chromium
 
-    # 4. Verify Environment for Copilot
-    - name: Verify Setup
+    # 4. Run Tests (IMPORTANT)
+    - name: Run Smoke 
       run: |
         source venv/bin/activate
-        pytest --version
-        python -c "import playwright; print('Playwright Ready')"
+        pytest -m "smoke" --maxfail=1 --disable-warnings -v
+
+    # 5. Upload Reports (Optional but recommended)
+    - name: Upload Test Report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: pytest-report
+        path: |
+          .pytest_cache
+          test-results
+
+  merge:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set Git Identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge to main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref_name }}" = "develop" ]; then
+            echo "Merging develop into main..."
+            git checkout main
+            git merge origin/develop --no-ff -m "Merge branch 'develop' into main [skip ci]"
+            git push origin main
+          elif [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.base_ref }}" = "main" ]; then
+            echo "Merging pull request #${{ github.event.pull_request.number }} into main..."
+            gh pr merge ${{ github.event.pull_request.number }} --merge --delete-branch || {
+              # Fallback: if gh cli fails, try git merge
+              git checkout main
+              git merge FETCH_HEAD --no-ff -m "Merge PR #${{ github.event.pull_request.number }} into main [skip ci]"
+              git push origin main
+            }
+          else
+            echo "Skipping merge for event: ${{ github.event_name }} on branch: ${{ github.ref_name }}"
+          fi

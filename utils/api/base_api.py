@@ -20,15 +20,32 @@ def _is_token_expired(token: str) -> bool:
         return True
 
 
+def _redact(data):
+    if isinstance(data, dict):
+        return {
+            k: ("[REDACTED]" if any(s in k.lower() for s in ["password", "token", "secret"]) else _redact(v))
+            for k, v in data.items()
+        }
+    elif isinstance(data, list):
+        return [_redact(item) for item in data]
+    return data
+
+
 def get_token(user: str = "admin") -> str:
     if user not in _token_cache or _is_token_expired(_token_cache[user]):
         creds = settings.USERS[user]
-        response = requests.post(f"{settings.API_BASE_URL}/user/login", json={
+        login_url = f"{settings.API_BASE_URL}/user/login"
+        payload = {
             "email": creds["username"],
             "user": creds["username"],
             "password": creds["password"]
-        })
-        response.raise_for_status()
+        }
+        logger.info(f"Attempting login to: {login_url}")
+        logger.info(f"Payload: {json.dumps(_redact(payload), default=str)}")
+        response = requests.post(login_url, json=payload, timeout=30)
+        if response.status_code != 200:
+            logger.error(f"Login failed: {response.status_code} - {response.text}")
+            response.raise_for_status()
         _token_cache[user] = response.json()["token"]
     return _token_cache[user]
 
@@ -41,54 +58,61 @@ def headers(user: str = "admin") -> dict:
     return {"Authorization": f"Bearer {get_token(user)}"}
 
 
+def _fmt(data) -> str:
+    return json.dumps(_redact(data), indent=2, default=str)
+
+
 def get(endpoint: str, user: str = "admin", params: dict = None) -> dict:
-    logger.info("GET %s | user: %s | params: %s", endpoint, user, params)
+    logger.info("GET %s | user: %s\nparams:\n%s", endpoint, user, _fmt(params))
     response = requests.get(
         f"{settings.API_BASE_URL}/{endpoint}",
         headers=headers(user),
-        params=params
+        params=params,
+        timeout=30
     )
     response.raise_for_status()
     body = response.json()
-    logger.info("GET %s → %s: %s", endpoint, response.status_code, body)
+    logger.info("GET %s → %s\n%s", endpoint, response.status_code, _fmt(body))
     return body
 
 
 def post(endpoint: str, user: str = "admin", payload: dict = None) -> dict:
-    logger.info("POST %s | user: %s | payload: %s", endpoint, user, json.dumps(payload, default=str))
+    logger.info("POST %s | user: %s\npayload:\n%s", endpoint, user, _fmt(payload))
     response = requests.post(
         f"{settings.API_BASE_URL}/{endpoint}",
         headers=headers(user),
-        json=payload
+        json=payload,
+        timeout=30
     )
     if response.status_code == 400:
         try:
             body = response.json()
         except Exception:
             body = {"message": response.text}
-        logger.warning("POST %s → 400: %s", endpoint, body)
+        logger.warning("POST %s → 400\n%s", endpoint, _fmt(body))
         return body
     response.raise_for_status()
     body = response.json()
-    logger.info("POST %s → %s: %s", endpoint, response.status_code, body)
+    logger.info("POST %s → %s\n%s", endpoint, response.status_code, _fmt(body))
     return body
 
 
 def put(endpoint: str, user: str = "admin", payload: dict = None) -> dict:
-    logger.info("PUT %s | user: %s | payload: %s", endpoint, user, json.dumps(payload, default=str))
+    logger.info("PUT %s | user: %s\npayload:\n%s", endpoint, user, _fmt(payload))
     response = requests.put(
         f"{settings.API_BASE_URL}/{endpoint}",
         headers=headers(user),
-        json=payload
+        json=payload,
+        timeout=30
     )
     if response.status_code == 400:
         try:
             body = response.json()
         except Exception:
             body = {"message": response.text}
-        logger.warning("PUT %s → 400: %s", endpoint, body)
+        logger.warning("PUT %s → 400\n%s", endpoint, _fmt(body))
         return body
     response.raise_for_status()
     body = response.json()
-    logger.info("PUT %s → %s: %s", endpoint, response.status_code, body)
+    logger.info("PUT %s → %s\n%s", endpoint, response.status_code, _fmt(body))
     return body

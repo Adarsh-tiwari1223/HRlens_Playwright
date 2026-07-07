@@ -39,7 +39,9 @@ logs/
 allure-results/
 
 # Test data (dynamic)
-testdata/dynamic/
+testdata/dynamic/*
+!testdata/dynamic/*.py
+testdata/static/PayrollData/
 
 # IDE
 .idea/
@@ -71,6 +73,7 @@ auth/
 
 # Trace files
 *.zip
+*.xlsx
 
 # Logs
 *.log
@@ -79,3 +82,10 @@ auth/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Documentation and Specs
+specs/
+
+# Scratch files
+scratch/
+TODO.md

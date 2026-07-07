@@ -39,7 +39,8 @@ logs/
 allure-results/
 
 # Test data (dynamic)
-testdata/dynamic/
+testdata/dynamic/*
+!testdata/dynamic/*.py
 testdata/static/PayrollData/
 
 # IDE

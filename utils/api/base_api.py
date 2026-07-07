@@ -62,6 +62,19 @@ def _fmt(data) -> str:
     return json.dumps(_redact(data), indent=2, default=str)
 
 
+def _log_response(method: str, endpoint: str, status_code: int, body: dict, is_warning: bool = False):
+    if isinstance(body, list):
+        body_str = f"[List of {len(body)} items]"
+    else:
+        body_str = _fmt(body)
+        if len(body_str) > 300:
+            body_str = body_str[:300] + "\n... [TRUNCATED FOR LOGS]"
+    if is_warning:
+        logger.warning("%s %s → %s\n%s", method, endpoint, status_code, body_str)
+    else:
+        logger.info("%s %s → %s\n%s", method, endpoint, status_code, body_str)
+
+
 def get(endpoint: str, user: str = "admin", params: dict = None) -> dict:
     logger.info("GET %s | user: %s\nparams:\n%s", endpoint, user, _fmt(params))
     response = requests.get(
@@ -72,7 +85,7 @@ def get(endpoint: str, user: str = "admin", params: dict = None) -> dict:
     )
     response.raise_for_status()
     body = response.json()
-    logger.info("GET %s → %s\n%s", endpoint, response.status_code, _fmt(body))
+    _log_response("GET", endpoint, response.status_code, body)
     return body
 
 
@@ -89,11 +102,11 @@ def post(endpoint: str, user: str = "admin", payload: dict = None) -> dict:
             body = response.json()
         except Exception:
             body = {"message": response.text}
-        logger.warning("POST %s → 400\n%s", endpoint, _fmt(body))
+        _log_response("POST", endpoint, 400, body, is_warning=True)
         return body
     response.raise_for_status()
     body = response.json()
-    logger.info("POST %s → %s\n%s", endpoint, response.status_code, _fmt(body))
+    _log_response("POST", endpoint, response.status_code, body)
     return body
 
 
@@ -110,9 +123,9 @@ def put(endpoint: str, user: str = "admin", payload: dict = None) -> dict:
             body = response.json()
         except Exception:
             body = {"message": response.text}
-        logger.warning("PUT %s → 400\n%s", endpoint, _fmt(body))
+        _log_response("PUT", endpoint, 400, body, is_warning=True)
         return body
     response.raise_for_status()
     body = response.json()
-    logger.info("PUT %s → %s\n%s", endpoint, response.status_code, _fmt(body))
+    _log_response("PUT", endpoint, response.status_code, body)
     return body

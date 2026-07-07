@@ -1,4 +1,4 @@
-name: "CI - Run Automation Tests"
+name: "Playwright Tests"
 
 on:
   push:

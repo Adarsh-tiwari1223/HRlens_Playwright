@@ -10,7 +10,11 @@ YEAR = 2026
 MONTH = 4
 BRANCH_NAME = "Varanasi"
 COMPANY_NAME = "Infoserv LLC"
-BRANCH_ID = find_branch_id(BRANCH_NAME, COMPANY_NAME)
+
+@pytest.fixture(scope="module")
+def branch_id():
+    return find_branch_id(BRANCH_NAME, COMPANY_NAME)
+
 REQUIRED_FIELDS = {"employeeCode", "employeeName", "basic", "hra", "netSalary", "tds",
                    "totalEarnings", "totalDeductions",}
 
@@ -31,17 +35,17 @@ def payroll_ran(logged_in_page):
 # ── Step 2: Poll status API until all records are generated ───────────────────
 
 @pytest.fixture(scope="module")
-def payroll_status(payroll_ran):
+def payroll_status(payroll_ran, branch_id):
     """Poll /Payroll/status until pending == 0."""
-    return wait_for_payroll_complete(year=YEAR, month=MONTH, branch_id=BRANCH_ID)
+    return wait_for_payroll_complete(year=YEAR, month=MONTH, branch_id=branch_id)
 
 
 # ── Step 3: Fetch the generated payroll list ──────────────────────────────────
 
 @pytest.fixture(scope="module")
-def payroll_response(payroll_status):
+def payroll_response(payroll_status, branch_id):
     """Fetch full payroll list only after status confirms completion."""
-    return get_payroll_list(year=YEAR, month=MONTH, branch_id=BRANCH_ID)
+    return get_payroll_list(year=YEAR, month=MONTH, branch_id=branch_id)
 
 
 @pytest.fixture(scope="module")

@@ -45,7 +45,7 @@ def test_employee_drilldown(admin_page):
     assert summary_page.is_visible("text=Assessment Form")
 
 
-@pytest.mark.smoke
+@pytest.mark.regression
 def test_increment_page_loads(admin_page):
     increment_page = IncrementPage(admin_page)
     increment_page.go_to_increment()

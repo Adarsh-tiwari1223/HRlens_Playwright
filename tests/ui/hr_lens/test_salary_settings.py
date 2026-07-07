@@ -174,7 +174,7 @@ def test_salary_slab_hierarchy_department_overrides_branch(salary_page):
 
 # ── Admin settings ────────────────────────────────────────────────────────────
 
-@pytest.mark.smoke
+@pytest.mark.regression
 def test_pf_threshold_update(salary_page, salary_settings, pf_threshold):
     """PF threshold write-back is idempotent — writes same live value back."""
     salary_page.navigate_to_salary_calc_settings()

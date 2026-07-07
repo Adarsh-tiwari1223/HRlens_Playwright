@@ -85,7 +85,7 @@ def leave_page(employee_context):
 
 # ─── Happy Path ───────────────────────────────────────────────────────────────
 
-@pytest.mark.smoke
+@pytest.mark.regression
 @pytest.mark.dependency(name="test_apply_leave")
 def test_apply_leave(employee_context):
     leave = LeavePage(employee_context)

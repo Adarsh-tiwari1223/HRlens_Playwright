@@ -79,3 +79,18 @@ def logged_in_page(browser):
     for context, user_key in contexts:
         context.tracing.stop(path=f"reports/trace_{user_key}.zip")
         context.close()
+
+
+@pytest.fixture(scope="module")
+def admin_page(browser):
+    context = browser.new_context(**CONTEXT_OPTIONS)
+    context.set_default_timeout(settings.DEFAULT_TIMEOUT)
+    page = context.new_page()
+    page.goto(settings.BASE_URL, timeout=60000)
+    page.get_by_label("Email").wait_for(state="visible", timeout=30000)
+    login_page = LoginPage(page)
+    creds = settings.USERS["admin"]
+    login_page.login(creds["username"], creds["password"])
+    page.wait_for_load_state("networkidle")
+    yield page
+    context.close()

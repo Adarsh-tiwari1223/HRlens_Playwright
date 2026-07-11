@@ -23,7 +23,7 @@ def _is_token_expired(token: str) -> bool:
 def _redact(data):
     if isinstance(data, dict):
         return {
-            k: ("[REDACTED]" if any(s in k.lower() for s in ["password", "token", "secret"]) else _redact(v))
+            k: ("***" if any(s in k.lower() for s in ["password", "token", "secret", "email", "username", "user"]) else _redact(v))
             for k, v in data.items()
         }
     elif isinstance(data, list):

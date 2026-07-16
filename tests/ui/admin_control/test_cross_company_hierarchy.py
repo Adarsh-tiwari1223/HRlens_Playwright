@@ -35,3 +35,34 @@ def test_update_cross_company_hierarchy(admin_page):
     hierarchy_page.navigate_page(2)
     table_rows_p2 = hierarchy_page.get_table_data()
     assert len(table_rows_p2) > 0, "No records found on Page 2 of hierarchy table"
+
+
+@pytest.mark.ui
+@pytest.mark.admin_control
+def test_exclude_team_lead_hierarchy_reassignment(admin_page):
+    logger.info("Verify team lead exclusion triggers confirmation popup with reassignment picker")
+    
+    hierarchy_page = CrossCompanyHierarchyPage(admin_page)
+    hierarchy_page.navigate_to_hierarchy()
+    
+    # 1. Navigate to Page 2 to locate Vikesh Singh
+    hierarchy_page.navigate_page(2)
+    
+    # 2. Edit Vikesh Singh's hierarchy
+    hierarchy_page.edit_employee_hierarchy("Vikesh Singh")
+    
+    # 3. Toggle exclusion switch to True
+    hierarchy_page.toggle_exclude_employee(True)
+    
+    # 4. Click Update
+    hierarchy_page.click_update()
+    
+    # 5. Handle Team Lead Reassignment popup
+    hierarchy_page.reassign_team_lead("abha", "Abha Verma 931")
+    
+    # 6. Confirm and save
+    hierarchy_page.click_confirm_and_save()
+    
+    # 7. Verify success toast
+    toast_msg = hierarchy_page.wait_for_toast_success()
+    assert "updated" in toast_msg.lower() or "success" in toast_msg.lower(), f"Reassignment failed: {toast_msg}"

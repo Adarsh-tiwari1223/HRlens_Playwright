@@ -95,3 +95,15 @@ class CrossCompanyHierarchyPage(BasePage):
         self.page.get_by_label(f"Page {page_number}").click()
         self.page.wait_for_load_state("networkidle")
         self.page.wait_for_timeout(1000)
+
+    def reassign_team_lead(self, search_query: str, select_option_text: str):
+        logger.info(f"Reassigning team lead hierarchy to: {select_option_text}")
+        picker = self.page.get_by_placeholder("Search employee with access")
+        picker.wait_for(state="visible", timeout=5000)
+        picker.click()
+        picker.fill(search_query)
+        self.page.get_by_text(select_option_text).click()
+
+    def click_confirm_and_save(self):
+        logger.info("Clicking Confirm & Save")
+        self.page.get_by_role("button", name="Confirm & Save").click()

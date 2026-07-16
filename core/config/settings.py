@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 logger = logging.getLogger(__name__)
 
 # Load .env file first, then environment-specific .env.stg or .env.prod
-load_dotenv(".env")  # Always load base .env first
+load_dotenv(".env", override=True)  # Always load base .env first
 ENV = os.getenv("ENV", "dev").strip()
 if ENV != "dev":
     load_dotenv(f".env.{ENV}", override=True)  # Override with stg/prod values

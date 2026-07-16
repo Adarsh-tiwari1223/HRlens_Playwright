@@ -1,4 +1,5 @@
 import logging
+import re
 from playwright.sync_api import Page
 
 logger = logging.getLogger(__name__)
@@ -15,7 +16,12 @@ class BasePage:
     def click(self, locator: str):
         self.page.locator(locator).wait_for(state="visible")
         self.page.locator(locator).click()
-        logger.info(f"click → {locator}")
+        # Clean locator for log output (e.g. role=button[name='Add Company'] -> 'Add Company')
+        clean_name = locator
+        match = re.search(r"name=['\"]([^'\"]+)['\"]", locator)
+        if match:
+            clean_name = f"'{match.group(1)}'"
+        logger.info(f"click → {clean_name}")
 
     def fill(self, locator: str, value: str):
         self.page.locator(locator).wait_for(state="visible")

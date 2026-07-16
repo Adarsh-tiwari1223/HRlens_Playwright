@@ -6,9 +6,10 @@ class CandidatePage:
     def __init__(self, page: Page):
         self.page = page
 
-    def navigate_to_add_candidate_for_job(self, posting_name: str = "JOB_POSTING-330"):
+    def navigate_to_add_candidate_for_job(self, posting_name: str = "JOB_POSTING-330") -> str:
         """
-        Navigates to the Active Jobs page, finds the specific posting, and clicks Add Candidate.
+        Navigates to the Active Jobs page, finds the specific posting, clicks it, and clicks Add Candidate.
+        Returns the name of the selected job posting.
         """
         # Navigate through the side menu to the Active Jobs page
         self.page.get_by_role("button", name="Recruitment Portal").click()
@@ -18,49 +19,98 @@ class CandidatePage:
         self.page.wait_for_load_state("networkidle")
         self.page.wait_for_timeout(1000)
 
-        # Click the FIRST job posting button dynamically using regex
-        # This prevents the test from failing if JOB_POSTING-330 is deleted
-        self.page.get_by_role("button", name=re.compile(r"JOB_POSTING")).first.click()
+        # Get the job name from the FIRST job posting button dynamically using regex
+        job_button = self.page.get_by_role("button", name=re.compile(r"JOB_POSTING")).first
+        job_name = job_button.inner_text().strip()
+        print(f"\n[JOB_POSTING] Selecting Job: {job_name}")
+        job_button.click()
         
         # Click Add Candidate
         self.page.get_by_role("button", name="Add Candidate").click()
         
         # Wait for the modal/form to visibly appear
         self.page.wait_for_selector("input[placeholder='Enter candidate name']", state="visible", timeout=10000)
+        return job_name
 
     def fill_candidate_form(self, data: dict, resume_path: str):
         """
         Fills the Add Candidate form dynamically based on the provided data dictionary.
         Handles the Experience toggle conditionally.
         """
-        self.page.get_by_placeholder("Enter candidate name").fill(data["name"])
+        # 1. Fill Name
+        name_input = self.page.get_by_placeholder("Enter candidate name")
+        name_input.fill("")
+        name_input.press_sequentially(data["name"], delay=30)
+        print(f"Candidate Name: {data['name']}")
+        
+        # 2. Select Gender
         self.page.get_by_label("Gender *").select_option(data["gender"])
-        self.page.get_by_placeholder("Enter Email").fill(data["email"])
-        self.page.get_by_placeholder("Confirm Email").fill(data["email"])
-        self.page.get_by_placeholder("Enter Phone No.").fill(data["phone"])
-        self.page.get_by_placeholder("Enter Current Location").fill(data["location"])
+        print(f"Gender: {data['gender']}")
         
+        # 3. Fill Email
+        email_input = self.page.get_by_placeholder("Enter Email")
+        email_input.fill("")
+        email_input.press_sequentially(data["email"], delay=30)
+        print(f"Email: {data['email']}")
+        
+        # 4. Fill Confirm Email
+        confirm_input = self.page.get_by_placeholder("Confirm Email")
+        confirm_input.fill("")
+        confirm_input.press_sequentially(data["email"], delay=30)
+        
+        # 5. Fill Phone No
+        phone_input = self.page.get_by_placeholder("Enter Phone No.")
+        phone_input.fill("")
+        phone_input.press_sequentially(data["phone"], delay=30)
+        print(f"Phone No.: {data['phone']}")
+        
+        # 6. Fill Location
+        loc_input = self.page.get_by_placeholder("Enter Current Location")
+        loc_input.fill("")
+        loc_input.press_sequentially(data["location"], delay=30)
+        print(f"Current Location: {data['location']}")
+        
+        # 7. Select Work Mode
         self.page.get_by_label("Work Mode *").select_option(data["work_mode"])
-        self.page.get_by_label("Hiring Category *").select_option(data["hiring_category"])
+        print(f"Work Mode: {data['work_mode']}")
         
-        # Upload resume
-        # Upload resume using the robust file chooser API
+        # 8. Select Hiring Category
+        self.page.get_by_label("Hiring Category *").select_option(data["hiring_category"])
+        print(f"Hiring Category: {data['hiring_category']}")
+        
+        # 9. Upload Resume
         with self.page.expect_file_chooser() as fc_info:
             self.page.get_by_text("Upload", exact=True).click()
         file_chooser = fc_info.value
         file_chooser.set_files(resume_path)
+        print(f"Resume Uploaded: {os.path.basename(resume_path)}")
         
-        # Experience conditional block
+        # 10. Experience conditional block
         is_experienced = data.get("has_experience", False)
-        # The trace selected "true" when there was experience
         exp_value = "true" if is_experienced else "false"
         self.page.get_by_label("Experience *").select_option(exp_value)
+        print(f"Experience: {'Yes' if is_experienced else 'No'}")
         
         if is_experienced:
-            self.page.get_by_placeholder("Enter Experience (Months)").fill(data["experience_months"])
-            self.page.get_by_placeholder("Enter Current Salary").fill(data["current_salary"])
-            self.page.get_by_placeholder("Enter Expected Salary").fill(data["expected_salary"])
-            self.page.get_by_placeholder("Enter Notice Period").fill(data["notice_period"])
+            exp_months = self.page.get_by_placeholder("Enter Experience (Months)")
+            exp_months.fill("")
+            exp_months.press_sequentially(data["experience_months"], delay=30)
+            print(f"Experience (Months): {data['experience_months']}")
+            
+            curr_sal = self.page.get_by_placeholder("Enter Current Salary")
+            curr_sal.fill("")
+            curr_sal.press_sequentially(data["current_salary"], delay=30)
+            print(f"Current Salary: {data['current_salary']}")
+            
+            exp_sal = self.page.get_by_placeholder("Enter Expected Salary")
+            exp_sal.fill("")
+            exp_sal.press_sequentially(data["expected_salary"], delay=30)
+            print(f"Expected Salary: {data['expected_salary']}")
+            
+            notice = self.page.get_by_placeholder("Enter Notice Period")
+            notice.fill("")
+            notice.press_sequentially(data["notice_period"], delay=30)
+            print(f"Notice Period: {data['notice_period']}")
             
     def submit(self):
         """Submits the Add Candidate form and waits for success validation."""

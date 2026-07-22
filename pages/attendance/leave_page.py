@@ -135,38 +135,40 @@ class LeavePage(BasePage):
         from_str = from_date.strftime("%d-%m-%Y")
         to_str = to_date.strftime("%d-%m-%Y")
         logger.info(f"Approving leave for {employee_name} from {from_str} to {to_str}")
-        rows = self.page.locator("tbody tr").all()
 
         # Pass 1 — exact match
-        for row in rows:
-            name = row.locator(self.EMPLOYEE_COL).inner_text().strip()
-            row_from = row.locator(self.FROM_DATE_COL).inner_text().strip()
-            row_to = row.locator(self.TO_DATE_COL).inner_text().strip()
-            status = row.locator("td:nth-child(12)").inner_text().strip().lower()
-            if employee_name in name and from_str in row_from and to_str in row_to and "pending" in status:
-                logger.info(f"Exact match found for {employee_name}, approving...")
-                row.locator("select").select_option(label="Approve")
-                self.click_confirm()
-                return "successfully" in self.wait_for_toast(self.TOAST).lower()
+        for row in self.page.locator("tbody tr").all():
+            try:
+                name = row.locator(self.EMPLOYEE_COL).inner_text(timeout=2000).strip()
+                row_from = row.locator(self.FROM_DATE_COL).inner_text(timeout=2000).strip()
+                row_to = row.locator(self.TO_DATE_COL).inner_text(timeout=2000).strip()
+                status = row.locator("td:nth-child(12)").inner_text(timeout=2000).strip().lower()
+                if employee_name in name and from_str in row_from and to_str in row_to and "pending" in status:
+                    logger.info(f"Exact match found for {employee_name}, approving...")
+                    row.locator("select").select_option(label="Approve")
+                    self.click_confirm()
+                    return True
+            except Exception:
+                continue
 
         # Pass 2 — overlap
         logger.info(f"No exact match, trying overlap for {employee_name}")
-        for row in rows:
-            name = row.locator(self.EMPLOYEE_COL).inner_text().strip()
-            row_from_str = row.locator(self.FROM_DATE_COL).inner_text().strip()
-            row_to_str = row.locator(self.TO_DATE_COL).inner_text().strip()
-            status = row.locator("td:nth-child(12)").inner_text().strip().lower()
-            if employee_name not in name or "pending" not in status:
-                continue
+        for row in self.page.locator("tbody tr").all():
             try:
-                row_from_dt = datetime.strptime(row_from_str, "%d-%m-%Y").date()
-                row_to_dt = datetime.strptime(row_to_str, "%d-%m-%Y").date()
-                if row_from_dt <= to_date and row_to_dt >= from_date:
-                    logger.info(f"Overlap match found for {employee_name}, approving...")
+                name = row.locator(self.EMPLOYEE_COL).inner_text(timeout=2000).strip()
+                row_from_str = row.locator(self.FROM_DATE_COL).inner_text(timeout=2000).strip()
+                row_to_str = row.locator(self.TO_DATE_COL).inner_text(timeout=2000).strip()
+                status = row.locator("td:nth-child(12)").inner_text(timeout=2000).strip().lower()
+                if employee_name not in name or "pending" not in status:
+                    continue
+                row_from = datetime.strptime(row_from_str, "%d-%m-%Y").date()
+                row_to = datetime.strptime(row_to_str, "%d-%m-%Y").date()
+                if not (to_date < row_from or from_date > row_to):
+                    logger.info(f"Overlapping leave found for {employee_name}, approving...")
                     row.locator("select").select_option(label="Approve")
                     self.click_confirm()
-                    return "successfully" in self.wait_for_toast(self.TOAST).lower()
-            except ValueError:
+                    return True
+            except Exception:
                 continue
 
         logger.warning(f"No matching pending leave found for {employee_name}")

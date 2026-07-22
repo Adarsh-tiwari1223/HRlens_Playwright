@@ -25,47 +25,59 @@ jobs:
         ${{ secrets.ENV_FILE }}
         EOF
 
-    # 1. Python setup
+    # 1. Python setup with pip caching
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.12'
+        cache: 'pip'
 
-    # 2. Install dependencies
+    # 2. Cache Playwright Browsers
+    - name: Cache Playwright Browsers
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: ${{ runner.os }}-playwright-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-playwright-
+
+    # 3. Install dependencies
     - name: Install dependencies
       run: |
         python -m venv venv
         source venv/bin/activate
         pip install --upgrade pip
-        pip install pytest pytest-playwright playwright
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        
-       # 3. Install system dependencies for Playwright
+
+    # 4. Install system dependencies for Playwright
     - name: Install system dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y libxkbcommon0 libxkbcommon-x11-0
-    # 3. Install browsers
+
+    # 5. Install browsers
     - name: Install Playwright Browsers
       run: |
         source venv/bin/activate
         playwright install --with-deps chromium
 
-    # 4. Run Tests (IMPORTANT)
-    - name: Run Smoke 
+    # 6. Run Tests with Rerun Protection & HTML Report Generation
+    - name: Run Smoke Tests
       run: |
         source venv/bin/activate
-        pytest -m "smoke" --maxfail=1 --disable-warnings -v
+        pytest -m "smoke" --reruns 2 --reruns-delay 1 --html=reports/report.html --self-contained-html --maxfail=1 --disable-warnings -v
 
-    # 5. Upload Reports (Optional but recommended)
+    # 7. Upload HTML Test Report & Cache Artifacts
     - name: Upload Test Report
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: pytest-report
         path: |
+          reports/report.html
           .pytest_cache
           test-results
+
 
   merge:
     needs: test

@@ -18,14 +18,19 @@ def pytest_generate_tests(metafunc):
         else:
             metafunc.parametrize("template_company", [company_opt])
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 def pytest_configure(config):
-    """Print active configuration at start of test session."""
-    print("\n" + "="*50)
-    print("HRlens Playwright - Active Configuration")
-    print("="*50)
-    print("ENV:        " + settings.ENV)
-    print("API URL:    " + settings.API_BASE_URL)
-    print("="*50 + "\n")
+    """Log active configuration at start of test session."""
+    logger.info("==================================================")
+    logger.info("HRlens Playwright - Active Configuration")
+    logger.info("==================================================")
+    logger.info(f"ENV:        {settings.ENV}")
+    logger.info(f"API URL:    {settings.API_BASE_URL}")
+    logger.info("==================================================")
+
 
 CONTEXT_OPTIONS = {
     "permissions": ["clipboard-read", "clipboard-write"]
@@ -91,6 +96,11 @@ def admin_page(browser):
     login_page = LoginPage(page)
     creds = settings.USERS["admin"]
     login_page.login(creds["username"], creds["password"])
-    page.wait_for_load_state("networkidle")
+    try:
+        page.wait_for_url(f"{settings.BASE_URL}/**", timeout=10000)
+    except Exception:
+        pass
+    page.wait_for_timeout(1000)
     yield page
     context.close()
+

@@ -329,7 +329,7 @@ class BasePage:
         logger.debug(f"wait_for_url → '{partial}'")
 
     def wait_for_toast(self, locator: str, timeout: int = 6000) -> str:
-        toast_loc = self.page.locator(locator)
+        toast_loc = self.page.locator(f"{locator} .chakra-toast, {locator} [role='status'], {locator}").first
         try:
             toast_loc.wait_for(state="visible", timeout=timeout)
             text = toast_loc.inner_text().strip()
@@ -339,6 +339,7 @@ class BasePage:
         logger.debug(f"toast → '{text}'")
 
         return text
+
 
 
 

@@ -5,10 +5,18 @@ from core.config import settings
 from testdata.static.Leave import Leave
 
 
+import random
+
+EMPLOYEE_USERS = ["sanidhy", "kumar_piyush", "ritesh_singh", "adarsh_tiwari"]
+
+
+
 @pytest.fixture(scope="module")
 def employee_context(logged_in_page):
-    page, context = logged_in_page()
+    selected_user = random.choice(EMPLOYEE_USERS) if EMPLOYEE_USERS else settings.EMPLOYEE_USER
+    page, context = logged_in_page(selected_user)
     yield page
+
 
 
 @pytest.fixture(scope="module")

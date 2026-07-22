@@ -1,7 +1,7 @@
 import calendar
 import pytest
-import requests
 from core.config import settings
+
 from utils.api.attendance_api import get_attendance_summary
 from utils.api.payroll_api import get_payroll_list, find_branch_id
 

@@ -70,14 +70,17 @@ def logged_in_page(browser):
         context.set_default_timeout(settings.DEFAULT_TIMEOUT)
         context.tracing.start(screenshots=True, snapshots=True, sources=True)
         page = context.new_page()
-        page.goto(settings.BASE_URL)
+        page.goto(settings.BASE_URL, timeout=60000)
+        page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="visible", timeout=30000)
+
         LoginPage(page).login(
             settings.USERS[user_key]["username"],
             settings.USERS[user_key]["password"]
         )
-        page.wait_for_load_state("networkidle")
+        page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="hidden", timeout=30000)
         contexts.append((context, user_key))
         return page, context
+
 
     yield _login
 
@@ -93,27 +96,14 @@ def admin_page(browser, request):
     context.tracing.start(screenshots=True, snapshots=True, sources=True)
     page = context.new_page()
     page.goto(settings.BASE_URL, timeout=60000)
-    page.get_by_label("Email").wait_for(state="visible", timeout=30000)
+    page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="visible", timeout=30000)
     login_page = LoginPage(page)
     creds = settings.USERS["admin"]
     login_page.login(creds["username"], creds["password"])
+    page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="hidden", timeout=30000)
+    yield page
     try:
-        page.wait_for_url(f"{settings.BASE_URL}/**", timeout=10000)
+        context.tracing.stop(path=f"reports/trace_{request.node.name}.zip")
     except Exception:
         pass
-    page.wait_for_timeout(1000)
-    yield page
     context.close()
-
-    try:
-        page.goto(settings.BASE_URL, timeout=60000)
-        page.get_by_label("Email").wait_for(state="visible", timeout=30000)
-        login_page = LoginPage(page)
-        creds = settings.USERS["admin"]
-        login_page.login(creds["username"], creds["password"])
-        page.wait_for_url("**/dashboard", timeout=20000)
-        page.wait_for_load_state("networkidle")
-        yield page
-    finally:
-        context.tracing.stop(path=f"reports/trace_admin_page.zip")
-        context.close()

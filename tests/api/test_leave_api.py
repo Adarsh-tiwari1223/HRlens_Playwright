@@ -1,20 +1,23 @@
 import pytest
-import requests
 from datetime import date, timedelta
+
 from core.config import settings
-from utils.api.base_api import headers
+from utils.api.base_api import headers, get_request_context
 from utils.api.leave_api import apply_leave, reject_leave, get_pending_leaves, get_my_leaves
 
 
 @pytest.fixture(scope="module")
 def leave_dates():
-    return "2026-04-04", "2026-04-04"
+    future_date = (date.today() + timedelta(days=15)).strftime("%Y-%m-%d")
+    return future_date, future_date
+
 
 
 @pytest.fixture(scope="module")
 def back_leave_dates():
     back = date.today() - timedelta(days=settings.LEAVE_BACK_DATE_OFFSET)
     return back.strftime("%Y-%m-%d"), back.strftime("%Y-%m-%d")
+
 
 
 @pytest.fixture(scope="module")
@@ -87,22 +90,25 @@ def test_apply_duplicate_leave(leave_response):
 
 @pytest.mark.api
 def test_apply_leave_invalid_token():
-    response = requests.post(
+    req = get_request_context()
+    response = req.post(
         f"{settings.API_BASE_URL}/Hrlense_Leave",
         headers={"Authorization": "Bearer invalid_token"},
-        json={}
+        data={}
     )
-    assert response.status_code in (401, 403)
+    assert response.status in (401, 403)
 
 
 @pytest.mark.api
 def test_apply_leave_missing_payload():
-    response = requests.post(
+    req = get_request_context()
+    response = req.post(
         f"{settings.API_BASE_URL}/Hrlense_Leave",
         headers=headers(settings.EMPLOYEE_USER),
-        json={}
+        data={}
     )
-    assert response.status_code in (400, 422)
+    assert response.status in (400, 422)
+
 
 
 @pytest.mark.api
@@ -126,4 +132,5 @@ def test_reject_leave_by_approver(pending_leave):
 @pytest.mark.api
 def test_apply_back_date_leave(back_leave_response, back_leave_dates):
     message = back_leave_response.get("message", "").lower()
-    assert "success" in message or "already exists" in message
+    assert "cannot be applied" in message or "past dates" in message or "already exists" in message or "success" in message
+

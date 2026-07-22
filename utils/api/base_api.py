@@ -2,12 +2,22 @@ import time
 import base64
 import json
 import logging
-import requests
+from playwright.sync_api import sync_playwright, APIRequestContext
 from core.config import settings
 
 logger = logging.getLogger(__name__)
 
 _token_cache: dict = {}
+_pw_instance = None
+_request_context: APIRequestContext = None
+
+
+def get_request_context() -> APIRequestContext:
+    global _pw_instance, _request_context
+    if _request_context is None:
+        _pw_instance = sync_playwright().start()
+        _request_context = _pw_instance.request.new_context()
+    return _request_context
 
 
 def _is_token_expired(token: str) -> bool:
@@ -42,10 +52,11 @@ def get_token(user: str = "admin") -> str:
         }
         logger.info(f"Attempting login to: {login_url}")
         logger.info(f"Payload: {json.dumps(_redact(payload), default=str)}")
-        response = requests.post(login_url, json=payload, timeout=30)
-        if response.status_code != 200:
-            logger.error(f"Login failed: {response.status_code} - {response.text}")
-            response.raise_for_status()
+        req = get_request_context()
+        response = req.post(login_url, data=payload, timeout=30000)
+        if response.status != 200:
+            logger.error(f"Login failed: {response.status} - {response.text()}")
+            raise Exception(f"HTTP {response.status}: {response.text()}")
         _token_cache[user] = response.json()["token"]
     return _token_cache[user]
 
@@ -77,55 +88,62 @@ def _log_response(method: str, endpoint: str, status_code: int, body: dict, is_w
 
 def get(endpoint: str, user: str = "admin", params: dict = None) -> dict:
     logger.info("GET %s | user: %s\nparams:\n%s", endpoint, user, _fmt(params))
-    response = requests.get(
+    req = get_request_context()
+    response = req.get(
         f"{settings.API_BASE_URL}/{endpoint}",
         headers=headers(user),
         params=params,
-        timeout=30
+        timeout=30000
     )
-    response.raise_for_status()
+    if not response.ok:
+        raise Exception(f"HTTP {response.status}: {response.text()}")
     body = response.json()
-    _log_response("GET", endpoint, response.status_code, body)
+    _log_response("GET", endpoint, response.status, body)
     return body
 
 
 def post(endpoint: str, user: str = "admin", payload: dict = None) -> dict:
     logger.info("POST %s | user: %s\npayload:\n%s", endpoint, user, _fmt(payload))
-    response = requests.post(
+    req = get_request_context()
+    response = req.post(
         f"{settings.API_BASE_URL}/{endpoint}",
         headers=headers(user),
-        json=payload,
-        timeout=30
+        data=payload,
+        timeout=30000
     )
-    if response.status_code == 400:
+    if response.status == 400:
         try:
             body = response.json()
         except Exception:
-            body = {"message": response.text}
+            body = {"message": response.text()}
         _log_response("POST", endpoint, 400, body, is_warning=True)
         return body
-    response.raise_for_status()
+    if not response.ok:
+        raise Exception(f"HTTP {response.status}: {response.text()}")
     body = response.json()
-    _log_response("POST", endpoint, response.status_code, body)
+    _log_response("POST", endpoint, response.status, body)
     return body
 
 
 def put(endpoint: str, user: str = "admin", payload: dict = None) -> dict:
     logger.info("PUT %s | user: %s\npayload:\n%s", endpoint, user, _fmt(payload))
-    response = requests.put(
+    req = get_request_context()
+    response = req.put(
         f"{settings.API_BASE_URL}/{endpoint}",
         headers=headers(user),
-        json=payload,
-        timeout=30
+        data=payload,
+        timeout=30000
     )
-    if response.status_code == 400:
+    if response.status == 400:
         try:
             body = response.json()
         except Exception:
-            body = {"message": response.text}
+            body = {"message": response.text()}
         _log_response("PUT", endpoint, 400, body, is_warning=True)
         return body
-    response.raise_for_status()
+    if not response.ok:
+        raise Exception(f"HTTP {response.status}: {response.text()}")
     body = response.json()
-    _log_response("PUT", endpoint, response.status_code, body)
+    _log_response("PUT", endpoint, response.status, body)
     return body
+

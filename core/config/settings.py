@@ -19,13 +19,12 @@ API_BASE_URL_PROD = os.getenv("API_BASE_URL_PROD")
 # Legacy fallback
 API_BASE_URL_LEGACY = os.getenv("API_BASE_URL")
 
-# Determine active API_BASE_URL based on ENV
+# Determine active API_BASE_URL based on ENV (strictly STG default)
 if ENV == "prod":
-    API_BASE_URL = (API_BASE_URL_PROD or API_BASE_URL_LEGACY or "").strip()
-elif ENV == "stg":
-    API_BASE_URL = (API_BASE_URL_STG or API_BASE_URL_LEGACY or "").strip()
+    API_BASE_URL = (API_BASE_URL_PROD or "https://hrmsapi.jobvritta.com/api").strip()
 else:
-    API_BASE_URL = (API_BASE_URL_LEGACY or "").strip()
+    API_BASE_URL = (API_BASE_URL_STG or API_BASE_URL_LEGACY or "https://audit.jobvritta.com/api").strip()
+
 
 print("\n" + "="*50)
 print("HRlens Playwright - Active Configuration")

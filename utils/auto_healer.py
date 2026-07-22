@@ -1,8 +1,8 @@
 import os
 import re
 from pathlib import Path
-import requests
 from dotenv import load_dotenv
+
 
 load_dotenv()
 
@@ -52,25 +52,31 @@ def heal_file(filepath: str, error_trace: str) -> bool:
     }
 
     try:
-        response = requests.post(GEMINI_URL, json=payload)
-        response.raise_for_status()
-        data = response.json()
-        fixed_code = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-        
-        # Clean up markdown if the LLM hallucinated it despite instructions
-        fixed_code = fixed_code.removeprefix("```python").removesuffix("```").strip()
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            req = p.request.new_context()
+            response = req.post(GEMINI_URL, data=payload)
+            if not response.ok:
+                print(f"[Healer] [ERROR] Failed to call LLM API: HTTP {response.status}")
+                return False
+            data = response.json()
+            fixed_code = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+            
+            # Clean up markdown if the LLM hallucinated it despite instructions
+            fixed_code = fixed_code.removeprefix("```python").removesuffix("```").strip()
 
-        if fixed_code and fixed_code != file_content:
-            _safe_path(filepath).write_text(fixed_code, encoding="utf-8")
-            print("[Healer] [SUCCESS] Successfully applied AI fix to the file!")
-            return True
-        else:
-            print("[Healer] [ERROR] AI could not determine a fix.")
-            return False
+            if fixed_code and fixed_code != file_content:
+                _safe_path(filepath).write_text(fixed_code, encoding="utf-8")
+                print("[Healer] [SUCCESS] Successfully applied AI fix to the file!")
+                return True
+            else:
+                print("[Healer] [ERROR] AI could not determine a fix.")
+                return False
 
-    except requests.RequestException as e:
+    except Exception as e:
         print(f"[Healer] [ERROR] Failed to call LLM API: {e}")
         return False
+
 
 def mock_heal(filepath: str, file_content: str, error_trace: str) -> bool:
     """Mock healing logic for demonstration purposes."""

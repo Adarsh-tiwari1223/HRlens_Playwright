@@ -70,7 +70,8 @@ def logged_in_page(browser):
         context.set_default_timeout(settings.DEFAULT_TIMEOUT)
         context.tracing.start(screenshots=True, snapshots=True, sources=True)
         page = context.new_page()
-        page.goto(settings.BASE_URL)
+        page.goto(settings.BASE_URL, timeout=60000)
+
         LoginPage(page).login(
             settings.USERS[user_key]["username"],
             settings.USERS[user_key]["password"]

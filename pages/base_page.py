@@ -208,7 +208,6 @@ class BasePage:
         self.page.goto(url, wait_until="domcontentloaded")
 
     def click(self, locator: str):
-        self.page.locator(locator).wait_for(state="visible")
         self.page.locator(locator).click()
         logger.debug(f"click → {locator}")
 
@@ -294,7 +293,6 @@ class BasePage:
 
 
     def fill(self, locator: str, value: str):
-        self.page.locator(locator).wait_for(state="visible")
         self.page.locator(locator).fill(value)
         logger.debug(f"fill → {locator} = '{value}'")
 
@@ -320,7 +318,6 @@ class BasePage:
         return result
 
     def select_option(self, locator: str, value: str):
-        self.page.locator(locator).wait_for(state="visible")
         self.page.locator(locator).select_option(value)
         logger.debug(f"select_option → {locator} = '{value}'")
 

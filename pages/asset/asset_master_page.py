@@ -236,3 +236,28 @@ class AssetMasterPage(BasePage):
     def wait_for_toast_message(self) -> str:
         return self.wait_for_toast(self.TOAST)
 
+    def set_category_inactive(self, category_name: str):
+        """Edit a category and toggle its Active status to Inactive."""
+        logger.debug(f"Setting category inactive: {category_name}")
+        self.edit_category(category_name)
+        dialog = self.page.locator("[role='dialog']").first
+        dialog.wait_for(state="visible")
+        active_toggle = dialog.locator("span").nth(1)
+        active_toggle.wait_for(state="visible")
+        active_toggle.click()
+
+    def verify_category_not_in_dropdown(self, category_name: str):
+        """Assert that category_name does NOT appear in the Category select dropdown in Add Sub Category dialog."""
+        logger.debug(f"Verifying '{category_name}' is absent from Sub Category dropdown")
+        dialog = self.page.locator("[role='dialog']").first
+        dropdown = dialog.get_by_label("Category*")
+        dropdown.wait_for(state="visible")
+        options = dropdown.locator("option").all_inner_texts()
+        logger.debug(f"Dropdown options: {options}")
+        assert category_name not in options, f"Inactive category '{category_name}' is still selectable in Sub Category form!"
+
+    def close_modal(self):
+        """Close the currently open dialog modal."""
+        logger.debug("Closing open modal")
+        self._ensure_modal_closed()
+

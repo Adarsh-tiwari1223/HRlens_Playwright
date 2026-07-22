@@ -19,7 +19,7 @@ class LeavePage(BasePage):
     TOAST = "#chakra-toast-manager-top-right"
     MY_LEAVES_LINK = "role=link[name='MyLeaves' i]"
     LEAVE_APPLY_LINK = "a:has-text('Leave Apply')"
-    ATTENDANCE_LINK = "a:has-text('Attendance')"
+    ATTENDANCE_LINK = "a:has-text('Attendance'):not(:has-text('MyAttendance'))"
     LEAVES_REQUEST_LINK = "a:has-text('Leaves Request')"
     SEARCH_INPUT = "input[placeholder*='Search Employee by name']"
     SUBMIT_BTN = "button:has-text('Apply') >> nth=0"
@@ -32,7 +32,7 @@ class LeavePage(BasePage):
         self.click(self.LEAVE_APPLY_LINK)
 
     def click_attendance(self):
-        self.click(self.ATTENDANCE_LINK)
+        self.page.get_by_role("link", name="Attendance", exact=True).click()
 
     def click_leave_request(self, employee_name: str = None):
         self.click(self.LEAVES_REQUEST_LINK)
@@ -58,22 +58,30 @@ class LeavePage(BasePage):
     def _select_date_from_calendar(self, trigger_locator: str, target_date: date):
         logger.info(f"Selecting date: {target_date}")
         self.click(trigger_locator)
-        calendar = self.page.locator(".react-calendar:visible")
+        calendar = self.page.locator(".react-calendar:visible").first
         calendar.wait_for(state="visible")
 
         day = target_date.day
         target_label = target_date.strftime(f"%B {day}, %Y")
 
-        day_locator = calendar.locator(
-            f"button:not(:disabled):not(.react-calendar__month-view__days__day--neighboringMonth)"
-            f":has(abbr[aria-label='{target_label}'])"
-        )
+        next_btn = calendar.locator(".react-calendar__navigation__next-button")
+        for _ in range(12):
+            day_locator = calendar.locator(
+                f"button:not(:disabled):not(.react-calendar__month-view__days__day--neighboringMonth)"
+                f":has(abbr[aria-label='{target_label}'])"
+            )
+            if day_locator.count() > 0 and day_locator.first.is_visible():
+                day_locator.first.click()
+                logger.info(f"Date selected: {target_label}")
+                return
+            if next_btn.is_visible() and next_btn.is_enabled():
+                next_btn.click()
+                self.page.wait_for_timeout(300)
+            else:
+                break
 
-        if day_locator.count() == 0:
-            raise AssertionError(f"Date not selectable: {target_label}")
+        raise AssertionError(f"Date not selectable: {target_label}")
 
-        day_locator.first.click()
-        logger.info(f"Date selected: {target_label}")
 
     def select_leave_type(self, leave_type: str):
         self.click(self.LEAVE_TYPE)

@@ -68,7 +68,7 @@ def test_add_fresher_candidate(candidate_page, dummy_resume_path):
     candidate_page.generate_and_validate_offer(
         candidate_name=data['name'],
         doj=interview_date,
-        gross_salary="15000"
+        gross_salary="20000"
     )
 
 

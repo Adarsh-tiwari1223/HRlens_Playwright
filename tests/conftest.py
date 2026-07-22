@@ -87,9 +87,10 @@ def logged_in_page(browser):
 
 
 @pytest.fixture(scope="module")
-def admin_page(browser):
+def admin_page(browser, request):
     context = browser.new_context(**CONTEXT_OPTIONS)
     context.set_default_timeout(settings.DEFAULT_TIMEOUT)
+    context.tracing.start(screenshots=True, snapshots=True, sources=True)
     page = context.new_page()
     page.goto(settings.BASE_URL, timeout=60000)
     page.get_by_label("Email").wait_for(state="visible", timeout=30000)
@@ -104,3 +105,15 @@ def admin_page(browser):
     yield page
     context.close()
 
+    try:
+        page.goto(settings.BASE_URL, timeout=60000)
+        page.get_by_label("Email").wait_for(state="visible", timeout=30000)
+        login_page = LoginPage(page)
+        creds = settings.USERS["admin"]
+        login_page.login(creds["username"], creds["password"])
+        page.wait_for_url("**/dashboard", timeout=20000)
+        page.wait_for_load_state("networkidle")
+        yield page
+    finally:
+        context.tracing.stop(path=f"reports/trace_admin_page.zip")
+        context.close()

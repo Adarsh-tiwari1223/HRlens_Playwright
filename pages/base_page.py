@@ -211,6 +211,12 @@ class BasePage:
         self.page.locator(locator).wait_for(state="visible")
         self.page.locator(locator).click()
         logger.debug(f"click → {locator}")
+        # Clean locator for log output (e.g. role=button[name='Add Company'] -> 'Add Company')
+        clean_name = locator
+        match = re.search(r"name=['\"]([^'\"]+)['\"]", locator)
+        if match:
+            clean_name = f"'{match.group(1)}'"
+        logger.info(f"click → {clean_name}")
 
     def fill(self, locator: str, value: str):
         self.page.locator(locator).wait_for(state="visible")

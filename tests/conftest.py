@@ -71,14 +71,16 @@ def logged_in_page(browser):
         context.tracing.start(screenshots=True, snapshots=True, sources=True)
         page = context.new_page()
         page.goto(settings.BASE_URL, timeout=60000)
+        page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="visible", timeout=30000)
 
         LoginPage(page).login(
             settings.USERS[user_key]["username"],
             settings.USERS[user_key]["password"]
         )
-        page.wait_for_load_state("networkidle")
+        page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="hidden", timeout=30000)
         contexts.append((context, user_key))
         return page, context
+
 
     yield _login
 
@@ -94,14 +96,14 @@ def admin_page(browser, request):
     context.tracing.start(screenshots=True, snapshots=True, sources=True)
     page = context.new_page()
     page.goto(settings.BASE_URL, timeout=60000)
-    page.get_by_label("Email").wait_for(state="visible", timeout=30000)
+    page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="visible", timeout=30000)
     login_page = LoginPage(page)
     creds = settings.USERS["admin"]
     login_page.login(creds["username"], creds["password"])
+    page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="hidden", timeout=30000)
     yield page
     try:
         context.tracing.stop(path=f"reports/trace_{request.node.name}.zip")
     except Exception:
         pass
     context.close()
-

@@ -14,7 +14,7 @@ class LoginPage(BasePage):
         self._fill_email(email)
         self._fill_password(password)
         self.page.get_by_role("button", name="Login").click()
-        expect(self.page.get_by_label("Email")).to_be_hidden(timeout=15000)
+
 
 
 

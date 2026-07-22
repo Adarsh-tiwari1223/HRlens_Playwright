@@ -1,5 +1,6 @@
 import re
 import logging
+from playwright.sync_api import expect
 from pages.base_page import BasePage
 from core.config import settings
 
@@ -22,7 +23,6 @@ class AssetMasterPage(BasePage):
     # Sub Categories tab elements
     SUB_CATEGORIES_TAB = "role=tab[name='Sub Category']"
     ADD_SUB_CATEGORY_BTN = "role=button[name='Add Sub Category']"
-
 
     CATEGORY_SELECT = 'internal:label="Category*"'
     SUB_CATEGORY_NAME_INPUT = 'internal:label="Sub Category Name*"'
@@ -52,11 +52,12 @@ class AssetMasterPage(BasePage):
                 self.page.get_by_label("Email").wait_for(state="visible", timeout=10000)
                 from pages.login_page import LoginPage
                 LoginPage(self.page).login(settings.USERS["admin"]["username"], settings.USERS["admin"]["password"])
-                self.page.wait_for_timeout(1000)
                 self.page.goto(f"{settings.BASE_URL}/master/asset-master")
+
                 self.page.wait_for_load_state("domcontentloaded")
             except Exception as e:
                 logger.error(f"Auto-authentication failed: {e}")
+
 
 
     def navigate_to_sub_categories(self):

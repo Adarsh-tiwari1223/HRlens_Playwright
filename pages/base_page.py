@@ -211,12 +211,87 @@ class BasePage:
         self.page.locator(locator).wait_for(state="visible")
         self.page.locator(locator).click()
         logger.debug(f"click → {locator}")
-        # Clean locator for log output (e.g. role=button[name='Add Company'] -> 'Add Company')
-        clean_name = locator
-        match = re.search(r"name=['\"]([^'\"]+)['\"]", locator)
-        if match:
-            clean_name = f"'{match.group(1)}'"
-        logger.info(f"click → {clean_name}")
+
+    # ══════════════════════════════════════════════════════════════════════════════
+    # FIELD-LEVEL FORM VALIDATION HELPERS (FRAMEWORK-WIDE)
+    # ══════════════════════════════════════════════════════════════════════════════
+
+    def get_field_validation(self, field_label_or_locator: str) -> str:
+        """Returns validation text below a specific form field or label."""
+        try:
+            control = self.page.locator(f".chakra-form-control:has(label:has-text('{field_label_or_locator}'))").first
+            if control.is_visible():
+                err = control.locator(".chakra-form__error-message, [id$='-feedback'], [role='alert']").first
+                if err.is_visible():
+                    return err.inner_text().strip()
+            err_direct = self.page.locator(field_label_or_locator).locator(".chakra-form__error-message, [id$='-feedback'], [role='alert']").first
+            if err_direct.is_visible():
+                return err_direct.inner_text().strip()
+        except Exception as e:
+            logger.debug(f"get_field_validation for '{field_label_or_locator}' error: {e}")
+        return ""
+
+    def get_all_validation_messages(self, container_selector: str = "[role='dialog'], form") -> dict[str, str]:
+        """Dynamically discovers all visible field-level error messages in form or modal.
+        Returns a dictionary mapping field labels to their respective error text,
+        e.g. {'Category Name': 'Category name is required'}
+        """
+        validations = {}
+        try:
+            container = self.page.locator(container_selector).first
+            if not container.is_visible():
+                container = self.page
+
+            controls = container.locator(".chakra-form-control").all()
+            for ctrl in controls:
+                if ctrl.is_visible():
+                    err_elem = ctrl.locator(".chakra-form__error-message, [id$='-feedback'], [role='alert']").first
+                    if err_elem.is_visible():
+                        err_text = err_elem.inner_text().strip()
+                        label_elem = ctrl.locator(".chakra-form__label, label").first
+                        if label_elem.is_visible():
+                            label_text = label_elem.inner_text().strip().rstrip("*").strip()
+                        else:
+                            label_text = "Field"
+                        validations[label_text] = err_text
+
+            if not validations:
+                err_elements = container.locator(".chakra-form__error-message, [id$='-feedback']").all()
+                for idx, err in enumerate(err_elements, 1):
+                    if err.is_visible():
+                        validations[f"Field_{idx}"] = err.inner_text().strip()
+        except Exception as e:
+            logger.debug(f"get_all_validation_messages error: {e}")
+
+        logger.debug(f"Discovered field validations: {validations}")
+        return validations
+
+    def assert_validation_message(self, expected_messages: dict[str, str], container_selector: str = "[role='dialog'], form") -> bool:
+        """Asserts expected field-level validation messages and logs field-by-field details.
+        expected_messages: e.g. {'Category Name': 'Category name is required'}
+        """
+        actual_messages = self.get_all_validation_messages(container_selector)
+        all_passed = True
+        
+        logger.info("=========================================================")
+        logger.info("Validation Summary")
+        logger.info("=========================================================")
+
+        for field_name, exp_text in expected_messages.items():
+            act_text = actual_messages.get(field_name, "")
+            is_match = exp_text.lower() in act_text.lower() if act_text else False
+            if not is_match:
+                all_passed = False
+            status = "PASS" if is_match else "FAIL"
+
+            logger.info(f"Field      : {field_name}")
+            logger.info(f"Expected   : {exp_text}")
+            logger.info(f"Actual     : {act_text if act_text else '<No field error displayed>'}")
+            logger.info(f"Status     : {status}")
+            logger.info("---------------------------------------------------------")
+
+        return all_passed
+
 
     def fill(self, locator: str, value: str):
         self.page.locator(locator).wait_for(state="visible")
@@ -254,7 +329,7 @@ class BasePage:
         logger.debug(f"wait_for_url → '{partial}'")
 
     def wait_for_toast(self, locator: str, timeout: int = 6000) -> str:
-        toast_loc = self.page.locator(locator)
+        toast_loc = self.page.locator(f"{locator} .chakra-toast, {locator} [role='status'], {locator}").first
         try:
             toast_loc.wait_for(state="visible", timeout=timeout)
             text = toast_loc.inner_text().strip()
@@ -264,6 +339,7 @@ class BasePage:
         logger.debug(f"toast → '{text}'")
 
         return text
+
 
 
 

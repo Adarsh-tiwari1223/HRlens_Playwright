@@ -31,8 +31,8 @@ def test_create_candidate_only(page, dummy_resume_path):
     print(f"\n[DATA] Generated Standalone Candidate: {data['name']} | Email: {data['email']}")
     
     # Navigate, Fill, and Submit
-    candidate_page.navigate_to_add_candidate_for_job()
+    job_name = candidate_page.navigate_to_add_candidate_for_job()
     candidate_page.fill_candidate_form(data, dummy_resume_path)
     candidate_page.submit()
     
-    print(f"\n[SUCCESS] Candidate {data['name']} was successfully added. Stopping script.")
+    print(f"\n[SUCCESS] Candidate {data['name']} was successfully added to job '{job_name}'. Stopping script.")

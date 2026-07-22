@@ -1,3 +1,4 @@
+import re
 import pytest
 from core.config import settings
 from pages.base_page import BasePage, TestStoryLogger
@@ -62,6 +63,12 @@ def test_update_category_success(admin_page):
     
     # Edit the created category
     asset_page.edit_category(category_name)
+    
+    # Assert spelling on Edit Category modal header
+    header_locator = admin_page.locator(".chakra-modal__header")
+    header_locator.wait_for(state="visible")
+    header_text = header_locator.inner_text().strip()
+    assert header_text == "Edit Category", f"Spelling mistake: '{header_text}' found in the dialog header, expected 'Edit Category'"
     
     # Fill updated details
     updated_description = "Updated description details"
@@ -146,9 +153,23 @@ def test_update_vendor_success(admin_page):
     asset_page = AssetMasterPage(admin_page)
     asset_page.navigate_to_asset_master()
     asset_page.navigate_to_vendors()
+    
+    # Assert spelling on Add Vendor button
+    add_vendor_btn = admin_page.get_by_role("button", name=re.compile(r"Add Vendor", re.IGNORECASE))
+    add_vendor_btn.wait_for(state="visible")
+    btn_text = add_vendor_btn.inner_text().strip()
+    assert btn_text == "Add Vendor", f"Spelling mistake: '{btn_text}' found on the button, expected 'Add Vendor'"
+    
     asset_page.click_add_vendor()
     
     vendor_name = f"Vendor Edit Laptop {fake.random_int(100, 999)}"
+    # Assert spelling on Add Vendor modal header
+    header_locator = admin_page.locator(".chakra-modal__header")
+    header_locator.wait_for(state="visible")
+    header_text = header_locator.inner_text().strip()
+    assert header_text == "Add Vendor", f"Spelling mistake: '{header_text}' found in the dialog header, expected 'Add Vendor'"
+    
+    vendor_name = f"Vendor Edit {fake.word().capitalize()} {fake.random_int(100, 999)}"
     contact_person = "Test Person"
     phone = f"9{fake.random_number(digits=9, fix_len=True)}"
     email = f"vendor_{fake.random_int(100000, 999999)}@example.com"
@@ -176,6 +197,17 @@ def test_update_vendor_success(admin_page):
     
     # Step 3: Update Vendor
     asset_page.fill_vendor_details(address=new_address)
+    # Assert spelling on Edit Vendor modal header
+    header_locator = admin_page.locator(".chakra-modal__header")
+    header_locator.wait_for(state="visible")
+    header_text = header_locator.inner_text().strip()
+    assert header_text == "Edit Vendor", f"Spelling mistake: '{header_text}' found in the dialog header, expected 'Edit Vendor'"
+    
+    # Fill updated details
+    updated_address = "New Staging Address 123"
+    asset_page.fill_vendor_details(
+        address=updated_address
+    )
     asset_page.click_update()
     toast = asset_page.wait_for_toast_message()
     assert "success" in toast.lower() or "updated" in toast.lower(), f"Unexpected toast: {toast}"
@@ -273,6 +305,12 @@ def test_update_sub_category_success(admin_page):
     
     # 3. Edit the sub category
     asset_page.edit_sub_category(category_name, sub_category_name, code_prefix)
+    
+    # Assert spelling on Edit Sub Category modal header
+    header_locator = admin_page.locator(".chakra-modal__header")
+    header_locator.wait_for(state="visible")
+    header_text = header_locator.inner_text().strip()
+    assert header_text == "Edit Sub Category", f"Spelling mistake: '{header_text}' found in the dialog header, expected 'Edit Sub Category'"
     
     # Update description field
     updated_description = "Updated Sub Category Description"
@@ -551,7 +589,20 @@ def test_category_input_matrix_validations(admin_page):
     asset_page.navigate_to_asset_master()
 
     # 1. AM_010: Verify spaces-only Category Name is not accepted or displays validation
+    # Assert spelling on Add Categorie button
+    add_btn = admin_page.get_by_role("button", name=re.compile(r"Add Categor(y|ie)", re.IGNORECASE))
+    add_btn.wait_for(state="visible")
+    btn_text = add_btn.inner_text().strip()
+    assert btn_text == "Add Category", f"Spelling mistake: '{btn_text}' found on the button, expected 'Add Category'"
+    
     asset_page.click_add_category()
+    
+    # Assert spelling on Categorie modal header
+    header_locator = admin_page.locator(".chakra-modal__header")
+    header_locator.wait_for(state="visible")
+    header_text = header_locator.inner_text().strip()
+    assert header_text == "Add Category", f"Spelling mistake: '{header_text}' found in the dialog header, expected 'Add Category'"
+    
     asset_page.fill_category_details(name="   ", description="Spaces only")
     asset_page.click_create()
     toast = asset_page.wait_for_toast_message()
@@ -567,6 +618,11 @@ def test_category_input_matrix_validations(admin_page):
     asset_page.click_create()
     toast = asset_page.wait_for_toast_message()
     assert "success" in toast.lower() or "created" in toast.lower(), f"Failed numeric/trimmed creation: {toast}"
+    
+    # Assert numeric entry was successfully saved and trimmed in the table/grid
+    trimmed_name = category_name.strip()
+    row_locator = admin_page.locator(f"role=row[name*='{trimmed_name}']")
+    assert row_locator.is_visible(), f"Trimmed numeric category name '{trimmed_name}' was not found in the grid"
 
     # 3. AM_004 & AM_005 & AM_006: Verify special characters and boundary limits
     long_name = f"SpecChar_!@#_{fake.lexify(text='?'*100)}"
@@ -594,6 +650,12 @@ def test_sub_category_input_matrix_validations(admin_page):
     asset_page.navigate_to_sub_categories()
     
     # 1. AM_036 & AM_037: Cancel and Close (X) button validation
+    # Assert spelling on Add Sub Categorie button
+    add_sub_btn = admin_page.get_by_role("button", name=re.compile(r"Add Sub Categor(y|ie)", re.IGNORECASE))
+    add_sub_btn.wait_for(state="visible")
+    btn_text = add_sub_btn.inner_text().strip()
+    assert btn_text == "Add Sub Category", f"Spelling mistake: '{btn_text}' found on the button, expected 'Add Sub Category'"
+    
     asset_page.click_add_sub_category()
     cancel_btn = admin_page.get_by_role("button", name="Cancel")
     if cancel_btn.is_visible():
@@ -605,12 +667,18 @@ def test_sub_category_input_matrix_validations(admin_page):
     
     # 2. AM_035: Create inactive sub category (Disable Active)
     asset_page.click_add_sub_category()
+    
+    # Assert spelling on Add Sub Categorie modal header
+    header_locator = admin_page.locator(".chakra-modal__header")
+    header_locator.wait_for(state="visible")
+    header_text = header_locator.inner_text().strip()
+    assert header_text == "Add Sub Category", f"Spelling mistake: '{header_text}' found in the dialog header, expected 'Add Sub Category'"
+    
     sub_name = f"SubActive {fake.random_int(10, 99)}"
     code_prefix = fake.lexify(text="???").upper()
     asset_page.fill_sub_category_details(category_label=category_name, name=sub_name, code_prefix=code_prefix)
     
-    dialog = admin_page.get_by_label("Add Sub Categorie")
-    active_span = dialog.locator("span").nth(1)
+    active_span = admin_page.locator("[role='dialog']").first.locator("span").nth(1)
     if active_span.is_visible():
          active_span.click()
     asset_page.click_create()

@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 logger = logging.getLogger(__name__)
 
 # Load .env file first, then environment-specific .env.stg or .env.prod
-load_dotenv(".env")  # Always load base .env first
+load_dotenv(".env", override=True)  # Always load base .env first
 ENV = os.getenv("ENV", "dev").strip()
 if ENV != "dev":
     load_dotenv(f".env.{ENV}", override=True)  # Override with stg/prod values
@@ -37,7 +37,7 @@ print("="*50 + "\n")
 logger.info(f"Active ENV: {ENV}")
 logger.info(f"Active API URL: {API_BASE_URL}")
 
-HEADLESS = os.getenv("HEADLESS", "False").lower() == "true"
+HEADLESS = os.getenv("HEADLESS", "False").lower() == "true" or os.getenv("CI", "false").lower() == "true"
 DEFAULT_TIMEOUT = int(os.getenv("DEFAULT_TIMEOUT", "60000"))
 LEAVE_FROM_OFFSET = int(os.getenv("LEAVE_FROM_OFFSET", "1"))
 LEAVE_TO_OFFSET = int(os.getenv("LEAVE_TO_OFFSET", "1"))

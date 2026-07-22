@@ -18,6 +18,17 @@ End-to-end test automation and API validation for the **HRlens** platform — po
 
 ---
 
+## 💎 Page Object Model (POM) Capabilities & Optimizations
+
+The framework implements a high-performance, resilient **Page Object Model (POM)** designed to leverage Playwright's native powers:
+
+* **Safe Native Auto-Waiting Engine**: Custom wrapper actions in [BasePage](file:///c:/Users/User/Desktop/Tekinspirations/HRlens_Playwright/pages/base_page.py) utilize Playwright's native **Actionability Checks**. Instead of manually waiting for visibility, they rely on Playwright's implicit waits for stability (non-animating), enablement, and event capability, greatly reducing test flakiness.
+* **Dynamic Dialog Scoping & Fallbacks**: Text and dropdown locators automatically scope themselves inside active Chakra UI modals (`[role='dialog']`). If placeholders or labels disappear (e.g. during an Edit state), fallback locators resolve to the first visible type-safe input field.
+* **Tab & Dropdown Integration Checks**: Exposes helper methods to toggle status states (e.g., `set_category_inactive`) and assert that inactive records are successfully pruned from dropdown select options (`verify_category_not_in_dropdown`) in downstream creation drawers.
+* **Process Sequence Alignment**: Tests strictly enforce cross-page setup logic and navigation paths (**Category → Sub Category → Vendor**) to guarantee no dirty states leak across runs.
+
+---
+
 ## 📁 Project Structure
 
 ```

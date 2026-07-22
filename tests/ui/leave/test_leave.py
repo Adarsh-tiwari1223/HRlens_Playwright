@@ -73,14 +73,18 @@ def approver_login(approver_context, submitted_leave):
     }
 
 
+from playwright.sync_api import expect
+
+
 @pytest.fixture(autouse=False)
 def leave_page(employee_context):
     employee_context.reload()
-    employee_context.wait_for_load_state("networkidle")
     leave = LeavePage(employee_context)
     leave.click_my_leave()
+    expect(employee_context.locator("p:has-text('Leave Apply')")).to_be_visible()
     leave.click_leave_apply()
     return leave
+
 
 
 # ─── Happy Path ───────────────────────────────────────────────────────────────
@@ -94,7 +98,9 @@ def test_apply_leave(employee_context):
     to_date = from_date + timedelta(days=settings.LEAVE_TO_OFFSET)
 
     leave.click_my_leave()
+    expect(employee_context.locator("p:has-text('Leave Apply')")).to_be_visible()
     leave.click_leave_apply()
+
     leave._select_date_from_calendar(leave.FROM_DATE_TRIGGER, from_date)
     leave._select_date_from_calendar(leave.TO_DATE_TRIGGER, to_date)
     leave.get_approver_name()

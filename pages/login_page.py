@@ -14,6 +14,8 @@ class LoginPage(BasePage):
         self._fill_email(email)
         self._fill_password(password)
         self.page.get_by_role("button", name="Login").click()
+        expect(self.page.get_by_role("heading", name="Dashboard")).to_be_visible()
+
 
     def click_login(self):
         self.page.get_by_role("button", name="Login").click()
@@ -46,3 +48,5 @@ class LoginPage(BasePage):
             return True
         except:
             return False
+
+

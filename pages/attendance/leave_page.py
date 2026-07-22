@@ -19,7 +19,8 @@ class LeavePage(BasePage):
     TOAST = "#chakra-toast-manager-top-right"
     MY_LEAVES_LINK = "role=link[name='MyLeaves' i]"
     LEAVE_APPLY_LINK = "a:has-text('Leave Apply')"
-    ATTENDANCE_LINK = "a:has-text('Attendance')"
+    ATTENDANCE_LINK = "role=link[name='Attendance' exact=true]"
+
     LEAVES_REQUEST_LINK = "a:has-text('Leaves Request')"
     SEARCH_INPUT = "input[placeholder*='Search Employee by name']"
     SUBMIT_BTN = "button:has-text('Apply') >> nth=0"
@@ -30,9 +31,15 @@ class LeavePage(BasePage):
 
     def click_leave_apply(self):
         self.click(self.LEAVE_APPLY_LINK)
+        try:
+            self.page.locator(self.FROM_DATE_TRIGGER).wait_for(state="visible", timeout=10000)
+        except Exception:
+            pass
+
 
     def click_attendance(self):
-        self.click(self.ATTENDANCE_LINK)
+        self.page.get_by_role("link", name="Attendance", exact=True).click()
+
 
     def click_leave_request(self, employee_name: str = None):
         self.click(self.LEAVES_REQUEST_LINK)

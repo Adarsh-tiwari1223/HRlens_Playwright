@@ -345,11 +345,17 @@ class BasePage:
 
 
 
-    def get_all_toasts(self, locator: str) -> list[str]:
-        self.page.locator(locator).wait_for(state="visible")
-        toasts = self.page.locator(f"{locator} [id*='toast'][id*='title']").all_inner_texts()
-        logger.debug(f"toasts → {toasts}")
-        return toasts
+    def get_all_toasts(self, locator: str, timeout: int = 6000) -> list[str]:
+        toast_container = self.page.locator(locator)
+        try:
+            toast_container.wait_for(state="visible", timeout=timeout)
+        except Exception:
+            pass
+        toasts = self.page.locator(f"{locator} .chakra-toast, {locator} [role='status'], {locator} [id*='toast']").all_inner_texts()
+        cleaned_toasts = [t.strip() for t in toasts if t.strip()]
+        logger.debug(f"get_all_toasts → {cleaned_toasts}")
+        return cleaned_toasts
+
 
     def wait_for_hidden(self, locator: str):
         self.page.locator(locator).wait_for(state="hidden")

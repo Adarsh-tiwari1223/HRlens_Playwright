@@ -5,8 +5,9 @@ from core.config import settings
 
 @pytest.fixture
 def login_page(page):
-    page.goto(settings.BASE_URL)
+    page.goto(settings.BASE_URL, timeout=60000, wait_until="domcontentloaded")
     return LoginPage(page)
+
 
 
 @pytest.mark.smoke

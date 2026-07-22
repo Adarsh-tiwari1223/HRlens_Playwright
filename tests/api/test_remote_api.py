@@ -1,6 +1,6 @@
 import pytest
-import requests
 from core.config import settings
+
 from utils.api.base_api import headers
 from utils.api.remote_api import apply_remote, get_pending_remotes
 

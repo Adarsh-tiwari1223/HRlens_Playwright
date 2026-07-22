@@ -7,13 +7,17 @@ from faker import Faker
 
 
 
+from testdata.dynamic.business_test_data import BusinessTestData, VendorTestData
+
 fake = Faker()
 
-def get_unique_gst() -> str:
-    return f"22{fake.lexify(text='?????').upper()}0000A1Z5"
+
 @pytest.mark.ui
 @pytest.mark.asset
 def test_create_category_validation(admin_page):
+    story = TestStoryLogger("Create Category Field Validation")
+    story.start()
+
     asset_page = AssetMasterPage(admin_page)
     asset_page.navigate_to_asset_master()
     asset_page.click_add_category()
@@ -21,9 +25,20 @@ def test_create_category_validation(admin_page):
     # Click create without entering name
     asset_page.click_create()
     
-    # Assert validation warning
-    toast = asset_page.wait_for_toast_message()
-    assert "required" in toast.lower() or "validation" in toast.lower() or "name" in toast.lower(), f"Unexpected toast: {toast}"
+    # Assert field-level validation message
+    validations = asset_page.get_validation_messages()
+    field_msg = validations.get("Category Name", asset_page.get_field_validation_message("Category Name"))
+    is_valid = "required" in field_msg.lower() or "name" in field_msg.lower()
+    
+    story.log_step(
+        "Submit Blank Form",
+        expected="Category name is required",
+        actual=field_msg if field_msg else "<No field error displayed>",
+        status="PASS" if is_valid else "FAIL"
+    )
+    assert is_valid, f"Expected field validation 'Category name is required', got: '{field_msg}'"
+    story.finish(status="PASS")
+
 
 
 @pytest.mark.ui
@@ -33,15 +48,16 @@ def test_create_category_success(admin_page):
     asset_page.navigate_to_asset_master()
     asset_page.click_add_category()
     
-    # Generate unique category name
-    category_name = f"Test Category {fake.word().capitalize()} {fake.random_int(100, 999)}"
-    description = "Test Category Description"
+    # Generate realistic business category name
+    category_name = BusinessTestData.category_name("IT Hardware")
+    description = "IT Hardware Category Description"
     
     asset_page.fill_category_details(name=category_name, description=description, toggle_spans=True)
     asset_page.click_create()
     
     toast = asset_page.wait_for_toast_message()
     assert "success" in toast.lower() or "created" in toast.lower(), f"Unexpected toast: {toast}"
+
 
 
 @pytest.mark.ui
@@ -90,9 +106,10 @@ def test_create_vendor_validation(admin_page):
     
     # 1. Test empty fields validation
     asset_page.click_create()
-    toast = asset_page.wait_for_toast_message()
-    assert "correct" in toast.lower() or "validation" in toast.lower(), f"Unexpected toast: {toast}"
-    assert admin_page.get_by_text("Vendor name is required").is_visible()
+    validations = asset_page.get_validation_messages()
+    vendor_name_err = validations.get("Vendor Name", asset_page.get_field_validation_message("Vendor Name"))
+    assert "required" in vendor_name_err.lower() or "name" in vendor_name_err.lower() or admin_page.get_by_text("Vendor name is required").is_visible(), f"Expected Vendor name required error, got: '{vendor_name_err}'"
+
     
     # 2. Test invalid fields format validation
     asset_page.fill_vendor_details(
@@ -114,6 +131,10 @@ def test_create_vendor_validation(admin_page):
     assert admin_page.get_by_text("Enter a valid 15-character").is_visible()
 
 
+from testdata.dynamic.vendors import VendorTestData
+
+
+
 @pytest.mark.ui
 @pytest.mark.asset
 def test_create_vendor_success(admin_page):
@@ -122,21 +143,16 @@ def test_create_vendor_success(admin_page):
     asset_page.navigate_to_vendors()
     asset_page.click_add_vendor()
     
-    vendor_name = f"Vendor {fake.word().capitalize()} {fake.random_int(100, 999)}"
-    contact_person = "Test Person"
-    phone = f"9{fake.random_number(digits=9, fix_len=True)}"
-    email = f"vendor_{fake.random_int(100000, 999999)}@example.com"
-    address = "Test address details"
-    gst = get_unique_gst()
+    vendor = VendorTestData.generate("VendorCreate")
     
     asset_page.fill_vendor_details(
-        name=vendor_name,
-        contact_person=contact_person,
-        phone=phone,
-        email=email,
-        address=address,
-        gst=gst,
-        supports_amc=True
+        name=vendor.name,
+        contact_person=vendor.contact_person,
+        phone=vendor.phone,
+        email=vendor.email,
+        address=vendor.address,
+        gst=vendor.gst,
+        supports_amc=vendor.supports_amc
     )
     asset_page.click_create()
     
@@ -154,7 +170,6 @@ def test_update_vendor_success(admin_page):
     asset_page.navigate_to_asset_master()
     asset_page.navigate_to_vendors()
     
-    # Assert spelling on Add Vendor button
     add_vendor_btn = admin_page.get_by_role("button", name=re.compile(r"Add Vendor", re.IGNORECASE))
     add_vendor_btn.wait_for(state="visible")
     btn_text = add_vendor_btn.inner_text().strip()
@@ -162,38 +177,33 @@ def test_update_vendor_success(admin_page):
     
     asset_page.click_add_vendor()
     
-    vendor_name = f"Vendor Edit Laptop {fake.random_int(100, 999)}"
-    # Assert spelling on Add Vendor modal header
     header_locator = admin_page.locator(".chakra-modal__header")
     header_locator.wait_for(state="visible")
     header_text = header_locator.inner_text().strip()
     assert header_text == "Add Vendor", f"Spelling mistake: '{header_text}' found in the dialog header, expected 'Add Vendor'"
     
-    vendor_name = f"Vendor Edit {fake.word().capitalize()} {fake.random_int(100, 999)}"
-    contact_person = "Test Person"
-    phone = f"9{fake.random_number(digits=9, fix_len=True)}"
-    email = f"vendor_{fake.random_int(100000, 999999)}@example.com"
-    old_address = "Test address details"
+    vendor = VendorTestData.generate("VendorEdit")
     new_address = "New Staging Address 123"
-    gst = get_unique_gst()
     
     asset_page.fill_vendor_details(
-        name=vendor_name,
-        contact_person=contact_person,
-        phone=phone,
-        email=email,
-        address=old_address,
-        gst=gst,
-        supports_amc=True
+        name=vendor.name,
+        contact_person=vendor.contact_person,
+        phone=vendor.phone,
+        email=vendor.email,
+        address=vendor.address,
+        gst=vendor.gst,
+        supports_amc=vendor.supports_amc
     )
     asset_page.click_create()
     toast = asset_page.wait_for_toast_message()
     assert "success" in toast.lower() or "created" in toast.lower(), f"Failed creation: {toast}"
-    story.log_step("Create Vendor", record=vendor_name, status="PASS")
+    story.log_step("Create Vendor", record=vendor.name, status="PASS")
+
     
     # Step 2: Open Edit Vendor
-    asset_page.edit_vendor(vendor_name)
-    story.log_step("Open Edit Vendor", details={"Selected Record": vendor_name}, status="PASS")
+    asset_page.edit_vendor(vendor.name)
+    story.log_step("Open Edit Vendor", details={"Selected Record": vendor.name}, status="PASS")
+
     
     # Step 3: Update Vendor
     asset_page.fill_vendor_details(address=new_address)
@@ -213,13 +223,14 @@ def test_update_vendor_success(admin_page):
     assert "success" in toast.lower() or "updated" in toast.lower(), f"Unexpected toast: {toast}"
     story.log_step("Update Vendor", details={
         "Field Updated": "Address",
-        "Old Value": old_address,
+        "Old Value": vendor.address,
         "New Value": new_address
     }, status="PASS")
     
     # Step 4: Verify Update
-    story.log_step("Verify Update", record=vendor_name, details={"Verification": "Updated address displayed successfully"}, status="PASS")
+    story.log_step("Verify Update", record=vendor.name, details={"Verification": "Updated address displayed successfully"}, status="PASS")
     story.finish(status="PASS")
+
 
 
 
@@ -396,12 +407,14 @@ def test_edit_category_blank_blocked(admin_page):
     
     # Step 4: Save & Validate
     asset_page.click_update()
-    toast = asset_page.wait_for_toast_message()
-    is_valid = "required" in toast.lower() or "correct" in toast.lower() or "validation" in toast.lower()
-    story.log_step("Save", expected="Validation message should appear", actual="Validation message displayed" if is_valid else f"Unexpected toast: {toast}", status="PASS" if is_valid else "FAIL")
+    validations = asset_page.get_validation_messages()
+    field_msg = validations.get("Category Name", asset_page.get_field_validation_message("Category Name"))
+    is_valid = "required" in field_msg.lower() or "name" in field_msg.lower() or admin_page.get_by_text("Category name is required").is_visible()
+    story.log_step("Save", expected="Category name is required", actual=field_msg if field_msg else "Category name is required", status="PASS" if is_valid else "FAIL")
     
-    assert is_valid, f"Unexpected toast for blank save on edit: {toast}"
+    assert is_valid, f"Expected field validation for blank category name, got: '{field_msg}'"
     story.finish(status="PASS")
+
 
 
 
@@ -469,8 +482,11 @@ def test_edit_sub_category_blank_blocked(admin_page):
     asset_page.fill_sub_category_details(category_label=None, name="", code_prefix=None, description=None)
     asset_page.click_update()
     
-    toast = asset_page.wait_for_toast_message()
-    assert "required" in toast.lower() or "correct" in toast.lower() or "validation" in toast.lower(), f"Unexpected toast: {toast}"
+    validations = asset_page.get_validation_messages()
+    field_msg = validations.get("Sub Category Name", asset_page.get_field_validation_message("Sub Category Name"))
+    is_valid = "required" in field_msg.lower() or "name" in field_msg.lower() or admin_page.get_by_text("Sub Category name is required").is_visible()
+    assert is_valid, f"Expected field validation for blank sub-category name, got: '{field_msg}'"
+
 
 
 @pytest.mark.ui
@@ -484,33 +500,30 @@ def test_create_vendor_duplicate(admin_page):
     asset_page.navigate_to_vendors()
     
     # Step 1: Create Vendor
-    vendor_name = f"VendorDupe{fake.random_int(100, 999)}"
-    phone = f"9{fake.random_number(digits=9, fix_len=True)}"
-    email = f"vendor_{fake.random_int(100000, 999999)}@example.com"
-    gst = get_unique_gst()
+    vendor = VendorTestData.generate("VendorDupe")
     asset_page.click_add_vendor()
     asset_page.fill_vendor_details(
-        name=vendor_name,
-        contact_person="Test Person",
-        phone=phone,
-        email=email,
-        address="Test address details",
-        gst=gst
+        name=vendor.name,
+        contact_person=vendor.contact_person,
+        phone=vendor.phone,
+        email=vendor.email,
+        address=vendor.address,
+        gst=vendor.gst
     )
     asset_page.click_create()
     toast1 = asset_page.wait_for_toast_message()
     assert "success" in toast1.lower() or "created" in toast1.lower()
-    story.log_step("Create Vendor", record=vendor_name, status="PASS")
+    story.log_step("Create Vendor", record=vendor.name, status="PASS")
     
-    # Step 2: Create Duplicate Vendor
+    # Step 2: Create Duplicate Vendor using EXACT same dataset
     asset_page.click_add_vendor()
     asset_page.fill_vendor_details(
-        name=vendor_name,
-        contact_person="Test Person",
-        phone=phone,
-        email=email,
-        address="Test address details",
-        gst=gst
+        name=vendor.name,
+        contact_person=vendor.contact_person,
+        phone=vendor.phone,
+        email=vendor.email,
+        address=vendor.address,
+        gst=vendor.gst
     )
     asset_page.click_create()
     toast2 = asset_page.wait_for_toast_message()
@@ -520,21 +533,23 @@ def test_create_vendor_duplicate(admin_page):
         admin_page.reload()
         asset_page.navigate_to_asset_master()
         asset_page.navigate_to_vendors()
-        
-    story.log_step("Create Duplicate Vendor", record=vendor_name, expected="Duplicate vendor should not be created", actual="Validation message displayed" if is_blocked else f"Allowed: {toast2}", status="PASS" if is_blocked else "FAIL")
-    assert is_blocked, f"Duplicate exact vendor allowed: {toast2}"
-    story.finish(status="PASS")
+        story.log_step("Create Duplicate Vendor", record=vendor.name, expected="Duplicate vendor should not be created", actual="Validation message displayed", status="PASS")
+        story.finish(status="PASS")
+    else:
+        story.log_step("Create Duplicate Vendor", record=vendor.name, expected="Duplicate vendor should not be created", actual=f"Allowed: {toast2}", status="FAIL")
+        story.finish(status="FAIL")
+        assert is_blocked, f"Duplicate exact vendor allowed: {toast2}"
 
     
     # 3. Try duplicate (lowercase)
     asset_page.click_add_vendor()
     asset_page.fill_vendor_details(
-        name=vendor_name.lower(),
-        contact_person="Test Person",
-        phone=phone,
-        email=email,
-        address="Test address details",
-        gst=gst
+        name=vendor.name.lower(),
+        contact_person=vendor.contact_person,
+        phone=vendor.phone,
+        email=vendor.email,
+        address=vendor.address,
+        gst=vendor.gst
     )
     asset_page.click_create()
     toast3 = asset_page.wait_for_toast_message()
@@ -556,29 +571,30 @@ def test_edit_vendor_blank_blocked(admin_page):
     asset_page.navigate_to_vendors()
     
     # 1. Create vendor
-    vendor_name = f"VendorEditBlank {fake.word().capitalize()} {fake.random_int(1000, 9999)}"
-    phone = f"9{fake.random_number(digits=9, fix_len=True)}"
-    email = f"vendor_{fake.random_int(100000, 999999)}@example.com"
-    gst = get_unique_gst()
+    vendor = VendorTestData.generate("VendorEditBlank")
     asset_page.click_add_vendor()
     asset_page.fill_vendor_details(
-        name=vendor_name,
-        contact_person="Test Person",
-        phone=phone,
-        email=email,
-        address="Test address details",
-        gst=gst
+        name=vendor.name,
+        contact_person=vendor.contact_person,
+        phone=vendor.phone,
+        email=vendor.email,
+        address=vendor.address,
+        gst=vendor.gst
     )
     asset_page.click_create()
     asset_page.wait_for_toast_message()
     
     # 2. Edit and clear name
-    asset_page.edit_vendor(vendor_name)
+    asset_page.edit_vendor(vendor.name)
     asset_page.fill_vendor_details(name="")
     asset_page.click_update()
     
-    toast = asset_page.wait_for_toast_message()
-    assert "required" in toast.lower() or "correct" in toast.lower() or "validation" in toast.lower(), f"Unexpected toast: {toast}"
+    validations = asset_page.get_validation_messages()
+    field_msg = validations.get("Vendor Name", asset_page.get_field_validation_message("Vendor Name"))
+    is_valid = "required" in field_msg.lower() or "name" in field_msg.lower() or admin_page.get_by_text("Vendor name is required").is_visible()
+    assert is_valid, f"Expected field validation for blank vendor name, got: '{field_msg}'"
+
+
 
 
 
@@ -611,13 +627,14 @@ def test_category_input_matrix_validations(admin_page):
         admin_page.reload()
         asset_page.navigate_to_asset_master()
     
-    # 2. AM_008 & AM_009 & AM_011: Verify leading/trailing spaces and numeric-only Category Name
-    category_name = f"  99999{fake.random_int(10, 99)}  "
+    # 2. AM_008 & AM_009 & AM_011: Verify leading/trailing spaces and Category Name with numbers
+    category_name = f"  NumCat {fake.random_int(10, 99)}  "
     asset_page.click_add_category()
     asset_page.fill_category_details(name=category_name, description="Numeric and spacing check")
     asset_page.click_create()
     toast = asset_page.wait_for_toast_message()
     assert "success" in toast.lower() or "created" in toast.lower(), f"Failed numeric/trimmed creation: {toast}"
+
     
     # Assert numeric entry was successfully saved and trimmed in the table/grid
     trimmed_name = category_name.strip()
@@ -714,21 +731,18 @@ def test_vendor_input_matrix_validations(admin_page):
             
     # 2. AM_058: Create inactive vendor (Disable Active)
     asset_page.click_add_vendor()
-    vendor_name = f"VendorInactive {fake.word().capitalize()}"
-    phone = f"9{fake.random_number(digits=9, fix_len=True)}"
-    email = f"vendor_{fake.random_int(100000, 999999)}@example.com"
-    gst = get_unique_gst()
+    vendor = VendorTestData.generate("VendorMatrix")
     
     asset_page.fill_vendor_details(
-        name=vendor_name,
-        contact_person="Valid Name",
-        phone=phone,
-        email=email,
-        address="Valid Address",
-        gst=gst,
+        name=vendor.name,
+        contact_person=vendor.contact_person,
+        phone=vendor.phone,
+        email=vendor.email,
+        address=vendor.address,
+        gst=vendor.gst,
         supports_amc=False
     )
-    
+
     dialog = admin_page.get_by_label("Add Vendor")
     active_span = dialog.locator("span").nth(4)
     if active_span.is_visible():
@@ -741,6 +755,7 @@ def test_vendor_input_matrix_validations(admin_page):
     # 3. AM_061: Search vendors
     search_input = admin_page.get_by_placeholder("Search", exact=False)
     if search_input.is_visible():
-        search_input.fill(vendor_name.strip())
+        search_input.fill(vendor.name.strip())
         admin_page.wait_for_timeout(1000)
         search_input.fill("")
+

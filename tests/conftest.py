@@ -97,23 +97,10 @@ def admin_page(browser, request):
     login_page = LoginPage(page)
     creds = settings.USERS["admin"]
     login_page.login(creds["username"], creds["password"])
+    yield page
     try:
-        page.wait_for_url(f"{settings.BASE_URL}/**", timeout=10000)
+        context.tracing.stop(path=f"reports/trace_{request.node.name}.zip")
     except Exception:
         pass
-    page.wait_for_timeout(1000)
-    yield page
     context.close()
 
-    try:
-        page.goto(settings.BASE_URL, timeout=60000)
-        page.get_by_label("Email").wait_for(state="visible", timeout=30000)
-        login_page = LoginPage(page)
-        creds = settings.USERS["admin"]
-        login_page.login(creds["username"], creds["password"])
-        page.wait_for_url("**/dashboard", timeout=20000)
-        page.wait_for_load_state("networkidle")
-        yield page
-    finally:
-        context.tracing.stop(path=f"reports/trace_admin_page.zip")
-        context.close()

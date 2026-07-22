@@ -12,20 +12,21 @@ End-to-end test automation and API validation for the **HRlens** platform — po
 
 * **Browser Automation**: [Playwright](https://playwright.dev/python/) for fast, reliable, and modern web testing.
 * **Test Runner**: [pytest](https://docs.pytest.org/) for execution, filtering, and tagging.
-* **API Testing**: Python `requests` for fast database validation and backend workflow setups.
-* **Reports**: Allure Reporting and native HTML reports with automatically attached Playwright execution traces.
+* **CI/CD Integration**: Fully integrated GitHub Actions CI pipeline running headlessly with automated artifacts.
+* **Reports**: Allure Reporting and native HTML reports with automatically attached Playwright execution traces on failure.
 * **Data Mocking**: `Faker` for dynamic candidate data generation.
 
 ---
 
-## 💎 Page Object Model (POM) Capabilities & Optimizations
+## 💎 CI-Enabled Page Object Model (POM)
 
-The framework implements a high-performance, resilient **Page Object Model (POM)** designed to leverage Playwright's native powers:
+The framework implements a high-performance, resilient, and **CI-Ready Page Object Model (POM)** designed to run flawlessly locally and in CI/CD pipelines (GitHub Actions):
 
-* **Safe Native Auto-Waiting Engine**: Custom wrapper actions in [BasePage](file:///c:/Users/User/Desktop/Tekinspirations/HRlens_Playwright/pages/base_page.py) utilize Playwright's native **Actionability Checks**. Instead of manually waiting for visibility, they rely on Playwright's implicit waits for stability (non-animating), enablement, and event capability, greatly reducing test flakiness.
-* **Dynamic Dialog Scoping & Fallbacks**: Text and dropdown locators automatically scope themselves inside active Chakra UI modals (`[role='dialog']`). If placeholders or labels disappear (e.g. during an Edit state), fallback locators resolve to the first visible type-safe input field.
-* **Tab & Dropdown Integration Checks**: Exposes helper methods to toggle status states (e.g., `set_category_inactive`) and assert that inactive records are successfully pruned from dropdown select options (`verify_category_not_in_dropdown`) in downstream creation drawers.
-* **Process Sequence Alignment**: Tests strictly enforce cross-page setup logic and navigation paths (**Category → Sub Category → Vendor**) to guarantee no dirty states leak across runs.
+* **CI-Ready Viewport Optimization**: Automatically detects running environments. On **Local Runs**, it maximizes the browser window to match user screen resolution. On **CI Runs (Headless)**, it defaults to a clean `1920x1080` viewport to ensure sidebar links are expanded and reachable.
+* **Safe Native Auto-Waiting Engine**: Wrapper actions in [BasePage](file:///c:/Users/User/Desktop/Tekinspirations/HRlens_Playwright/pages/base_page.py) utilize Playwright's native Actionability Checks (waiting for stable, visible, and enabled states), replacing fragile hardcoded sleep loops.
+* **Auto-Recovery & Sign-In Fallback**: If a test loses session context during navigation, the navigation engine auto-recovers by logging back in and returning to the target page without aborting the test runner.
+* **Dynamic Dialog Scoping**: Automatically scopes input fields and dropdowns inside the active dialog container (`[role='dialog']`), handling fallback fields when placeholder texts disappear in Edit modal states.
+* **Tab & Dropdown Integration Checks**: Exposes helper methods to set record states (e.g., `set_category_inactive`) and assert that inactive records are pruned from dropdown select options (`verify_category_not_in_dropdown`) in downstream creation drawers.
 
 ---
 

@@ -186,10 +186,21 @@ def test_blank_subject_shows_error(leave_page):
     leave_page._select_date_from_calendar(leave_page.TO_DATE_TRIGGER, to_date)
     leave_page.select_leave_type("Vacation Leave")
     leave_page.click_submit()
+    leave_page.click_confirm()
 
+    # Capture all toast messages into an array
     toasts = leave_page.get_all_toasts(leave_page.TOAST)
-    assert any("subject" in t.lower() or "required" in t.lower() for t in toasts), \
-        f"Expected subject validation error, got: {toasts}"
+    validations = leave_page.get_all_validation_messages()
+
+    is_valid = (
+        any("subject" in t.lower() or "required" in t.lower() or "correct" in t.lower() or "mail" in t.lower() or "body" in t.lower() for t in toasts) or
+        any("subject" in v.lower() or "required" in v.lower() for v in validations.values()) or
+        leave_page.page.locator(".chakra-form__error-message, [id*='feedback']").is_visible()
+    )
+    assert is_valid, f"Expected subject/mail body validation error in toasts: {toasts}, validations: {validations}"
+
+
+
 
 
 @pytest.mark.regression

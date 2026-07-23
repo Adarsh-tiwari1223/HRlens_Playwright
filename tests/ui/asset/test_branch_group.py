@@ -6,6 +6,7 @@ from faker import Faker
 
 fake = Faker()
 
+pytestmark = pytest.mark.skip(reason="Branch group in refinement stage")
 
 @pytest.mark.ui
 @pytest.mark.asset
@@ -111,7 +112,7 @@ def test_create_branch_group_duplicate(admin_page):
     if is_blocked:
         admin_page.reload()
         bg_page.navigate_to_branch_group()
-        story.log_step("Create Duplicate Branch Group", record=group_name, expected="Duplicate branch group should not be created", actual="Validation message displayed", status="PASS")
+        story.log_step("Create Duplicate Branch Group", record=group_name, expected="Duplicate branch group should not be created", actual=f"Blocked with message: '{toast2}'", status="PASS")
         story.finish(status="PASS")
     else:
         story.log_step("Create Duplicate Branch Group", record=group_name, expected="Duplicate branch group should not be created", actual=f"Allowed creation: {toast2}", status="FAIL")

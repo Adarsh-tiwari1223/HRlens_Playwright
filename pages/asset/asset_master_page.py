@@ -82,6 +82,11 @@ class AssetMasterPage(BasePage):
             self.page.locator(".chakra-modal__overlay").first.wait_for(state="hidden", timeout=3000)
         except Exception:
             pass
+        # Wait for toasts to disappear so they do not overlap top-right action buttons
+        try:
+            self.page.locator(".chakra-toast").first.wait_for(state="hidden", timeout=4000)
+        except Exception:
+            pass
 
 
     def click_add_category(self):

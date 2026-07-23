@@ -68,7 +68,7 @@ def test_update_category_success(admin_page):
     asset_page.navigate_to_asset_master()
     asset_page.click_add_category()
     
-    category_name = f"Category {fake.word().capitalize()} {fake.random_int(100, 999)}"
+    category_name = BusinessTestData.category_name("Office Equipment")
     description = "Category description"
     
     asset_page.fill_category_details(name=category_name, description=description, toggle_spans=True)
@@ -100,42 +100,66 @@ def test_update_category_success(admin_page):
 @pytest.mark.ui
 @pytest.mark.asset
 def test_create_category_duplicate(admin_page):
+    story = TestStoryLogger("Category Duplicate Validation")
+    story.start()
+
     asset_page = AssetMasterPage(admin_page)
     asset_page.navigate_to_asset_master()
     
-    # 1. Create first category
-    category_name = f"DuplicateCat {fake.random_int(1000, 9999)}"
+    # Step 1: Create first category
+    category_name = BusinessTestData.category_name("IT Hardware")
     asset_page.click_add_category()
     asset_page.fill_category_details(name=category_name, description="First entry", toggle_spans=True)
     asset_page.click_create()
     toast1 = asset_page.wait_for_toast_message()
-    assert "success" in toast1.lower() or "created" in toast1.lower(), f"First creation failed: {toast1}"
     
-    # 2. Try creating duplicate category with same name (exact case)
+    validations1 = asset_page.get_validation_messages()
+    assert "success" in toast1.lower() or "created" in toast1.lower(), f"First creation failed: {toast1}. Field errors: {validations1}"
+    story.log_step("Create Category", record=category_name, status="PASS")
+    
+    # Cleanly reload page to clear all overlays, modals, and top-right toast alerts
+    admin_page.reload()
+    asset_page.navigate_to_asset_master()
+    
+    # Step 2: Try creating duplicate category with same name (exact case)
     asset_page.click_add_category()
-    asset_page.fill_category_details(name=category_name, description="Duplicate entry", toggle_spans=True)
+    asset_page.fill_category_details(name=category_name, description="Duplicate entry", toggle_spans=False)
     asset_page.click_create()
-    toast2 = asset_page.wait_for_toast_message()
     
-    # If duplicate exact case was blocked (modal remains open), reset state
-    if "success" not in toast2.lower() and "created" not in toast2.lower():
-        admin_page.reload()
-        asset_page.navigate_to_asset_master()
+    validations = asset_page.get_validation_messages()
+    field_msg = validations.get("Category Name", asset_page.get_field_validation_message("Category Name"))
+    is_blocked = "exists" in field_msg.lower() or "required" in field_msg.lower() or "validation" in field_msg.lower()
+    
+    admin_page.reload()
+    asset_page.navigate_to_asset_master()
+    
+    if is_blocked:
+        story.log_step("Create Duplicate Category (Exact)", record=category_name, expected="Duplicate category should not be created", actual=f"Blocked with message: '{field_msg}'", status="PASS")
+    else:
+        story.log_step("Create Duplicate Category (Exact)", record=category_name, expected="Duplicate category should not be created", actual=f"Allowed: {field_msg}", status="FAIL")
         
-    assert "success" not in toast2.lower() and "created" not in toast2.lower(), f"Duplicate exact-case allowed: {toast2}"
+    assert is_blocked, f"Expected duplicate category error, got: '{field_msg}'"
     
-    # 3. Try creating duplicate category with lowercase name
+    # Step 3: Try creating duplicate category with lowercase name
     asset_page.click_add_category()
-    asset_page.fill_category_details(name=category_name.lower(), description="Duplicate lower entry", toggle_spans=True)
+    asset_page.fill_category_details(name=category_name.lower(), description="Duplicate lower entry", toggle_spans=False)
     asset_page.click_create()
-    toast3 = asset_page.wait_for_toast_message()
     
-    # Reset state if lowercase duplicate was blocked
-    if "success" not in toast3.lower() and "created" not in toast3.lower():
-        admin_page.reload()
-        asset_page.navigate_to_asset_master()
+    validations3 = asset_page.get_validation_messages()
+    field_msg3 = validations3.get("Category Name", asset_page.get_field_validation_message("Category Name"))
+    is_blocked3 = "exists" in field_msg3.lower() or "required" in field_msg3.lower() or "validation" in field_msg3.lower()
+    
+    admin_page.reload()
+    asset_page.navigate_to_asset_master()
+    
+    if is_blocked3:
+        story.log_step("Create Duplicate Category (Lowercase)", record=category_name.lower(), expected="Duplicate lowercase category should not be created", actual=f"Blocked with message: '{field_msg3}'", status="PASS")
+        story.finish(status="PASS")
+    else:
+        story.log_step("Create Duplicate Category (Lowercase)", record=category_name.lower(), expected="Duplicate lowercase category should not be created", actual=f"Allowed: {field_msg3}", status="FAIL")
+        story.finish(status="FAIL")
         
-    assert "success" not in toast3.lower() and "created" not in toast3.lower(), f"Duplicate lowercase allowed: {toast3}"
+    assert is_blocked3, f"Expected duplicate lowercase category error, got: '{field_msg3}'"
 
 
 @pytest.mark.ui
@@ -148,7 +172,7 @@ def test_edit_category_blank_blocked(admin_page):
     asset_page.navigate_to_asset_master()
     
     # Step 1: Create Category
-    category_name = f"EditBlankCat {fake.random_int(1000, 9999)}"
+    category_name = BusinessTestData.category_name("Furniture")
     asset_page.click_add_category()
     asset_page.fill_category_details(name=category_name, description="Details", toggle_spans=False)
     asset_page.click_create()
@@ -183,7 +207,7 @@ def test_category_inactive_not_in_sub_category_dropdown(admin_page):
     asset_page.navigate_to_asset_master()
 
     # 1. Create a category
-    category_name = f"CatInactiveVerify {fake.random_int(1000, 9999)}"
+    category_name = BusinessTestData.category_name("Networking")
     asset_page.click_add_category()
     asset_page.fill_category_details(name=category_name, description="Verify inactive dropdown", toggle_spans=True)
     asset_page.click_create()
@@ -235,6 +259,8 @@ def test_category_input_matrix_validations(admin_page):
         asset_page.navigate_to_asset_master()
     
     # 2. AM_008 & AM_009 & AM_011: Verify leading/trailing spaces and Category Name with numbers
+    admin_page.reload()
+    asset_page.navigate_to_asset_master()
     category_name = f"  NumCat {fake.random_int(10, 99)}  "
     asset_page.click_add_category()
     asset_page.fill_category_details(name=category_name, description="Numeric and spacing check")
@@ -248,6 +274,8 @@ def test_category_input_matrix_validations(admin_page):
     assert row_locator.is_visible(), f"Trimmed numeric category name '{trimmed_name}' was not found in the grid"
 
     # 3. AM_004 & AM_005 & AM_006: Verify special characters and boundary limits
+    admin_page.reload()
+    asset_page.navigate_to_asset_master()
     long_name = f"SpecChar_!@#_{fake.lexify(text='?'*100)}"
     long_desc = fake.lexify(text="?"*300)
     asset_page.click_add_category()
@@ -285,7 +313,7 @@ def test_create_sub_category_success(admin_page):
     
     # 1. Create a category first to ensure we have a category to select
     asset_page.click_add_category()
-    category_name = f"CatForSub {fake.word().capitalize()} {fake.random_int(100, 999)}"
+    category_name = BusinessTestData.category_name("IT Hardware")
     asset_page.fill_category_details(name=category_name, description="Parent Category", toggle_spans=True)
     asset_page.click_create()
     toast = asset_page.wait_for_toast_message()
@@ -296,7 +324,7 @@ def test_create_sub_category_success(admin_page):
     asset_page.click_add_sub_category()
     
     # 3. Create Sub Category
-    sub_category_name = f"SubCategory {fake.word().capitalize()} {fake.random_int(100, 999)}"
+    sub_category_name = BusinessTestData.sub_category_name("Laptop")
     code_prefix = fake.lexify(text="???").upper()
     asset_page.fill_sub_category_details(
         category_label=category_name,
@@ -319,7 +347,7 @@ def test_update_sub_category_success(admin_page):
     
     # 1. Create parent category
     asset_page.click_add_category()
-    category_name = f"CatForEditSub {fake.word().capitalize()} {fake.random_int(100, 999)}"
+    category_name = BusinessTestData.category_name("Peripherals")
     asset_page.fill_category_details(name=category_name, description="Parent Category", toggle_spans=True)
     asset_page.click_create()
     toast = asset_page.wait_for_toast_message()
@@ -329,7 +357,7 @@ def test_update_sub_category_success(admin_page):
     asset_page.navigate_to_sub_categories()
     asset_page.click_add_sub_category()
     
-    sub_category_name = f"SubCategory {fake.word().capitalize()} {fake.random_int(100, 999)}"
+    sub_category_name = BusinessTestData.sub_category_name("Monitor")
     code_prefix = fake.lexify(text="???").upper()
     asset_page.fill_sub_category_details(
         category_label=category_name,
@@ -368,39 +396,50 @@ def test_update_sub_category_success(admin_page):
 @pytest.mark.ui
 @pytest.mark.asset
 def test_create_sub_category_duplicate(admin_page):
+    story = TestStoryLogger("Sub Category Duplicate Validation")
+    story.start()
+
     asset_page = AssetMasterPage(admin_page)
     asset_page.navigate_to_asset_master()
     
-    # 1. Create parent category
-    category_name = f"ParentForSubDup {fake.random_int(1000, 9999)}"
+    # Step 1: Create parent category
+    category_name = BusinessTestData.category_name("Printing Devices")
     asset_page.click_add_category()
     asset_page.fill_category_details(name=category_name, description="Parent", toggle_spans=False)
-
     asset_page.click_create()
     asset_page.wait_for_toast_message()
     
-    # 2. Create sub category
+    # Step 2: Create sub category
     asset_page.navigate_to_sub_categories()
     asset_page.click_add_sub_category()
-    sub_name = f"SubDup {fake.random_int(100, 999)}"
+    sub_name = BusinessTestData.sub_category_name("Printer")
     code_prefix = fake.lexify(text="???").upper()
     asset_page.fill_sub_category_details(category_label=category_name, name=sub_name, code_prefix=code_prefix)
     asset_page.click_create()
     toast1 = asset_page.wait_for_toast_message()
     assert "success" in toast1.lower() or "created" in toast1.lower()
+    story.log_step("Create Sub Category", record=sub_name, status="PASS")
     
-    # 3. Try duplicate exact case
+    # Step 3: Try duplicate exact case
     asset_page.click_add_sub_category()
     asset_page.fill_sub_category_details(category_label=category_name, name=sub_name, code_prefix=code_prefix)
     asset_page.click_create()
-    toast2 = asset_page.wait_for_toast_message()
     
-    # Reset state if duplicate exact case was blocked (modal remains open)
-    if "success" not in toast2.lower() and "created" not in toast2.lower():
-        admin_page.reload()
-        asset_page.navigate_to_asset_master()
+    validations = asset_page.get_validation_messages()
+    field_msg = validations.get("Sub Category Name", asset_page.get_field_validation_message("Sub Category Name"))
+    is_blocked = "exists" in field_msg.lower() or "required" in field_msg.lower() or "validation" in field_msg.lower()
+    
+    admin_page.reload()
+    asset_page.navigate_to_asset_master()
+    
+    if is_blocked:
+        story.log_step("Create Duplicate Sub Category", record=sub_name, expected="Duplicate sub-category should not be created", actual=f"Blocked with message: '{field_msg}'", status="PASS")
+        story.finish(status="PASS")
+    else:
+        story.log_step("Create Duplicate Sub Category", record=sub_name, expected="Duplicate sub-category should not be created", actual=f"Allowed: {field_msg}", status="FAIL")
+        story.finish(status="FAIL")
         
-    assert "success" not in toast2.lower() and "created" not in toast2.lower(), f"Duplicate sub-category allowed: {toast2}"
+    assert is_blocked, f"Expected duplicate sub-category error, got: '{field_msg}'"
 
 
 @pytest.mark.ui
@@ -410,7 +449,7 @@ def test_edit_sub_category_blank_blocked(admin_page):
     asset_page.navigate_to_asset_master()
     
     # 1. Create parent and subcategory
-    category_name = f"ParentForSubBlank {fake.random_int(1000, 9999)}"
+    category_name = BusinessTestData.category_name("Office Equipment")
     asset_page.click_add_category()
     asset_page.fill_category_details(name=category_name, description="Parent", toggle_spans=True)
     asset_page.click_create()
@@ -418,7 +457,7 @@ def test_edit_sub_category_blank_blocked(admin_page):
     
     asset_page.navigate_to_sub_categories()
     asset_page.click_add_sub_category()
-    sub_name = f"SubBlank {fake.random_int(100, 999)}"
+    sub_name = BusinessTestData.sub_category_name("Scanner")
     code_prefix = fake.lexify(text="???").upper()
     asset_page.fill_sub_category_details(category_label=category_name, name=sub_name, code_prefix=code_prefix)
     asset_page.click_create()
@@ -439,18 +478,22 @@ def test_edit_sub_category_blank_blocked(admin_page):
 @pytest.mark.asset
 def test_create_sub_category_same_name_as_category_fails(admin_page):
     """Verify that a Sub Category cannot be created with the exact same name as its parent Category."""
+    story = TestStoryLogger("Sub Category Same Name As Parent Validation")
+    story.start()
+
     asset_page = AssetMasterPage(admin_page)
     asset_page.navigate_to_asset_master()
     
-    # 1. Create parent category
-    category_name = f"SameNameCat {fake.random_int(1000, 9999)}"
+    # Step 1: Create parent category
+    category_name = BusinessTestData.category_name("IT Hardware")
     asset_page.click_add_category()
     asset_page.fill_category_details(name=category_name, description="Parent Category same name check", toggle_spans=True)
     asset_page.click_create()
     toast = asset_page.wait_for_toast_message()
     assert "success" in toast.lower() or "created" in toast.lower(), f"Failed to create parent category: {toast}"
+    story.log_step("Create Parent Category", record=category_name, status="PASS")
     
-    # 2. Try creating duplicate subcategory with same name
+    # Step 2: Try creating duplicate subcategory with same name
     asset_page.navigate_to_sub_categories()
     asset_page.click_add_sub_category()
     
@@ -462,14 +505,22 @@ def test_create_sub_category_same_name_as_category_fails(admin_page):
         description="Sub Category same name check"
     )
     asset_page.click_create()
-    toast2 = asset_page.wait_for_toast_message()
     
-    # Reset state if duplicate was blocked
-    if "success" not in toast2.lower() and "created" not in toast2.lower():
-        admin_page.reload()
-        asset_page.navigate_to_asset_master()
+    validations = asset_page.get_validation_messages()
+    field_msg = validations.get("Sub Category Name", asset_page.get_field_validation_message("Sub Category Name"))
+    is_blocked = "exists" in field_msg.lower() or "same" in field_msg.lower() or "required" in field_msg.lower() or "validation" in field_msg.lower() or "cannot" in field_msg.lower()
+    
+    admin_page.reload()
+    asset_page.navigate_to_asset_master()
+    
+    if is_blocked:
+        story.log_step("Create Sub Category with Same Name as Parent", record=category_name, expected="Creation should be blocked", actual=f"Blocked with message: '{field_msg}'", status="PASS")
+        story.finish(status="PASS")
+    else:
+        story.log_step("Create Sub Category with Same Name as Parent", record=category_name, expected="Creation should be blocked", actual=f"Allowed: {field_msg}", status="FAIL")
+        story.finish(status="FAIL")
         
-    assert "success" not in toast2.lower() and "created" not in toast2.lower(), f"Sub category allowed to have same name as parent: {toast2}"
+    assert is_blocked, f"Expected same-name validation error, got: '{field_msg}'"
 
 
 @pytest.mark.ui
@@ -479,7 +530,7 @@ def test_sub_category_input_matrix_validations(admin_page):
     asset_page.navigate_to_asset_master()
     
     # Precondition: Need parent category
-    category_name = f"ParentMatrix {fake.random_int(100, 999)}"
+    category_name = BusinessTestData.category_name("Mobile Devices")
     asset_page.click_add_category()
     asset_page.fill_category_details(name=category_name, description="Parent for matrix check")
     asset_page.click_create()
@@ -512,7 +563,7 @@ def test_sub_category_input_matrix_validations(admin_page):
     header_text = header_locator.inner_text().strip()
     assert header_text == "Add Sub Category", f"Spelling mistake: '{header_text}' found in the dialog header, expected 'Add Sub Category'"
     
-    sub_name = f"SubActive {fake.random_int(10, 99)}"
+    sub_name = BusinessTestData.sub_category_name("Mobile")
     code_prefix = fake.lexify(text="???").upper()
     asset_page.fill_sub_category_details(category_label=category_name, name=sub_name, code_prefix=code_prefix)
     
@@ -689,8 +740,15 @@ def test_create_vendor_duplicate(admin_page):
     )
     asset_page.click_create()
     toast1 = asset_page.wait_for_toast_message()
-    assert "success" in toast1.lower() or "created" in toast1.lower()
+    
+    validations = asset_page.get_validation_messages()
+    assert "success" in toast1.lower() or "created" in toast1.lower(), f"First creation failed: {toast1}. Field errors: {validations}"
     story.log_step("Create Vendor", record=vendor.name, status="PASS")
+    
+    # Cleanly reload page to clear all overlays, modals, and top-right toast alerts
+    admin_page.reload()
+    asset_page.navigate_to_asset_master()
+    asset_page.navigate_to_vendors()
     
     # Step 2: Create Duplicate Vendor using EXACT same dataset
     asset_page.click_add_vendor()
@@ -703,19 +761,22 @@ def test_create_vendor_duplicate(admin_page):
         gst=vendor.gst
     )
     asset_page.click_create()
-    toast2 = asset_page.wait_for_toast_message()
     
-    is_blocked = "success" not in toast2.lower() and "created" not in toast2.lower()
+    validations = asset_page.get_validation_messages()
+    field_msg = validations.get("Vendor Name", asset_page.get_field_validation_message("Vendor Name"))
+    is_blocked = "exists" in field_msg.lower() or "required" in field_msg.lower() or "validation" in field_msg.lower()
+    
+    admin_page.reload()
+    asset_page.navigate_to_asset_master()
+    asset_page.navigate_to_vendors()
+    
     if is_blocked:
-        admin_page.reload()
-        asset_page.navigate_to_asset_master()
-        asset_page.navigate_to_vendors()
-        story.log_step("Create Duplicate Vendor", record=vendor.name, expected="Duplicate vendor should not be created", actual="Validation message displayed", status="PASS")
+        story.log_step("Create Duplicate Vendor", record=vendor.name, expected="Duplicate vendor should not be created", actual=f"Blocked with message: '{field_msg}'", status="PASS")
         story.finish(status="PASS")
     else:
-        story.log_step("Create Duplicate Vendor", record=vendor.name, expected="Duplicate vendor should not be created", actual=f"Allowed: {toast2}", status="FAIL")
+        story.log_step("Create Duplicate Vendor", record=vendor.name, expected="Duplicate vendor should not be created", actual=f"Allowed: {field_msg}", status="FAIL")
         story.finish(status="FAIL")
-        assert is_blocked, f"Duplicate exact vendor allowed: {toast2}"
+        assert is_blocked, f"Duplicate exact vendor allowed: {field_msg}"
     
     # 3. Try duplicate (lowercase)
     asset_page.click_add_vendor()
@@ -728,15 +789,16 @@ def test_create_vendor_duplicate(admin_page):
         gst=vendor.gst
     )
     asset_page.click_create()
-    toast3 = asset_page.wait_for_toast_message()
     
-    # Reset state if lowercase duplicate was blocked
-    if "success" not in toast3.lower() and "created" not in toast3.lower():
-        admin_page.reload()
-        asset_page.navigate_to_asset_master()
-        asset_page.navigate_to_vendors()
+    validations3 = asset_page.get_validation_messages()
+    field_msg3 = validations3.get("Vendor Name", asset_page.get_field_validation_message("Vendor Name"))
+    is_blocked3 = "exists" in field_msg3.lower() or "required" in field_msg3.lower() or "validation" in field_msg3.lower()
+    
+    admin_page.reload()
+    asset_page.navigate_to_asset_master()
+    asset_page.navigate_to_vendors()
         
-    assert "success" not in toast3.lower() and "created" not in toast3.lower(), f"Duplicate lowercase vendor allowed: {toast3}"
+    assert is_blocked3, f"Duplicate lowercase vendor allowed: {field_msg3}"
 
 
 @pytest.mark.ui

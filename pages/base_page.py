@@ -4,6 +4,95 @@ from playwright.sync_api import Page
 
 logger = logging.getLogger(__name__)
 
+def format_ascii_table(title: str, data: dict | list[dict] | None) -> str:
+    # 1. Title header block
+    header_block = (
+        "=========================================================\n"
+        f"{title.upper()}\n"
+        "========================================================="
+    )
+    
+    # 2. Normalize and check for empty data
+    if not data:
+        return header_block + "\n\nNo records found."
+        
+    if isinstance(data, dict):
+        if not data:
+            return header_block + "\n\nNo records found."
+        data_list = [data]
+    elif isinstance(data, list):
+        if not data:
+            return header_block + "\n\nNo records found."
+        data_list = [item for item in data if isinstance(item, dict)]
+        if not data_list:
+            return header_block + "\n\nNo records found."
+    else:
+        return header_block + "\n\nNo records found."
+
+    # Extract headers (keys of first dict)
+    headers = list(data_list[0].keys())
+    
+    # Format headers for display (e.g. "check_in" -> "Check In")
+    def display_header(h: str) -> str:
+        return " ".join(word.capitalize() for word in h.replace("_", " ").split())
+        
+    display_headers = [display_header(h) for h in headers]
+    
+    # Pre-process all values to strings
+    rows = []
+    for item in data_list:
+        row = []
+        for h in headers:
+            val = item.get(h)
+            if val is None or val == "" or val == "-" or val == "—":
+                val_str = "—"
+            else:
+                val_str = str(val)
+            row.append(val_str)
+        rows.append(row)
+
+    # Attempt to use tabulate library if available
+    try:
+        from tabulate import tabulate
+        table_str = tabulate(rows, headers=display_headers, tablefmt="grid")
+        return header_block + "\n\n" + table_str
+    except ImportError:
+        pass
+
+    # Pure Python Fallback implementation matching tabulate grid format
+    col_widths = []
+    for col_idx in range(len(headers)):
+        header_len = len(display_headers[col_idx])
+        max_val_len = max(len(row[col_idx]) for row in rows) if rows else 0
+        col_widths.append(max(header_len, max_val_len))
+        
+    separator_parts = []
+    for w in col_widths:
+        separator_parts.append("-" * (w + 2))
+    separator = "+" + "+".join(separator_parts) + "+"
+    
+    lines = []
+    lines.append(separator)
+    
+    # Header row
+    header_row_parts = []
+    for col_idx, h_text in enumerate(display_headers):
+        w = col_widths[col_idx]
+        header_row_parts.append(f" {h_text.ljust(w)} ")
+    lines.append("|" + "|".join(header_row_parts) + "|")
+    lines.append(separator)
+    
+    # Value rows
+    for row in rows:
+        row_parts = []
+        for col_idx, val_str in enumerate(row):
+            w = col_widths[col_idx]
+            row_parts.append(f" {val_str.ljust(w)} ")
+        lines.append("|" + "|".join(row_parts) + "|")
+    lines.append(separator)
+    
+    return header_block + "\n\n" + "\n".join(lines)
+
 
 class TestStoryLogger:
     """Enterprise Storyteller Logger for Playwright Test Execution."""
@@ -11,6 +100,10 @@ class TestStoryLogger:
         self.test_name = test_name
         self.step_count = 0
         self.start_time = None
+
+    def log_table(self, title: str, data: dict | list[dict] | None):
+        table_str = format_ascii_table(title, data)
+        logger.info("\n" + table_str)
 
     def start(self):
         import time
@@ -64,6 +157,10 @@ class ValidationFailure(AssertionError):
 class BasePage:
     def __init__(self, page: Page):
         self.page = page
+
+    def log_table(self, title: str, data: dict | list[dict] | None):
+        table_str = format_ascii_table(title, data)
+        logger.info("\n" + table_str)
 
     def run_validations(self, module_name: str, validations: list):
         import time

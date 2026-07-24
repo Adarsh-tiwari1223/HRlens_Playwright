@@ -107,7 +107,7 @@ jobs:
             git push origin main
           elif [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.base_ref }}" = "main" ]; then
             echo "Merging pull request #${{ github.event.pull_request.number }} into main..."
-            gh pr merge ${{ github.event.pull_request.number }} --merge --delete-branch || {
+            gh pr merge ${{ github.event.pull_request.number }} --merge || {
               # Fallback: if gh cli fails, try git merge
               git checkout main
               git merge FETCH_HEAD --no-ff -m "Merge PR #${{ github.event.pull_request.number }} into main [skip ci]"

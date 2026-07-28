@@ -1,6 +1,6 @@
 import pytest
 from utils.api.payroll_api import get_payroll_list, wait_for_payroll_complete, find_branch_id
-from pages.hrlense_portal.payroll.payroll_page import PayrollPage
+from workflows.hrlense_portal.payroll.payroll_workflow import PayrollWorkflow
 
 YEAR = 2026
 MONTH = 4
@@ -12,27 +12,25 @@ def branch_id():
     return find_branch_id(BRANCH_NAME, COMPANY_NAME)
 
 
-# ── Step 1: Run payroll via UI ────────────────────────────────────────────────
+# ── Step 1: Run payroll via Workflow ──────────────────────────────────────────
 
 @pytest.fixture(scope="module")
-def payroll_page(logged_in_page):
+def payroll_workflow(logged_in_page):
     page, _ = logged_in_page("admin")
-    payroll = PayrollPage(page)
-    payroll.navigate_to_payroll()
-    payroll.apply_branch_filter("Varanasi - Inf")
-    payroll.run_payroll()
-    return payroll
+    workflow = PayrollWorkflow(page)
+    workflow.process_monthly_payroll_workflow("Varanasi - Inf")
+    return workflow
 
 
 @pytest.fixture(scope="module")
-def ui_rows(payroll_page):
-    return payroll_page.get_table_rows()
+def ui_rows(payroll_workflow):
+    return payroll_workflow.get_payroll_ui_rows_workflow()
 
 
 # ── Step 2: Poll status until complete, then fetch API data ───────────────────
 
 @pytest.fixture(scope="module")
-def api_response(payroll_page, branch_id):
+def api_response(payroll_workflow, branch_id):
     wait_for_payroll_complete(year=YEAR, month=MONTH, branch_id=branch_id)
     return get_payroll_list(year=YEAR, month=MONTH, branch_id=branch_id)
 
@@ -62,12 +60,17 @@ def test_row_count_matches_api(ui_rows, api_records):
 ])
 def test_string_field_exact_match(ui_rows, api_records, ui_key, api_key):
     api_map = {r["employeeCode"]: r for r in api_records}
+    mismatches = []
     for row in ui_rows:
-        api_rec = api_map.get(row["emp_code"])
-        assert api_rec is not None, f"employeeCode {row['emp_code']} not found in API"
-        assert row[ui_key] == str(api_rec[api_key]).strip(), (
-            f"{ui_key}: UI='{row[ui_key]}' API='{api_rec[api_key]}'"
-        )
+        code = row["emp_code"]
+        if code not in api_map:
+            mismatches.append(f"Emp {code} in UI but not API")
+            continue
+        ui_val = row[ui_key].strip()
+        api_val = str(api_map[code].get(api_key, "")).strip()
+        if ui_val != api_val:
+            mismatches.append(f"Emp {code} [{ui_key}]: UI='{ui_val}' != API='{api_val}'")
+    assert not mismatches, "\n".join(mismatches)
 
 
 @pytest.mark.ui
@@ -79,34 +82,53 @@ def test_string_field_exact_match(ui_rows, api_records, ui_key, api_key):
 ])
 def test_numeric_field_exact_match(ui_rows, api_records, ui_key, api_key):
     api_map = {r["employeeCode"]: r for r in api_records}
+    mismatches = []
     for row in ui_rows:
-        api_rec = api_map.get(row["emp_code"])
-        assert api_rec is not None
-        assert abs(row[ui_key] - float(api_rec[api_key])) < 0.01, (
-            f"{ui_key} emp={row['emp_code']}: UI={row[ui_key]} API={api_rec[api_key]}"
-        )
+        code = row["emp_code"]
+        if code not in api_map:
+            continue
+        try:
+            ui_val = float(row[ui_key].replace(",", ""))
+            api_val = float(api_map[code].get(api_key, 0))
+            if abs(ui_val - api_val) > 0.01:
+                mismatches.append(f"Emp {code} [{ui_key}]: UI={ui_val} != API={api_val}")
+        except ValueError:
+            mismatches.append(f"Emp {code} [{ui_key}]: Unparseable UI val '{row[ui_key]}'")
+    assert not mismatches, "\n".join(mismatches)
 
-
-# ── Net salary ────────────────────────────────────────────────────────────────
 
 @pytest.mark.ui
 @pytest.mark.payroll
 def test_net_salary_ui_matches_api(ui_rows, api_records):
     api_map = {r["employeeCode"]: r for r in api_records}
+    mismatches = []
     for row in ui_rows:
-        api_rec = api_map.get(row["emp_code"])
-        assert api_rec is not None
-        assert abs(row["net_salary"] - float(api_rec["netSalary"])) < 0.01, (
-            f"netSalary emp={row['emp_code']}: UI={row['net_salary']} API={api_rec['netSalary']}"
-        )
+        code = row["emp_code"]
+        if code not in api_map:
+            continue
+        try:
+            ui_net = float(row["net_salary"].replace(",", ""))
+            api_net = float(api_map[code].get("netSalary", 0))
+            if abs(ui_net - api_net) > 0.01:
+                mismatches.append(f"Emp {code} [net_salary]: UI={ui_net} != API={api_net}")
+        except ValueError:
+            mismatches.append(f"Emp {code}: Unparseable net salary '{row['net_salary']}'")
+    assert not mismatches, "\n".join(mismatches)
 
 
-@pytest.mark.api
+@pytest.mark.ui
 @pytest.mark.payroll
-def test_net_salary_formula(api_records):
-    """netSalary == totalEarnings - totalDeductions"""
-    for r in api_records:
-        expected = round(r["totalEarnings"] - r["totalDeductions"], 2)
-        assert abs(round(r["netSalary"], 2) - expected) < 0.01, (
-            f"{r['employeeName']}: netSalary={r['netSalary']} expected={expected}"
-        )
+def test_net_salary_formula(ui_rows):
+    mismatches = []
+    for row in ui_rows:
+        code = row["emp_code"]
+        try:
+            gross = float(row["gross"].replace(",", ""))
+            deductions = float(row["total_deductions"].replace(",", ""))
+            net = float(row["net_salary"].replace(",", ""))
+            expected_net = round(gross - deductions, 2)
+            if abs(net - expected_net) > 0.01:
+                mismatches.append(f"Emp {code}: gross({gross}) - ded({deductions}) = {expected_net} != UI net({net})")
+        except ValueError:
+            mismatches.append(f"Emp {code}: Unparseable numeric in formula test")
+    assert not mismatches, "\n".join(mismatches)

@@ -105,8 +105,9 @@ def test_apply_leave(employee_context):
     from_date = date.today() + timedelta(days=settings.LEAVE_FROM_OFFSET)
     to_date = from_date + timedelta(days=settings.LEAVE_TO_OFFSET)
 
+    employee_context.goto(settings.BASE_URL)
     leave.click_my_leave()
-    expect(employee_context.locator("p:has-text('Leave Apply')")).to_be_visible()
+    expect(employee_context.get_by_text("Leave Apply", exact=False).first).to_be_visible()
     leave.click_leave_apply()
 
     leave._select_date_from_calendar(leave.FROM_DATE_TRIGGER, from_date)

@@ -42,17 +42,50 @@ class BranchGroupPage(BasePage):
 
     def fill_group_details(self, group_name: str = None, branch_names: list[str] = None):
         if group_name is not None:
-            self.page.get_by_placeholder("e.g. North Zone, Mumbai").fill(group_name)
+            self.page.get_by_placeholder("e.g. North Zone, Mumbai", exact=False).fill(group_name)
         
         if branch_names:
-            self.page.get_by_placeholder("Search branches…").click()
+            self.page.get_by_placeholder("Search branches", exact=False).click()
+            import re
             for b_name in branch_names:
                 logger.debug(f"Selecting branch: {b_name}")
-                self.page.get_by_placeholder("Search branches…").fill(b_name)
+                self.page.get_by_placeholder("Search branches", exact=False).fill(b_name)
                 self.page.wait_for_timeout(500)
-                self.page.locator(".chakra-portal").get_by_text(b_name).first.click()
-                self.page.get_by_placeholder("Search branches…").fill("")
+                
+                # Match start of option text exactly to avoid substring issues (e.g. Noida vs Greater Noida)
+                pattern = re.compile(rf"^{re.escape(b_name)}\b", re.IGNORECASE)
+                option_locator = self.page.locator(".chakra-portal div, .chakra-portal button, .chakra-portal span").get_by_text(pattern)
+                
+                # Click the option that does not contain a newline to avoid matching the modal wrapper container
+                count = option_locator.count()
+                clicked = False
+                for i in range(count):
+                    el = option_locator.nth(i)
+                    txt = el.inner_text().strip()
+                    if "\n" not in txt:
+                        el.click()
+                        clicked = True
+                        break
+                if not clicked:
+                    option_locator.first.click()
+                
+                self.page.get_by_placeholder("Search branches", exact=False).fill("")
                 self.page.wait_for_timeout(500)
+
+    def get_available_branches(self) -> list[str]:
+        self.page.get_by_placeholder("Search branches", exact=False).click()
+        self.page.wait_for_timeout(500)
+        options = self.page.locator(".chakra-portal div, .chakra-portal button, .chakra-portal span").all_inner_texts()
+        branch_names = []
+        for name in options:
+            name = name.strip()
+            # Must not contain newlines to ensure it is a leaf option, not a wrapper container
+            if name and "\n" not in name and not name.startswith("Search") and "(" in name:
+                city = name.split("(")[0].strip()
+                if city not in branch_names:
+                    branch_names.append(city)
+        logger.debug(f"Retrieved available branch cities from dropdown: {branch_names}")
+        return branch_names
 
     def click_create(self):
         self.click(self.CREATE_BTN)
@@ -63,8 +96,8 @@ class BranchGroupPage(BasePage):
     def edit_branch_group(self, group_name: str):
         logger.debug(f"Editing branch group: {group_name}")
         # 1. Click Edit
-        row_locator = f"role=row[name*='{group_name}']"
-        self.page.locator(row_locator).get_by_label("Edit").click()
+        row = self.page.locator("tbody tr").filter(has_text=group_name).first
+        row.get_by_label("Edit").click()
         # 2. Wait dialog visible
         dialog = self.page.locator("[role='dialog']")
         dialog.wait_for(state="visible", timeout=10000)
@@ -79,4 +112,100 @@ class BranchGroupPage(BasePage):
 
     def wait_for_toast_message(self) -> str:
         return self.wait_for_toast(self.TOAST)
+
+    def get_first_group_name(self) -> str | None:
+        first_row = self.page.locator("tbody tr").first
+        if first_row.count() > 0:
+            cells = first_row.locator("td").all()
+            if len(cells) > 1:
+                return cells[1].inner_text().strip()
+        return None
+
+    def click_cancel(self):
+        cancel_btn = self.page.get_by_role("button", name="Cancel", exact=True)
+        if cancel_btn.is_visible():
+            cancel_btn.click()
+
+    def get_assigned_branch_names(self) -> list[str]:
+        try:
+            self.page.locator("tbody tr").first.wait_for(state="visible", timeout=6000)
+        except Exception:
+            pass
+        assigned = []
+        rows = self.page.locator("tbody tr").all()
+        for row in rows:
+            cells = row.locator("td").all()
+            if len(cells) > 2:
+                branches_text = cells[2].inner_text().strip()
+                for b in branches_text.split(","):
+                    b = b.strip()
+                    if b and b not in assigned:
+                        assigned.append(b)
+        logger.debug(f"Retrieved assigned branches from grid: {assigned}")
+        return assigned
+
+    def get_unassigned_branches(self) -> list[str]:
+        assigned = self.get_assigned_branch_names()
+        available = self.get_available_branches()
+        unassigned = []
+        for city in available:
+            is_assigned = False
+            for assigned_name in assigned:
+                if city.lower() in assigned_name.lower():
+                    is_assigned = True
+                    break
+            if not is_assigned:
+                unassigned.append(city)
+                
+        if not unassigned:
+            self.ensure_at_least_one_free_branch()
+            assigned = self.get_assigned_branch_names()
+            available = self.get_available_branches()
+            unassigned = []
+            for city in available:
+                is_assigned = False
+                for assigned_name in assigned:
+                    if city.lower() in assigned_name.lower():
+                        is_assigned = True
+                        break
+                if not is_assigned:
+                    unassigned.append(city)
+                    
+        logger.debug(f"Discovered unassigned branch cities: {unassigned}")
+        return unassigned
+
+    def ensure_at_least_one_free_branch(self):
+        logger.info("No unassigned branches found. Freeing up a branch from an existing group...")
+        
+        # 1. Close the open New Group modal first to clear the pointer events backdrop overlay
+        self.click_cancel()
+        self.page.wait_for_timeout(1000)
+        
+        # 2. Free up the branch from an existing group
+        first_group = self.get_first_group_name()
+        if not first_group:
+            logger.warning("No branch groups exist to free a branch from.")
+            # Reopen to preserve modal state for the caller
+            self.click_new_group()
+            return
+            
+        self.edit_branch_group(first_group)
+        self.page.wait_for_timeout(1000)
+        
+        # Locate the close button on the first selected tag/pill in the edit dialog directly
+        tag_close = self.page.locator("[role='dialog'] button.chakra-tag__close-btn, [role='dialog'] .chakra-tag__close-btn, [role='dialog'] button:has-text('x')").first
+        
+        if tag_close.is_visible():
+            tag_close.click()
+            self.page.wait_for_timeout(500)
+            self.click_update()
+            self.wait_for_toast_message()
+            self.page.wait_for_timeout(1000)
+            logger.info("Successfully freed up one branch.")
+        else:
+            logger.warning("Could not locate any selected branch pills to deselect.")
+            self.click_cancel()
+            
+        # 3. Re-open the New Group modal to restore page state for the calling test case
+        self.click_new_group()
 

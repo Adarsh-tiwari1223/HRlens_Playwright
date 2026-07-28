@@ -47,6 +47,19 @@ class CandidatePage(BasePage):
         self.open_add_candidate_form()
         return job_name
 
+    def navigate_to_add_candidate_for_specific_job(self, job_id: str) -> str:
+        """Open the active jobs view, select the job matching job_id, and open the add-candidate form."""
+        self.navigate_to_active_jobs()
+        job_btn = self.page.get_by_role("button", name=re.compile(job_id)).first
+        job_btn.wait_for(state="visible", timeout=8000)
+        job_name = job_btn.inner_text().strip()
+        logger.info(f"Selecting job: '{job_name}'")
+        job_btn.click()
+        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_timeout(500)
+        self.open_add_candidate_form()
+        return job_name
+
     def _read_label(self, container, placeholder: str = None, label_text: str = None) -> str:
         """
         Reads the actual visible label text for a field — used for logging since labels are dynamic.

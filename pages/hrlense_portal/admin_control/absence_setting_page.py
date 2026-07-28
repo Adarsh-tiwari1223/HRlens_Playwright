@@ -4,7 +4,7 @@ from pages.base_page import BasePage
 
 logger = logging.getLogger(__name__)
 
-class UnauthorizedAbsencePage(BasePage):
+class AbsenceSettingPage(BasePage):
     # Navigation
     ATTENDANCE_NAV = "a:has-text('Attendance')"
     ABSENCE_MGMT_NAV = "a:has-text('Absence Management')"

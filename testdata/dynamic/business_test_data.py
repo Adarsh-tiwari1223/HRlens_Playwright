@@ -543,3 +543,51 @@ class VendorTestData:
     @staticmethod
     def generate(name_prefix: str = None) -> VendorData:
         return BusinessTestData.vendor(company_name=name_prefix)
+
+
+@dataclass
+class DirectorData:
+    director_name: str
+    us_company_shares: dict
+    payroll_company_shares: dict
+
+
+@dataclass
+class DirectorDocumentData:
+    document_type: str
+    document_number: str
+    issue_date: str
+    expiry_date: str
+    file_name: str
+
+
+class DirectorTestData:
+    @staticmethod
+    def generate_director() -> DirectorData:
+        return DirectorData(
+            director_name=f"{fake.first_name()} {fake.last_name()}",
+            us_company_shares={"CompanyA": random.randint(10, 50)},
+            payroll_company_shares={"Adventa": random.randint(10, 50)}
+        )
+
+    @staticmethod
+    def generate_document(doc_type: str = "PAN") -> DirectorDocumentData:
+        if doc_type.upper() == "PAN":
+            num = f"{fake.lexify('?????').upper()}{fake.numerify('####')}{fake.lexify('?').upper()}"
+        elif doc_type.upper() == "AADHAAR":
+            num = fake.numerify("############")
+        elif doc_type.upper() == "PASSPORT":
+            num = f"{fake.lexify('?').upper()}{fake.numerify('#######')}"
+        else:
+            num = f"DOC-{fake.numerify('#####')}"
+
+        today = fake.date_this_year()
+        future = fake.date_between(start_date="+1y", end_date="+5y")
+
+        return DirectorDocumentData(
+            document_type=doc_type,
+            document_number=num,
+            issue_date=today.strftime("%Y-%m-%d"),
+            expiry_date=future.strftime("%Y-%m-%d"),
+            file_name=f"{doc_type.lower()}_sample.pdf"
+        )

@@ -1,21 +1,21 @@
 import pytest
 import logging
 from core.config import settings
-from pages.hrlense_portal.attendance.unauthorized_absence_page import UnauthorizedAbsencePage
+from pages.hrlense_portal.admin_control.absence_setting_page import AbsenceSettingPage
 
 logger = logging.getLogger(__name__)
 
 @pytest.fixture(scope="module")
 def admin_page(logged_in_page):
     page, _ = logged_in_page("admin")
-    absence_page = UnauthorizedAbsencePage(page)
+    absence_page = AbsenceSettingPage(page)
     return absence_page
 
 @pytest.fixture(scope="module")
 def manager_page(logged_in_page):
     # 'vivek' is Varanasi Branch Head/Manager
     page, _ = logged_in_page("vivek")
-    absence_page = UnauthorizedAbsencePage(page)
+    absence_page = AbsenceSettingPage(page)
     return absence_page
 
 # --- Absence & Absconding Settings Tests ---
@@ -135,7 +135,7 @@ def test_search_edge_cases(admin_page):
     # Leading/trailing spaces
     admin_page.search_employee("  Aryan Singh  ")
     assert admin_page.get_table_rows_count() >= 1
-
+ 
     # Non-existing employee
     admin_page.search_employee("NonExistingEmployeeXYZ")
     assert admin_page.get_table_rows_count() == 0

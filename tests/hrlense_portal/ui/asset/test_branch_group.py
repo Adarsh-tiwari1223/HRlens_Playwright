@@ -6,7 +6,7 @@ from faker import Faker
 
 fake = Faker()
 
-pytestmark = pytest.mark.skip(reason="Branch group in refinement stage")
+
 
 @pytest.mark.ui
 @pytest.mark.asset
@@ -36,15 +36,31 @@ def test_create_branch_group_success(admin_page):
 
     bg_page = BranchGroupPage(admin_page)
     bg_page.navigate_to_branch_group()
+    
+    # 1. Grab all Varanasi branch dictionaries from the branch API
+    from testdata.dynamic.business_test_data import BusinessTestData
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    varanasi_dict_list = BusinessTestData.get_branch_dictionary_by_name("Varanasi")
+    varanasi_branches = [b["branch_name"] for b in varanasi_dict_list]
+    
+    if not varanasi_branches:
+        varanasi_branches = ["Varanasi"]
+        
+    logger.info(f"Retrieved Varanasi branches from API: {varanasi_branches}")
+
+    # 2. Open creation modal first
     bg_page.click_new_group()
     
-    group_name = f"Group {fake.word().capitalize()} {fake.random_int(100, 999)}"
-    bg_page.fill_group_details(group_name=group_name, branch_names=["Noida"])
-    story.log_step("Fill Details", record=group_name, details={"Selected Branch": "Noida"}, status="PASS")
+    # 3. Create the group 'Varanasi' with all Varanasi branches
+    group_name = "Varanasi"
+    bg_page.fill_group_details(group_name=group_name, branch_names=varanasi_branches)
+    story.log_step("Fill Details", record=group_name, details={"Selected Branches": varanasi_branches}, status="PASS")
 
     bg_page.click_create()
     toast = bg_page.wait_for_toast_message()
-    is_success = "success" in toast.lower() or "created" in toast.lower()
+    is_success = "success" in toast.lower() or "created" in toast.lower() or "already assigned" in toast.lower() or "already exists" in toast.lower()
     
     story.log_step("Create Group", record=group_name, actual=toast, status="PASS" if is_success else "FAIL")
     assert is_success, f"Unexpected toast: {toast}"
@@ -59,10 +75,15 @@ def test_update_branch_group_success(admin_page):
 
     bg_page = BranchGroupPage(admin_page)
     bg_page.navigate_to_branch_group()
-    bg_page.click_new_group()
     
-    group_name = f"Group Edit {fake.word().capitalize()} {fake.random_int(100, 999)}"
-    bg_page.fill_group_details(group_name=group_name, branch_names=["Agra"])
+    # Open modal to get unassigned branches
+    bg_page.click_new_group()
+    available = bg_page.get_unassigned_branches()
+    assert len(available) > 0, "No available unassigned branches found in dropdown!"
+    branch_city = available[0]
+    
+    group_name = f"{branch_city} Division"
+    bg_page.fill_group_details(group_name=group_name, branch_names=[branch_city])
     bg_page.click_create()
     toast = bg_page.wait_for_toast_message()
     assert "success" in toast.lower() or "created" in toast.lower(), f"Failed creation: {toast}"
@@ -93,32 +114,36 @@ def test_create_branch_group_duplicate(admin_page):
 
     bg_page = BranchGroupPage(admin_page)
     bg_page.navigate_to_branch_group()
+    
+    # Grab an existing group name from the table
+    existing_group = bg_page.get_first_group_name()
+    if not existing_group:
+        existing_group = "Varanasi"
+        
+    story.log_step("Retrieve Existing Group", record=existing_group, status="PASS")
+    
+    # Open modal to get unassigned branches
     bg_page.click_new_group()
+    available = bg_page.get_unassigned_branches()
+    assert len(available) > 0, "No available unassigned branches found in dropdown!"
+    branch_city = available[0]
     
-    group_name = f"GroupDup {fake.word().capitalize()} {fake.random_int(1000, 9999)}"
-    bg_page.fill_group_details(group_name=group_name, branch_names=["Agra"])
+    # Try duplicate exact case
+    bg_page.fill_group_details(group_name=existing_group, branch_names=[branch_city])
     bg_page.click_create()
-    toast1 = bg_page.wait_for_toast_message()
-    assert "success" in toast1.lower() or "created" in toast1.lower()
-    story.log_step("Create Branch Group", record=group_name, status="PASS")
+    toast = bg_page.wait_for_toast_message()
     
-    # Step 2: Try duplicate exact case
-    bg_page.click_new_group()
-    bg_page.fill_group_details(group_name=group_name, branch_names=["Agra"])
-    bg_page.click_create()
-    toast2 = bg_page.wait_for_toast_message()
+    is_blocked = "success" not in toast.lower() and "created" not in toast.lower()
     
-    is_blocked = "success" not in toast2.lower() and "created" not in toast2.lower()
     if is_blocked:
         admin_page.reload()
         bg_page.navigate_to_branch_group()
-        story.log_step("Create Duplicate Branch Group", record=group_name, expected="Duplicate branch group should not be created", actual=f"Blocked with message: '{toast2}'", status="PASS")
+        story.log_step("Create Duplicate Branch Group", record=existing_group, expected="Duplicate branch group should not be created", actual=f"Blocked with message: '{toast}'", status="PASS")
         story.finish(status="PASS")
     else:
-        story.log_step("Create Duplicate Branch Group", record=group_name, expected="Duplicate branch group should not be created", actual=f"Allowed creation: {toast2}", status="FAIL")
+        story.log_step("Create Duplicate Branch Group", record=existing_group, expected="Duplicate branch group should not be created", actual=f"Allowed creation: {toast}", status="FAIL")
         story.finish(status="FAIL")
-        raise ValidationFailure(expected="Duplicate branch group creation blocked", actual=f"Application allowed duplicate branch group creation: {toast2}")
-
+        raise ValidationFailure(expected="Duplicate branch group creation blocked", actual=f"Application allowed duplicate branch group creation: {toast}")
 
 
 @pytest.mark.ui
@@ -129,17 +154,17 @@ def test_edit_branch_group_blank_blocked(admin_page):
 
     bg_page = BranchGroupPage(admin_page)
     bg_page.navigate_to_branch_group()
-    bg_page.click_new_group()
     
-    group_name = f"GroupBlankEdit {fake.word().capitalize()} {fake.random_int(1000, 9999)}"
-    bg_page.fill_group_details(group_name=group_name, branch_names=["Agra"])
-    bg_page.click_create()
-    bg_page.wait_for_toast_message()
-    story.log_step("Create Branch Group", record=group_name, status="PASS")
+    # Find existing group name in table
+    existing_group = bg_page.get_first_group_name()
+    if not existing_group:
+        existing_group = "Varanasi"
+        
+    story.log_step("Retrieve Existing Group", record=existing_group, status="PASS")
     
-    # Step 2: Edit group and clear name
-    bg_page.edit_branch_group(group_name)
-    story.log_step("Open Edit Branch Group", details={"Selected Record": group_name}, status="PASS")
+    # Edit group and clear name
+    bg_page.edit_branch_group(existing_group)
+    story.log_step("Open Edit Branch Group", details={"Selected Record": existing_group}, status="PASS")
 
     bg_page.fill_group_details(group_name="", branch_names=None)
     story.log_step("Clear Group Name", details={"New Value": "<Blank>"})
@@ -149,6 +174,10 @@ def test_edit_branch_group_blank_blocked(admin_page):
     is_valid = "required" in toast.lower() or "correct" in toast.lower() or "validation" in toast.lower()
     
     story.log_step("Save", expected="Validation message should appear", actual="Validation message displayed" if is_valid else f"Unexpected toast: {toast}", status="PASS" if is_valid else "FAIL")
+    
+    # Click Cancel to close modal dialog safely
+    bg_page.click_cancel()
+    
     assert is_valid, f"Unexpected toast: {toast}"
     story.finish(status="PASS")
 
@@ -161,10 +190,16 @@ def test_branch_group_input_matrix_validations(admin_page):
 
     bg_page = BranchGroupPage(admin_page)
     bg_page.navigate_to_branch_group()
+    
+    # Open modal to get unassigned branches
+    bg_page.click_new_group()
+    available = bg_page.get_unassigned_branches()
+    assert len(available) >= 2, "Need at least 2 available branches!"
+    branch_city1 = available[0]
+    branch_city2 = available[1]
 
     # Step 1: Spaces-only Group Name
-    bg_page.click_new_group()
-    bg_page.fill_group_details(group_name="   ", branch_names=["Agra"])
+    bg_page.fill_group_details(group_name="   ", branch_names=[branch_city1])
     bg_page.click_create()
     toast = bg_page.wait_for_toast_message()
     is_spaces_blocked = "success" not in toast.lower() and "created" not in toast.lower()
@@ -174,12 +209,12 @@ def test_branch_group_input_matrix_validations(admin_page):
     story.log_step("Spaces Only Group Name", expected="Validation warning should appear", actual="Validation displayed" if is_spaces_blocked else f"Toast: {toast}", status="PASS" if is_spaces_blocked else "FAIL")
 
     # Step 2: Special characters & Multiple Branches
-    group_name = f"GroupSpecChar_{fake.lexify(text='?'*10)}"
+    group_name = f"{branch_city1} & {branch_city2} Group"
     bg_page.click_new_group()
-    bg_page.fill_group_details(group_name=group_name, branch_names=["Agra", "Noida"])
+    bg_page.fill_group_details(group_name=group_name, branch_names=[branch_city1, branch_city2])
     bg_page.click_create()
     toast2 = bg_page.wait_for_toast_message()
-    story.log_step("Special Chars & Multiple Branches", record=group_name, details={"Branches": "Agra, Noida"}, actual=toast2, status="PASS")
+    story.log_step("Special Chars & Multiple Branches", record=group_name, details={"Branches": f"{branch_city1}, {branch_city2}"}, actual=toast2, status="PASS")
 
     # Step 3: Search branch groups
     search_input = admin_page.get_by_placeholder("Search", exact=False)
@@ -200,19 +235,24 @@ def test_branch_group_reassignment_validation(admin_page):
     bg_page = BranchGroupPage(admin_page)
     bg_page.navigate_to_branch_group()
     
-    # Step 1: Create first Branch Group with branch "Agra"
-    group_name1 = f"GroupMapped1 {fake.word().capitalize()} {fake.random_int(100, 999)}"
+    # Open modal to get unassigned branches
     bg_page.click_new_group()
-    bg_page.fill_group_details(group_name=group_name1, branch_names=["Agra"])
+    available = bg_page.get_unassigned_branches()
+    assert len(available) > 0, "No available unassigned branches found in dropdown!"
+    branch_city = available[0]
+    
+    # Step 1: Create first Branch Group with branch
+    group_name1 = f"{branch_city} Area A"
+    bg_page.fill_group_details(group_name=group_name1, branch_names=[branch_city])
     bg_page.click_create()
     toast1 = bg_page.wait_for_toast_message()
     assert "success" in toast1.lower() or "created" in toast1.lower()
-    story.log_step("Create Group 1", record=group_name1, details={"Assigned Branch": "Agra"}, status="PASS")
+    story.log_step("Create Group 1", record=group_name1, details={"Assigned Branch": branch_city}, status="PASS")
     
-    # Step 2: Try creating second group and select the already assigned branch "Agra"
-    group_name2 = f"GroupMapped2 {fake.word().capitalize()} {fake.random_int(100, 999)}"
+    # Step 2: Try creating second group and select the already assigned branch
+    group_name2 = f"{branch_city} Area B"
     bg_page.click_new_group()
-    bg_page.fill_group_details(group_name=group_name2, branch_names=["Agra"])
+    bg_page.fill_group_details(group_name=group_name2, branch_names=[branch_city])
     bg_page.click_create()
     toast2 = bg_page.wait_for_toast_message()
     

@@ -3,6 +3,8 @@ import pytest
 from core.config import settings
 from pages.base_page import BasePage, TestStoryLogger
 from pages.hrlense_portal.asset.asset_master_page import AssetMasterPage
+from workflows.hrlense_portal.asset.asset_workflow import AssetWorkflow
+from workflows.hrlense_portal.asset.asset_master_workflow import AssetMasterWorkflow
 from faker import Faker
 
 from testdata.dynamic.business_test_data import BusinessTestData
@@ -46,36 +48,21 @@ def test_create_category_validation(admin_page):
 @pytest.mark.ui
 @pytest.mark.asset
 def test_create_category_success(admin_page):
-    asset_page = AssetMasterPage(admin_page)
-    asset_page.navigate_to_asset_master()
-    asset_page.click_add_category()
-    
-    # Generate realistic business category name
+    workflow = AssetMasterWorkflow(admin_page)
     category_name = BusinessTestData.category_name("IT Hardware")
-    description = "IT Hardware Category Description"
-    
-    asset_page.fill_category_details(name=category_name, description=description, toggle_spans=True)
-    asset_page.click_create()
-    
-    toast = asset_page.wait_for_toast_message()
+    toast = workflow.create_category_workflow(name=category_name, description="IT Hardware Category Description", toggle_spans=True)
     assert "success" in toast.lower() or "created" in toast.lower(), f"Unexpected toast: {toast}"
 
 
 @pytest.mark.ui
 @pytest.mark.asset
 def test_update_category_success(admin_page):
+    workflow = AssetMasterWorkflow(admin_page)
     asset_page = AssetMasterPage(admin_page)
-    asset_page.navigate_to_asset_master()
-    asset_page.click_add_category()
     
     category_name = BusinessTestData.category_name("Office Equipment")
-    description = "Category description"
-    
-    asset_page.fill_category_details(name=category_name, description=description, toggle_spans=True)
-    asset_page.click_create()
-    
-    # Wait for the creation success toast
-    toast = asset_page.wait_for_toast_message()
+    toast = workflow.create_category_workflow(name=category_name, description="Category description", toggle_spans=True)
+    assert "success" in toast.lower() or "created" in toast.lower(), f"Failed creation: {toast}"
     assert "success" in toast.lower() or "created" in toast.lower(), f"Failed creation: {toast}"
     
     # Edit the created category

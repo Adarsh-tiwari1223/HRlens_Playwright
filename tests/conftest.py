@@ -61,7 +61,7 @@ def page(browser, request):
     context.close()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def logged_in_page(browser):
     contexts = []
 

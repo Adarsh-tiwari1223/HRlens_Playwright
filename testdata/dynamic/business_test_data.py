@@ -519,6 +519,25 @@ class BusinessTestData:
             remarks=remarks
         )
 
+    @classmethod
+    def get_branch_dictionary_by_name(cls, city_name: str = "Agra") -> list[dict]:
+        """Grab all branch dictionaries matching a city name from the branch API."""
+        try:
+            from utils.api.payroll_api import get_branches
+            all_branches = get_branches()
+            matched = [
+                {
+                    "id": b.get("id"),
+                    "branch_name": b.get("branch_Name"),
+                    "company_name": b.get("company_Name")
+                }
+                for b in all_branches
+                if b.get("branch_Name") and city_name.lower() in b.get("branch_Name").lower()
+            ]
+            return matched
+        except Exception:
+            return []
+
 
 class VendorTestData:
     @staticmethod

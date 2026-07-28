@@ -42,21 +42,19 @@ HRlens_Playwright/
 ├── pages/                            # Page Object Model (POM) layer
 │   ├── base_page.py                  # Custom BasePage with safe action logs
 │   ├── login_page.py                 # LoginPage implementation
-│   ├── attendance/
-│   │   ├── leave_page.py
-│   │   ├── regularization_page.py
-│   │   └── unauthorized_absence_page.py
-│   ├── employee/
-│   │   ├── appointment_letter_template_page.py
-│   │   ├── candidate_page.py
-│   │   ├── employee_page.py
-│   │   ├── offer_letter_template_page.py
-│   │   ├── onboarding_page.py
-│   │   └── salary_settings_page.py
-│   ├── payroll/
-│   │   └── payroll_page.py
-│   └── recruitment/
-│       └── job_opening_page.py
+│   ├── hrlense_portal/
+│   │   ├── admin_control/
+│   │   │   ├── absence_setting_page.py
+│   │   │   ├── cross_company_hierarchy_page.py
+│   │   │   └── management_interaction_page.py
+│   │   ├── attendance/
+│   │   │   ├── attendance_sheet_page.py
+│   │   │   ├── leave_page.py
+│   │   │   └── regularization_page.py
+│   └── recruitment_portal/
+│       └── recruitment/
+│           ├── candidate_page.py
+│           └── job_opening_page.py
 ├── testdata/
 │   ├── dynamic/
 │   │   ├── __init__.py

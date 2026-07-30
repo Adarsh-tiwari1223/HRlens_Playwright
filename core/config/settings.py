@@ -4,15 +4,28 @@ from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
-# Load .env file first, then environment-specific .env.stg or .env.prod
-load_dotenv(".env", override=True)  # Always load base .env first
-ENV = os.getenv("ENV", "dev").strip()
-if ENV != "dev":
-    load_dotenv(f".env.{ENV}", override=True)  # Override with stg/prod values
+ALLOWED_ENVS = {"stg", "prod"}
+
+# Load .env file first
+load_dotenv(".env", override=True)
+
+# Fetch raw ENV variable and sanitize
+raw_env = os.getenv("ENV", "stg").strip().lower()
+
+if raw_env not in ALLOWED_ENVS:
+    logger.warning(f"Invalid or unallowed ENV '{raw_env}' specified. Falling back strictly to Stage ('stg').")
+    print(f"[WARNING] Invalid or unallowed ENV '{raw_env}' specified. Falling back strictly to Stage ('stg').")
+    ENV = "stg"
+else:
+    ENV = raw_env
+
+# Override with environment-specific .env.stg or .env.prod if present
+if os.path.exists(f".env.{ENV}"):
+    load_dotenv(f".env.{ENV}", override=True)
 
 BASE_URL = os.getenv("BASE_URL")
 
-# New: Explicit STG and PROD API URLs
+# Explicit STG and PROD API URLs
 API_BASE_URL_STG = os.getenv("API_BASE_URL_STG")
 API_BASE_URL_PROD = os.getenv("API_BASE_URL_PROD")
 
@@ -24,6 +37,7 @@ if ENV == "prod":
     API_BASE_URL = (API_BASE_URL_PROD or "https://hrmsapi.jobvritta.com/api").strip()
 else:
     API_BASE_URL = (API_BASE_URL_STG or API_BASE_URL_LEGACY or "https://audit.jobvritta.com/api").strip()
+
 
 
 print("\n" + "="*50)
@@ -43,38 +57,42 @@ LEAVE_TO_OFFSET = int(os.getenv("LEAVE_TO_OFFSET", "1"))
 LEAVE_BACK_DATE_OFFSET = int(os.getenv("LEAVE_BACK_DATE_OFFSET", "1"))
 EMPLOYEE_USER = os.getenv("EMPLOYEE_USER", "sanidhy")
 
+def _get_env(key: str, default: str = None) -> str:
+    val = os.getenv(key, default)
+    return val.strip() if val else default
+
 USERS = {
     "admin": {
-        "username": os.getenv("ADMIN_USERNAME"),
-        "password": os.getenv("ADMIN_PASSWORD")
+        "username": _get_env("ADMIN_USERNAME"),
+        "password": _get_env("ADMIN_PASSWORD")
     },
     "vivek": {
-        "username": os.getenv("VIVEK_USERNAME"),
-        "password": os.getenv("VIVEK_PASSWORD")
+        "username": _get_env("VIVEK_USERNAME"),
+        "password": _get_env("VIVEK_PASSWORD")
     },
     "tejaswini": {
-        "username": os.getenv("TEJASWINI"),
-        "password": os.getenv("TEJSWINI_PASSWORD")
+        "username": _get_env("TEJASWINI"),
+        "password": _get_env("TEJSWINI_PASSWORD")
     },
     "shiva": {
-        "username": os.getenv("SHIVA"),
-        "password": os.getenv("SHIVA_PASSWORD")
+        "username": _get_env("SHIVA"),
+        "password": _get_env("SHIVA_PASSWORD")
     },
     "sanidhy": {
-        "username": os.getenv("SANIDHY_USERNAME"),
-        "password": os.getenv("SANIDHY_PASSWORD")
+        "username": _get_env("SANIDHY_USERNAME"),
+        "password": _get_env("SANIDHY_PASSWORD")
     },
     "kumar_piyush": {
-        "username": os.getenv("KUMAR_PIYUSH_USERNAME"),
-        "password": os.getenv("KUMAR_PIYUSH_PASSWORD")
+        "username": _get_env("KUMAR_PIYUSH_USERNAME"),
+        "password": _get_env("KUMAR_PIYUSH_PASSWORD")
     },
     "ritesh_singh": {
-        "username": os.getenv("RITESH_SINGH_USERNAME"),
-        "password": os.getenv("RITESH_SINGH_PASSWORD")
+        "username": _get_env("RITESH_SINGH_USERNAME"),
+        "password": _get_env("RITESH_SINGH_PASSWORD")
     },
     "adarsh_tiwari": {
-        "username": os.getenv("ADARSH_TIWARI"),
-        "password": os.getenv("ADARSH_TIWARI_PASSWORD")
+        "username": _get_env("ADARSH_TIWARI"),
+        "password": _get_env("ADARSH_TIWARI_PASSWORD")
     }
 }
 

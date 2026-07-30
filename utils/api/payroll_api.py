@@ -237,9 +237,12 @@ def map_payroll_to_excel(year: int, month: int, payroll_company_id: int,
     }
 
 
-def get_payroll_companies(user: str = "admin") -> list:
+def get_payroll_companies(rows: int = 50, user: str = "admin") -> list:
     """GET /Hrlense_PayrollCompany — returns all payroll companies with id and payrollCompanyName."""
-    resp = get("Hrlense_PayrollCompany", user=user)
+    params = {
+        "lazyParams": json.dumps({"first": 0, "rows": rows, "page": 0, "sortField": "", "sortOrder": 1})
+    }
+    resp = get("Hrlense_PayrollCompany", user=user, params=params)
     return resp if isinstance(resp, list) else resp.get("data", [])
 
 
@@ -307,6 +310,34 @@ def find_branch_id(branch_name: str, company_name: str = None, user: str = "admi
 def get_employee_detail(employee_id: int, user: str = "admin") -> dict:
     """GET /Hrlense_Employee/employeerDetail — fetch configured salary for an employee."""
     return get("Hrlense_Employee/employeerDetail", user=user, params={"employeeId": employee_id})
+
+
+def get_employees_by_department(department_id: int = 0, department_filter_ids: list[int] = None, user: str = "admin") -> list[dict]:
+    """
+    GET /Hrlense_Employee — fetch employees filtered by department ID.
+    Example payload: filter={"Department":[4]}
+    """
+    filter_payload = {}
+    if department_filter_ids:
+        filter_payload["Department"] = department_filter_ids
+
+    params = {
+        "department_Id": str(department_id),
+        "lazyParams": json.dumps({"first": 0, "rows": 100, "page": 0, "sortField": "", "sortOrder": 1}),
+        "filter": json.dumps(filter_payload),
+        "search": ""
+    }
+    return get("Hrlense_Employee", user=user, params=params)
+
+
+def get_companies(rows: int = 50, user: str = "admin") -> list[dict]:
+    """
+    GET /Hrlense_Company — fetch company master records.
+    """
+    params = {
+        "lazyParams": json.dumps({"first": 0, "rows": rows, "page": 0, "sortField": "", "sortOrder": 1})
+    }
+    return get("Hrlense_Company", user=user, params=params)
 
 
 def get_bank_detail(employee_id: int, user: str = "admin") -> dict:

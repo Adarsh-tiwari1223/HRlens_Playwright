@@ -101,49 +101,25 @@ class TestStoryLogger:
         self.step_count = 0
         self.start_time = None
 
-    def log_table(self, title: str, data: dict | list[dict] | None):
-        table_str = format_ascii_table(title, data)
-        logger.info("\n" + table_str)
-
     def start(self):
         import time
+        from utils.logger_formatter import log_test_start
         self.start_time = time.time()
-        logger.info("=========================================================")
-        logger.info(f"TEST : {self.test_name}")
-        logger.info("=========================================================")
-        logger.info("")
+        log_test_start(self.test_name)
 
     def log_step(self, action: str, record: str = None, details: dict = None, expected: str = None, actual: str = None, status: str = "PASS"):
+        from utils.logger_formatter import log_step
         self.step_count += 1
-        if self.step_count > 1:
-            logger.info("---------------------------------------------------------")
-            logger.info("")
-
-        logger.info(f"Step {self.step_count} : {action}")
-        if record:
-            logger.info(f"Record : {record}")
-        if details:
-            for k, v in details.items():
-                logger.info(f"{k} : {v}")
-        if expected:
-            logger.info(f"Expected : {expected}")
-        if actual:
-            logger.info(f"Actual   : {actual}")
-        if status:
-            logger.info(f"Status : {status}")
-        logger.info("")
+        log_step(action, record=record, status=status)
 
     def finish(self, status: str = "PASS"):
         import time
+        from utils.logger_formatter import log_pass, log_fail
         exec_time = time.time() - self.start_time if self.start_time else 0
-        logger.info("=========================================================")
-        logger.info("SUMMARY")
-        logger.info("=========================================================")
-        logger.info("")
-        logger.info(f"Result : {status}")
-        logger.info(f"Execution Time : {exec_time:.2f} sec")
-        logger.info("=========================================================")
-        logger.info("")
+        if status.upper() == "PASS":
+            log_pass(self.test_name, exec_time)
+        else:
+            log_fail(self.test_name, f"Status: {status}")
 
 
 class ValidationFailure(AssertionError):

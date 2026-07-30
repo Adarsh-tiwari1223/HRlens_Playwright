@@ -538,6 +538,38 @@ class BusinessTestData:
         except Exception:
             return []
 
+    @classmethod
+    def get_employees_by_department(cls, department_filter_ids: list[int] = None) -> list[dict]:
+        """Fetch employees filtered by department ID(s) from the Employee API (daily disk cached)."""
+        try:
+            from utils.api.payroll_api import get_employees_by_department
+            from testdata.dynamic.daily_cache import get_daily_cached_data
+            dept_ids = department_filter_ids or [4]
+            key = f"employees_dept_{'_'.join(map(str, dept_ids))}"
+            return get_daily_cached_data(key, lambda: get_employees_by_department(department_filter_ids=dept_ids))
+        except Exception:
+            return []
+
+    @classmethod
+    def get_companies(cls) -> list[dict]:
+        """Fetch company master records from the Company API (daily disk cached)."""
+        try:
+            from utils.api.payroll_api import get_companies
+            from testdata.dynamic.daily_cache import get_daily_cached_data
+            return get_daily_cached_data("us_companies_master", get_companies)
+        except Exception:
+            return []
+
+    @classmethod
+    def get_payroll_companies(cls) -> list[dict]:
+        """Fetch payroll company master records from the Payroll Company API (daily disk cached)."""
+        try:
+            from utils.api.payroll_api import get_payroll_companies
+            from testdata.dynamic.daily_cache import get_daily_cached_data
+            return get_daily_cached_data("payroll_companies_master", get_payroll_companies)
+        except Exception:
+            return []
+
 
 class VendorTestData:
     @staticmethod

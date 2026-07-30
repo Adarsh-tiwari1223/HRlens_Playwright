@@ -1,0 +1,44 @@
+# Virtual Environment & Python Caching
+venv/
+.venv/
+env/
+ENV/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Pytest & Test Execution Artifacts
+.pytest_cache/
+.cache/
+reports/
+logs/
+test-results/
+playwright-report/
+allure-results/
+*.zip
+*.xlsx
+*.log
+
+# Version Control & CI Workflows
+.git/
+.github/
+
+# IDE & OS Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Environment Secrets & Tokens
+.env
+*.env
+.env.*
+secrets.py
+auth/
+**/auth.json
+**/storage_state.json
+
+# Scratch & Temporary Files
+scratch/
+TODO.md

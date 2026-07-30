@@ -1,0 +1,17 @@
+services:
+  tests:
+    image: docker-tests:latest
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: hrlens-playwright
+    working_dir: /app
+    env_file:
+      - ../.env
+    environment:
+      - ENV=stg
+      - HEADLESS=true
+    volumes:
+      - ../reports:/app/reports
+      - ../logs:/app/logs
+    command: ["pytest"]

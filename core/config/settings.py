@@ -93,6 +93,14 @@ USERS = {
     "adarsh_tiwari": {
         "username": _get_env("ADARSH_TIWARI"),
         "password": _get_env("ADARSH_TIWARI_PASSWORD")
+    },
+    "uttam_kumar": {
+        "username": _get_env("UTTAM_KUMAR_USERNAME"),
+        "password": _get_env("UTTAM_KUMAR_PASSWORD")
+    },
+    "abhishek_singh": {
+        "username": _get_env("ABHISHEK_SINGH_USERNAME"),
+        "password": _get_env("ABHISHEK_SINGH_PASSWORD")
     }
 }
 
@@ -103,4 +111,6 @@ APPROVERS = {
     "Tejaswini Rishivanshi": "tejaswini",
     "Shiva Singh": "shiva",
     "Ritesh Singh": "ritesh_singh",
+    "Uttam Kumar": "uttam_kumar",
+    "Abhishek Singh": "abhishek_singh",
 }

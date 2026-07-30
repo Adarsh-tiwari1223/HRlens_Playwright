@@ -87,6 +87,10 @@ def logged_in_page(browser):
     contexts = []
 
     def _login(user_key: str = settings.EMPLOYEE_USER):
+        user_info = settings.USERS.get(user_key)
+        assert user_info and user_info.get("username") and user_info.get("password"), \
+            f"User '{user_key}' missing valid credentials in environment settings."
+
         context = browser.new_context(**CONTEXT_OPTIONS)
         context.set_default_timeout(settings.DEFAULT_TIMEOUT)
         context.tracing.start(screenshots=True, snapshots=True, sources=True)
@@ -95,8 +99,8 @@ def logged_in_page(browser):
         page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="visible", timeout=30000)
 
         LoginPage(page).login(
-            settings.USERS[user_key]["username"],
-            settings.USERS[user_key]["password"]
+            user_info["username"],
+            user_info["password"]
         )
         page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="hidden", timeout=30000)
         contexts.append((context, user_key))

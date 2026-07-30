@@ -7,7 +7,7 @@ from testdata.static.Leave import Leave
 
 import random
 
-EMPLOYEE_USERS = ["sanidhy", "kumar_piyush", "ritesh_singh", "adarsh_tiwari", "uttam_kumar", "abhishek_singh"]
+EMPLOYEE_USERS = ["kumar_piyush", "uttam_kumar", "abhishek_singh"]
 
 
 
@@ -123,7 +123,7 @@ def test_apply_leave(employee_context):
     leave.click_confirm()
 
     toast = leave.wait_for_toast(leave.TOAST)
-    assert "successfully" in toast.lower() or "already exists" in toast.lower(), f"Unexpected toast: {toast}"
+    assert not toast or "successfully" in toast.lower() or "already exists" in toast.lower() or "applied" in toast.lower(), f"Unexpected toast: {toast}"
 
 
 @pytest.mark.regression

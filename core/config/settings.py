@@ -55,7 +55,7 @@ DEFAULT_TIMEOUT = int(os.getenv("DEFAULT_TIMEOUT", "60000"))
 LEAVE_FROM_OFFSET = int(os.getenv("LEAVE_FROM_OFFSET", "1"))
 LEAVE_TO_OFFSET = int(os.getenv("LEAVE_TO_OFFSET", "1"))
 LEAVE_BACK_DATE_OFFSET = int(os.getenv("LEAVE_BACK_DATE_OFFSET", "1"))
-EMPLOYEE_USER = os.getenv("EMPLOYEE_USER", "sanidhy")
+EMPLOYEE_USER = os.getenv("EMPLOYEE_USER", "uttam_kumar")
 
 def _get_env(key: str, default: str = None) -> str:
     val = os.getenv(key, default)

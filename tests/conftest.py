@@ -102,7 +102,13 @@ def logged_in_page(browser):
             user_info["username"],
             user_info["password"]
         )
-        page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="hidden", timeout=30000)
+        try:
+            page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="hidden", timeout=15000)
+        except Exception:
+            # Safeguard: Re-click Login if network latency or toast overlay delayed initial submission
+            if page.get_by_text("Please enter your Login Details", exact=True).is_visible():
+                page.get_by_role("button", name="Login").click()
+                page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="hidden", timeout=20000)
         contexts.append((context, user_key))
         return page, context
 

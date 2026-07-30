@@ -25,6 +25,7 @@ def template_page(template_company, page):
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
 @pytest.mark.ui
+@pytest.mark.regression
 @pytest.mark.template
 def test_create_appointment_letter_section(template_page):
     """
@@ -37,6 +38,7 @@ def test_create_appointment_letter_section(template_page):
 
 
 @pytest.mark.ui
+@pytest.mark.regression
 @pytest.mark.template
 def test_update_section_details(template_page):
     """
@@ -62,6 +64,7 @@ def test_update_section_details(template_page):
 
 
 @pytest.mark.ui
+@pytest.mark.regression
 @pytest.mark.template
 def test_verify_active_inactive_toggle(template_page):
     """
@@ -77,6 +80,7 @@ def test_verify_active_inactive_toggle(template_page):
 
 
 @pytest.mark.ui
+@pytest.mark.regression
 @pytest.mark.template
 def test_create_duplicate_section_active(template_page):
     """
@@ -89,6 +93,7 @@ def test_create_duplicate_section_active(template_page):
 
 
 @pytest.mark.ui
+@pytest.mark.regression
 @pytest.mark.template
 def test_create_duplicate_section_inactive(template_page):
     """
@@ -108,6 +113,7 @@ def test_create_duplicate_section_inactive(template_page):
 
 
 @pytest.mark.ui
+@pytest.mark.regression
 @pytest.mark.template
 def test_verify_section_order_persistence(template_page):
     """
@@ -135,6 +141,7 @@ def test_verify_section_order_persistence(template_page):
 
 
 @pytest.mark.ui
+@pytest.mark.regression
 @pytest.mark.template
 def test_seed_all_sections_for_all_companies(template_page):
     """

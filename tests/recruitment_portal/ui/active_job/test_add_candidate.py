@@ -25,6 +25,8 @@ def dummy_resume_path():
 
 
 @pytest.mark.ui
+@pytest.mark.recruitment
+@pytest.mark.regression
 @pytest.mark.candidate
 def test_add_fresher_candidate(candidate_workflow, dummy_resume_path):
     """
@@ -37,6 +39,8 @@ def test_add_fresher_candidate(candidate_workflow, dummy_resume_path):
 
 
 @pytest.mark.ui
+@pytest.mark.recruitment
+@pytest.mark.regression
 @pytest.mark.candidate
 def test_add_experienced_candidate(candidate_workflow, dummy_resume_path):
     """

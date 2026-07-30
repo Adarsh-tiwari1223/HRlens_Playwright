@@ -21,6 +21,7 @@ def generate_unique_company_name() -> str:
     return f"{base} {suffix}"
 
 @pytest.mark.ui
+@pytest.mark.regression
 @pytest.mark.company
 def test_create_company_validation(admin_page):
     logger.info("Verify that validation occurs when trying to add a company with missing fields")
@@ -98,7 +99,8 @@ def test_company_name_format_validation(admin_page):
     company_page.click_add_new_company()
     
     # Name with numbers and special characters
-    base_name = f"TestCo {"".join(random.choices(string.ascii_uppercase, k=6))} and Co"
+    rand_suffix = "".join(random.choices(string.ascii_uppercase, k=6))
+    base_name = f"TestCo {rand_suffix} and Co"
     input_name = f"123 {base_name} 456"
     company_code = f"CMP{fake.random_int(1000, 9999)}"
     

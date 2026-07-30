@@ -32,6 +32,27 @@ def pytest_configure(config):
     logger.info("==================================================")
 
 
+def pytest_collection_modifyitems(items):
+    """Reorder test collection so that authentication and login tests always run FIRST."""
+    login_items = []
+    other_items = []
+    for item in items:
+        if "auth" in item.nodeid.lower() or "login" in item.nodeid.lower():
+            login_items.append(item)
+        else:
+            other_items.append(item)
+    items[:] = login_items + other_items
+
+
+def pytest_xdist_auto_num_workers(config):
+    """Smart worker allocation: Cap auto workers to optimize RAM & CPU startup."""
+    import os
+    cpu_cores = os.cpu_count() or 4
+    return min(cpu_cores, 4)
+
+
+
+
 CONTEXT_OPTIONS = {
     "permissions": ["clipboard-read", "clipboard-write"]
 }

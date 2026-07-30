@@ -164,3 +164,74 @@ If a test fails, Playwright saves a trace file (e.g., `trace_*.zip` in reports).
 ```bash
 playwright show-trace reports/trace_<name>.zip
 ```
+
+---
+
+## 🐳 6. Docker Containerization Commands
+
+### Build Docker Image
+```bash
+# Build the production image from project root using docker/Dockerfile
+docker build -f docker/Dockerfile -t hrlens-playwright .
+
+# Rebuild image without using cache
+docker build --no-cache -f docker/Dockerfile -t hrlens-playwright .
+```
+
+### Run Default Test Suite
+```bash
+# Run default compose command with container exit code forwarding
+docker compose -f docker/compose.yaml up --abort-on-container-exit --exit-code-from tests
+```
+
+### Run Test Suites (--rm automatically removes container on completion)
+```bash
+# Run Smoke suite in parallel with quiet clean output (RECOMMENDED)
+docker compose --progress quiet -f docker/compose.yaml run --rm tests pytest -m smoke -n auto
+
+# Run Sanity suite in parallel
+docker compose --progress quiet -f docker/compose.yaml run --rm tests pytest -m sanity -n auto
+
+# Run Regression suite in parallel
+docker compose --progress quiet -f docker/compose.yaml run --rm tests pytest -m regression -n auto
+
+# Force rebuild before running tests
+docker compose --progress quiet -f docker/compose.yaml run --rm --build tests pytest -m smoke -n auto
+```
+
+# Explicit Production Execution (Opt-in ONLY)
+docker compose -f docker/compose.yaml run --rm -e ENV=prod tests pytest -m smoke
+
+# Run Specific Folder
+docker compose -f docker/compose.yaml run --rm tests pytest tests/recruitment_portal
+
+# Run Specific Test File
+docker compose -f docker/compose.yaml run --rm tests pytest tests/ui/test_login.py -v
+
+# Run Specific Test Function
+docker compose -f docker/compose.yaml run --rm tests pytest tests/ui/test_login.py::test_valid_login -v
+
+# Run Parallel Tests
+docker compose -f docker/compose.yaml run --rm tests pytest -n auto
+
+# Generate HTML Report
+docker compose -f docker/compose.yaml run --rm tests pytest -m smoke --html=reports/report.html --self-contained-html
+```
+
+### Stop Containers & Maintenance Cleanup
+```bash
+# Stop containers
+docker compose -f docker/compose.yaml down
+
+# Remove unused docker images
+docker image prune
+
+# Remove docker build cache
+docker builder prune
+
+# Remove everything (Containers, Networks, Volumes)
+docker compose -f docker/compose.yaml down -v
+```
+
+
+

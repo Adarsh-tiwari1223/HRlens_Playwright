@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.mark.ui
+@pytest.mark.regression
 @pytest.mark.admin_control
 @pytest.mark.dependency(name="test_e2e_hierarchy_reassignment")
 def test_exclude_team_lead_hierarchy_reassignment_e2e(admin_page):
@@ -189,6 +190,7 @@ def test_exclude_team_lead_hierarchy_reassignment_e2e(admin_page):
 
 
 @pytest.mark.ui
+@pytest.mark.regression
 @pytest.mark.admin_control
 @pytest.mark.dependency(depends=["test_e2e_hierarchy_reassignment"])
 def test_update_cross_company_hierarchy(admin_page):

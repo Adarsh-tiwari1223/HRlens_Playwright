@@ -1,4 +1,5 @@
 import calendar
+import requests
 import pytest
 from core.config import settings
 

@@ -4,6 +4,7 @@ Handles document repository listing, uploads, dynamic document type forms,
 filtering, and document sharing (Internal and External).
 """
 
+import re
 import logging
 from core.config import settings
 from pages.base_page import BasePage
@@ -25,7 +26,7 @@ class DirectorDocumentsPage(BasePage):
     TABLE_ROWS = "tbody tr"
     
     # Modal dialog
-    MODAL_DIALOG = "[role='dialog']"
+    MODAL_DIALOG = ".chakra-modal__content, section.chakra-modal__content"
     SAVE_BTN = "role=button[name='Save']"
     SUBMIT_BTN = "role=button[name='Submit']"
     CANCEL_BTN = "role=button[name='Cancel']"
@@ -37,19 +38,23 @@ class DirectorDocumentsPage(BasePage):
     SHARE_SUBMIT_BTN = "role=button[name*='Share']"
 
     # Toast notification
-    TOAST = ".chakra-toast div, [role='status']"
+    TOAST = (
+        "[role='region'][aria-live='polite'] [role='status'], "
+        "[role='region'][aria-live='polite'] [role='alert'], "
+        ".chakra-toast, .chakra-toast__title, [role='status']"
+    )
 
     def navigate_to_director_documents(self):
         """Navigates to the centralized Director Documents repository."""
         logger.info("Navigating to Director's Documents page...")
-        self.page.goto(f"{settings.BASE_URL}/director-documents")
-        self.page.wait_for_load_state("domcontentloaded")
-        try:
-            link = self.page.get_by_role("link", name="Director's Documents", exact=False)
-            if link.is_visible():
-                link.click()
-        except Exception:
-            pass
+        link = self.page.locator("a:has-text('Director')").filter(has_text="Documents").first
+        if link.is_visible():
+            link.click()
+            self.page.wait_for_load_state("domcontentloaded")
+        elif "/director-documents" not in self.page.url:
+            self.page.goto(f"{settings.BASE_URL}/director-documents")
+            self.page.wait_for_load_state("domcontentloaded")
+            
         try:
             self.page.locator(self.TABLE_ROWS).first.wait_for(state="visible", timeout=6000)
         except Exception:
@@ -58,9 +63,9 @@ class DirectorDocumentsPage(BasePage):
     def click_add_document(self):
         """Opens the Add Document modal."""
         logger.info("Opening Add Document modal...")
-        add_btn = self.page.get_by_role("button", name="Add Document", exact=False)
-        add_btn.click()
-        self.page.locator(self.MODAL_DIALOG).wait_for(state="visible", timeout=10000)
+        add_btn = self.page.locator("a:has-text('Add Document'), button:has-text('Add Document')").first
+        add_btn.click(force=True)
+        self.page.locator(self.MODAL_DIALOG).first.wait_for(state="visible", timeout=10000)
 
     def fill_document_form(self, doc_type: str, doc_number: str, issue_date: str = None, expiry_date: str = None, file_path: str = None, director_name: str = None):
         """
@@ -147,11 +152,26 @@ class DirectorDocumentsPage(BasePage):
             filter_input.fill(director_name)
             self.page.wait_for_timeout(500)
 
+    def _click_row_action(self, row, action_name: str, fallback_index: int = 0):
+        """Helper to reliably click an action button/link inside a table row."""
+        try:
+            elem = row.get_by_text(action_name, exact=False).first
+            if elem.is_visible():
+                elem.click()
+                return
+        except Exception:
+            pass
+        action_elems = row.locator("td").locator("button, a, svg, div")
+        if action_elems.count() > fallback_index:
+            action_elems.nth(fallback_index).click()
+        else:
+            row.get_by_label(action_name, exact=False).first.click()
+
     def share_document_internal(self, doc_number: str, employee_name: str, permission: str = "View Only"):
         """Performs internal document sharing with an employee."""
         logger.info(f"Sharing document '{doc_number}' internally with '{employee_name}' (Perm: {permission})")
         row = self.page.locator("tbody tr").filter(has_text=doc_number).first
-        row.get_by_label("Share").click()
+        self._click_row_action(row, "Share", fallback_index=2)
         self.page.locator(self.MODAL_DIALOG).wait_for(state="visible", timeout=10000)
 
         # Click Internal Tab
@@ -176,13 +196,15 @@ class DirectorDocumentsPage(BasePage):
 
         # Click Share
         share_btn = self.page.get_by_role("button", name="Share", exact=False)
+        if not share_btn.is_visible():
+            share_btn = self.page.get_by_text("Share", exact=False).first
         share_btn.click()
 
     def share_document_external(self, doc_number: str, view_perm: bool = True, download_perm: bool = False):
         """Generates an external public sharing link for a document."""
         logger.info(f"Sharing document '{doc_number}' externally...")
         row = self.page.locator("tbody tr").filter(has_text=doc_number).first
-        row.get_by_label("Share").click()
+        self._click_row_action(row, "Share", fallback_index=2)
         self.page.locator(self.MODAL_DIALOG).wait_for(state="visible", timeout=10000)
 
         # Click External Tab
@@ -192,19 +214,21 @@ class DirectorDocumentsPage(BasePage):
 
         # Click Generate Link
         gen_btn = self.page.get_by_role("button", name="Generate Link", exact=False)
+        if not gen_btn.is_visible():
+            gen_btn = self.page.get_by_text("Generate Link", exact=False).first
         gen_btn.click()
 
     def click_view_document(self, doc_number: str):
         """Clicks the View icon to open document preview."""
         logger.info(f"Viewing document: {doc_number}")
         row = self.page.locator("tbody tr").filter(has_text=doc_number).first
-        row.get_by_label("View").click()
+        self._click_row_action(row, "View", fallback_index=0)
 
     def click_download_document(self, doc_number: str):
         """Clicks the Download icon for a document."""
         logger.info(f"Downloading document: {doc_number}")
         row = self.page.locator("tbody tr").filter(has_text=doc_number).first
-        row.get_by_label("Download").click()
+        self._click_row_action(row, "Download", fallback_index=1)
 
     def get_first_document_number(self) -> str | None:
         """Retrieves the Document Number from the first row in the grid."""

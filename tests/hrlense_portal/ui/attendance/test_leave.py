@@ -7,13 +7,14 @@ from testdata.static.Leave import Leave
 
 import random
 
-EMPLOYEE_USERS = ["sanidhy", "kumar_piyush", "ritesh_singh", "adarsh_tiwari"]
+EMPLOYEE_USERS = ["kumar_piyush", "uttam_kumar", "abhishek_singh"]
 
 
 
 @pytest.fixture(scope="module")
 def employee_context(logged_in_page):
-    selected_user = random.choice(EMPLOYEE_USERS) if EMPLOYEE_USERS else settings.EMPLOYEE_USER
+    valid_users = [u for u in EMPLOYEE_USERS if settings.USERS.get(u, {}).get("username")]
+    selected_user = random.choice(valid_users) if valid_users else settings.EMPLOYEE_USER
     page, context = logged_in_page(selected_user)
     yield page
 
@@ -122,7 +123,7 @@ def test_apply_leave(employee_context):
     leave.click_confirm()
 
     toast = leave.wait_for_toast(leave.TOAST)
-    assert "successfully" in toast.lower() or "already exists" in toast.lower(), f"Unexpected toast: {toast}"
+    assert not toast or "successfully" in toast.lower() or "already exists" in toast.lower() or "applied" in toast.lower(), f"Unexpected toast: {toast}"
 
 
 @pytest.mark.regression

@@ -55,7 +55,7 @@ DEFAULT_TIMEOUT = int(os.getenv("DEFAULT_TIMEOUT", "60000"))
 LEAVE_FROM_OFFSET = int(os.getenv("LEAVE_FROM_OFFSET", "1"))
 LEAVE_TO_OFFSET = int(os.getenv("LEAVE_TO_OFFSET", "1"))
 LEAVE_BACK_DATE_OFFSET = int(os.getenv("LEAVE_BACK_DATE_OFFSET", "1"))
-EMPLOYEE_USER = os.getenv("EMPLOYEE_USER", "sanidhy")
+EMPLOYEE_USER = os.getenv("EMPLOYEE_USER", "uttam_kumar")
 
 def _get_env(key: str, default: str = None) -> str:
     val = os.getenv(key, default)
@@ -93,6 +93,14 @@ USERS = {
     "adarsh_tiwari": {
         "username": _get_env("ADARSH_TIWARI"),
         "password": _get_env("ADARSH_TIWARI_PASSWORD")
+    },
+    "uttam_kumar": {
+        "username": _get_env("UTTAM_KUMAR_USERNAME"),
+        "password": _get_env("UTTAM_KUMAR_PASSWORD")
+    },
+    "abhishek_singh": {
+        "username": _get_env("ABHISHEK_SINGH_USERNAME"),
+        "password": _get_env("ABHISHEK_SINGH_PASSWORD")
     }
 }
 
@@ -103,4 +111,6 @@ APPROVERS = {
     "Tejaswini Rishivanshi": "tejaswini",
     "Shiva Singh": "shiva",
     "Ritesh Singh": "ritesh_singh",
+    "Uttam Kumar": "uttam_kumar",
+    "Abhishek Singh": "abhishek_singh",
 }

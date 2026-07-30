@@ -32,13 +32,13 @@ jobs:
         ${{ secrets.ENV_FILE }}
         EOF
 
-    # 1. Install dependencies inside pre-built Playwright container
+    # 1. Install dependencies inside pre-built Playwright container (Quiet Output)
     - name: Install Python dependencies
       run: |
-        python -m pip install --upgrade pip
-        if [ -f requirements.txt ]; then pip install --no-cache-dir -r requirements.txt; fi
+        python -m pip install --quiet --upgrade pip
+        if [ -f requirements.txt ]; then pip install --quiet --no-cache-dir -r requirements.txt; fi
 
-    # 2. Run Dynamic Test Suites Based on Event Context
+    # 2. Run Dynamic Parallel Test Suites (-n auto)
     - name: Determine Test Marker & Run Tests
       run: |
         if [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -50,8 +50,8 @@ jobs:
         else
           MARKER="smoke"
         fi
-        echo "Executing test suite with marker: $MARKER"
-        pytest -m "$MARKER" --reruns 2 --reruns-delay 1 --html=reports/report.html --self-contained-html --maxfail=1 --disable-warnings -v
+        echo "Executing parallel test suite (-n auto) with marker: $MARKER"
+        pytest -m "$MARKER" -n auto --reruns 2 --reruns-delay 1 --html=reports/report.html --self-contained-html --maxfail=1 --disable-warnings --tb=short
 
     # 3. Add GitHub Step Summary
     - name: Add Execution Summary

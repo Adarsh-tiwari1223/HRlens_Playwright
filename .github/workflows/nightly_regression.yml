@@ -43,18 +43,18 @@ jobs:
         ${{ secrets.ENV_FILE }}
         EOF
 
-    # 1. Install dependencies inside pre-built Playwright container
+    # 1. Install dependencies inside pre-built Playwright container (Quiet Output)
     - name: Install Python dependencies
       run: |
-        python -m pip install --upgrade pip
-        if [ -f requirements.txt ]; then pip install --no-cache-dir -r requirements.txt; fi
+        python -m pip install --quiet --upgrade pip
+        if [ -f requirements.txt ]; then pip install --quiet --no-cache-dir -r requirements.txt; fi
 
-    # 2. Run Regression Tests
+    # 2. Run Parallel Regression Tests (-n auto)
     - name: Run Regression Tests
       run: |
         MARKER="${{ github.event.inputs.marker || 'regression' }}"
-        echo "Executing nightly regression suite with marker: $MARKER"
-        pytest -m "$MARKER" --reruns 2 --reruns-delay 1 --html=reports/report.html --self-contained-html --disable-warnings -v
+        echo "Executing parallel nightly regression suite (-n auto) with marker: $MARKER"
+        pytest -m "$MARKER" -n auto --reruns 2 --reruns-delay 1 --html=reports/report.html --self-contained-html --disable-warnings --tb=short
 
     # 3. Add GitHub Step Summary
     - name: Add Execution Summary

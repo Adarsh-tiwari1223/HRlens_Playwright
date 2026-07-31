@@ -24,6 +24,9 @@ concurrency:
 env:
   ENV: stg
   HEADLESS: "True"
+  NODE_OPTIONS: "--no-deprecation"
+  NODE_NO_WARNINGS: "1"
+  PYTHONWARNINGS: "ignore"
 
 jobs:
   regression-test:
@@ -46,8 +49,10 @@ jobs:
     # 1. Install dependencies inside pre-built Playwright container (Quiet Output)
     - name: Install Python dependencies
       run: |
+        echo "::group::Installing Python Dependencies"
         python -m pip install --quiet --upgrade pip
         if [ -f requirements.txt ]; then pip install --quiet --no-cache-dir -r requirements.txt; fi
+        echo "::endgroup::"
 
     # 2. Run Parallel Regression Tests (-n auto)
     - name: Run Regression Tests

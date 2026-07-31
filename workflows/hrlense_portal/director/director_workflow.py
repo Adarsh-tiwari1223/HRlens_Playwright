@@ -4,6 +4,8 @@ Follows 3-Tier Architecture (Page Object -> Workflow Layer -> Test Suite).
 Encapsulates complete business workflows for Phases 1-4.
 """
 
+import random
+import re
 from playwright.sync_api import Page
 from pages.hrlense_portal.director.director_page import DirectorPage
 from pages.hrlense_portal.director.director_documents_page import DirectorDocumentsPage
@@ -76,15 +78,24 @@ class DirectorWorkflow:
         return self.director_page.get_first_director_name()
 
     def get_dynamic_company_shares(self) -> tuple[dict, dict]:
-        """Fetches US & Payroll Companies master lists from API cache and builds dynamic multi-company shares."""
+        """Fetches US & Payroll Companies master lists from API cache and builds 100% dynamic multi-company shares for each run."""
         api_us = BusinessTestData.get_companies()
         api_payroll = BusinessTestData.get_payroll_companies()
 
         us_names = [c.get("companyName") or c.get("name") for c in api_us if c.get("companyName") or c.get("name")]
         payroll_names = [c.get("payrollCompanyName") or c.get("name") for c in api_payroll if c.get("payrollCompanyName") or c.get("name")]
 
-        us_shares = {name: 10 + (i * 10) for i, name in enumerate(us_names[:2])} or {"TEK Inspirations LLC": 10, "Structure Tenders Infra": 10}
-        payroll_shares = {name: 12 + (i * 8) for i, name in enumerate(payroll_names[:2])} or {"ABS Staffing Solutions Pvt.": 10, "BivocalBirds Technologies Pvt": 10}
+        # Filter out companies whose cumulative shareholding is already maxed out (>99% assigned in Staging database, e.g. Bivocal)
+        clean_us = [n for n in us_names if "bivocal" not in n.lower()]
+        clean_payroll = [n for n in payroll_names if "bivocal" not in n.lower()]
+
+        # Randomly sample dynamic US and Payroll companies for each test execution
+        selected_us = random.sample(clean_us, min(2, len(clean_us))) if clean_us else ["TEK Inspirations LLC"]
+        selected_payroll = random.sample(clean_payroll, min(2, len(clean_payroll))) if clean_payroll else ["ABS Staffing Solutions Pvt."]
+
+        # Dynamic random shareholding percentages (1-3%) for each selected company
+        us_shares = {name: random.randint(1, 3) for name in selected_us}
+        payroll_shares = {name: random.randint(1, 3) for name in selected_payroll}
         return us_shares, payroll_shares
 
     def add_director(self, director_name: str, us_shares: dict = None, payroll_shares: dict = None):
@@ -104,16 +115,81 @@ class DirectorWorkflow:
         self.director_page.click_save()
         self.refresh_page()
 
+    def add_new_director_workflow(self, director_name: str, email: str, phone: str, us_shares: dict = None, payroll_shares: dict = None) -> str:
+        """New Flow: Add New Director tab workflow returning toast notification with smart auto-retry."""
+        log_step("Open Add Director Dialog")
+        self.director_page.navigate_to_directors()
+        self.director_page.click_add_director()
+        self.director_page.click_add_new_director_tab()
+
+        log_step("Fill New Director Info", value=f"{director_name} | {email}")
+        self.director_page.fill_new_director_info(director_name, email, phone)
+
+        us_count = len(us_shares) if us_shares else 0
+        self.director_page.select_us_companies_and_shares(us_shares or {})
+        self.director_page.select_payroll_companies_and_shares(payroll_shares or {}, us_count=us_count)
+
+        log_step("Submit New Director Form")
+        self.director_page.click_save()
+        toast = self.director_page.get_form_error_or_toast()
+        log_step("Toast Notification", value=toast)
+
+        # Smart Auto-Retry if toast reports remaining share percentage limit (e.g. 'has only 1.0122% share remaining')
+        if toast and ("has only" in toast.lower() or "remaining" in toast.lower()):
+            import re
+            match = re.search(r"has only ([\d\.]+)%", toast)
+            if match and self.director_page.is_modal_open():
+                rem_pct = round(float(match.group(1)), 2)
+                if rem_pct <= 0:
+                    rem_pct = 0.01
+                log_step("Auto-Retry with Rounded Remaining Percentage", value=f"{rem_pct}%")
+                if us_shares:
+                    for k in us_shares:
+                        us_shares[k] = rem_pct
+                    self.director_page.select_us_companies_and_shares(us_shares)
+                if payroll_shares:
+                    for k in payroll_shares:
+                        payroll_shares[k] = rem_pct
+                    self.director_page.select_payroll_companies_and_shares(payroll_shares, us_count=us_count)
+                self.director_page.click_save()
+                toast = self.director_page.get_form_error_or_toast()
+
+        self.refresh_page()
+        return toast
+
     def verify_director_exists(self, director_name: str) -> bool:
-        """Phase 1/2 Verification: Verifies target Director record is present in table grid."""
+        """Phase 1/2 Verification: Performs search via name and verifies target Director record is present in grid."""
         log_step("Verify Director Grid", value=director_name)
         self.director_page.navigate_to_directors()
+
+        # Perform search via name (handles multi-page pagination)
+        self.director_page.search_director(director_name)
+        self.page.wait_for_timeout(500)
+
         row = self.page.locator("tbody tr").filter(has_text=director_name).first
+        is_found = False
         try:
             row.wait_for(state="visible", timeout=6000)
+            is_found = row.is_visible()
+        except Exception:
+            is_found = False
+
+        self.director_page.search_director("")
+        return is_found
+
+    def verify_director_exists_api(self, director_name: str) -> bool:
+        """API Verification: Verifies newly created director is listed under backend API response."""
+        log_step("Verify Director API", value=director_name)
+        try:
+            from utils.api.director_api import get_directors_api
+            records = get_directors_api()
+            for r in records:
+                name = r.get("fullName") or r.get("directorName") or r.get("name") or f"{r.get('firstName', '')} {r.get('lastName', '')}".strip()
+                if name and director_name.lower() in name.lower():
+                    return True
         except Exception:
             pass
-        return row.is_visible()
+        return False
 
     def edit_director_workflow(self, director_name: str):
         """Phase 2: Edit Director Workflow."""

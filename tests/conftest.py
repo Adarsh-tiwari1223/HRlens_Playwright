@@ -45,8 +45,11 @@ def pytest_collection_modifyitems(items):
 
 
 def pytest_xdist_auto_num_workers(config):
-    """Smart worker allocation: Cap auto workers to optimize RAM & CPU startup."""
+    """Parallel Worker Allocation: Assign 1 worker for single module execution, scale to 4 workers across multiple modules."""
     import os
+    file_args = [arg for arg in config.args if arg.endswith('.py')]
+    if len(file_args) == 1:
+        return 1
     cpu_cores = os.cpu_count() or 4
     return min(cpu_cores, 4)
 

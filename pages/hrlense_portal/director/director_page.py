@@ -66,6 +66,45 @@ class DirectorPage(BasePage):
         except Exception:
             pass
 
+    def click_select_existing_tab(self):
+        """Clicks 'Select Existing' tab in Add Director modal (Codegen exact)."""
+        log_debug("Click", "Tab: Select Existing")
+        self.page.get_by_role("tab", name="Select Existing").click()
+        self.page.wait_for_timeout(200)
+
+    def click_add_new_director_tab(self):
+        """Clicks 'Add New Director' tab in Add Director modal (Codegen exact)."""
+        log_debug("Click", "Tab: Add New Director")
+        self.page.get_by_role("tab", name="Add New Director").click()
+        self.page.wait_for_timeout(200)
+
+    def fill_new_director_info(self, name: str, email: str, phone: str):
+        """Fills Name, Email, and Phone Number in the 'Add New Director' tab (Codegen exact)."""
+        log_debug("Fill", "New Director Info", value=f"{name} | {email} | {phone}")
+        name_box = self.page.locator("div").filter(has_text=re.compile(r"^Director Name$")).get_by_role("textbox")
+        if not name_box.is_visible():
+            name_box = self.page.get_by_placeholder("Director Name")
+        if not name_box.is_visible():
+            name_box = self.page.locator(".chakra-modal__content input").first
+        name_box.click()
+        name_box.fill(name)
+
+        email_box = self.page.locator("div").filter(has_text=re.compile(r"^Email$")).get_by_role("textbox")
+        if not email_box.is_visible():
+            email_box = self.page.get_by_placeholder("Email")
+        if not email_box.is_visible():
+            email_box = self.page.locator(".chakra-modal__content input[type='email'], .chakra-modal__content input").nth(1)
+        email_box.click()
+        email_box.fill(email)
+
+        phone_box = self.page.locator("div").filter(has_text=re.compile(r"^Phone Number$")).get_by_role("textbox")
+        if not phone_box.is_visible():
+            phone_box = self.page.get_by_placeholder("Phone Number")
+        if not phone_box.is_visible():
+            phone_box = self.page.locator(".chakra-modal__content input[type='tel'], .chakra-modal__content input").nth(2)
+        phone_box.click()
+        phone_box.fill(phone)
+
     def select_director_candidate(self, director_name: str):
         """Selects a candidate from the 'Director *' select dropdown."""
         log_debug("Select", "Director", value=director_name)
@@ -92,73 +131,91 @@ class DirectorPage(BasePage):
         if not us_company_shares:
             return
 
-        btn = self.page.locator(".chakra-modal__content button, button[id^='menu-button-']").filter(has_text=re.compile(r"Select US Company|US Companies", re.IGNORECASE)).first
+        btn = self.page.locator(".chakra-modal__content button, button[id^='menu-button-'], [role='button']").filter(has_text=re.compile(r"Select US Company|US Companies", re.IGNORECASE)).first
+        if not btn.is_visible():
+            btn = self.page.get_by_role("button", name="Select US Company")
+        if not btn.is_visible():
+            btn = self.page.get_by_label("US Companies")
+
         if btn.is_visible():
+            log_debug("Open US Companies Dropdown")
+            btn.click(force=True)
+            self.page.wait_for_timeout(300)
+
             for comp_name in us_company_shares.keys():
                 log_debug("Select", "US Company", value=comp_name)
-                try:
-                    btn.scroll_into_view_if_needed()
-                except Exception:
-                    pass
-                btn.click(force=True)
-                self.page.wait_for_timeout(300)
-                item = self.page.get_by_role("menuitem", name=re.compile(re.escape(comp_name[:12]), re.IGNORECASE)).first
+                item = self.page.get_by_role("menuitem", name=re.compile(re.escape(comp_name[:10]), re.IGNORECASE)).first
                 if not item.is_visible():
-                    item = self.page.locator(".chakra-menu__menuitem, [role='menuitem']").filter(has_text=comp_name).first
+                    item = self.page.locator(".chakra-menu__menuitem, [role='menuitem']").filter(has_text=comp_name[:10]).first
                 if item.is_visible():
                     item.click(force=True)
-                else:
-                    self.page.keyboard.press("ArrowDown")
-                    self.page.keyboard.press("Enter")
-                self.page.keyboard.press("Escape")
                 self.page.wait_for_timeout(200)
 
-            # Fill share percentage spinbuttons for US companies
-            spin_buttons = self.page.get_by_role("spinbutton").all()
-            if not spin_buttons:
-                spin_buttons = self.page.locator(".chakra-modal__content input[type='number']").all()
+            # Click on blank space in form to close the dropdown menu (Codegen flow)
+            try:
+                self.page.locator(".chakra-modal__header, .chakra-modal__content").first.click(position={"x": 20, "y": 20}, force=True)
+            except Exception:
+                self.page.keyboard.press("Escape")
+            self.page.wait_for_timeout(400)
+
+            # Fill share percentage spinbuttons for each US company at distinct index
+            all_spins = self.page.get_by_role("spinbutton").all()
+            if not all_spins:
+                all_spins = self.page.locator(".chakra-modal__content input[type='number'], input[type='number']").all()
+
             for idx, (comp_name, share_pct) in enumerate(us_company_shares.items()):
-                if idx < len(spin_buttons):
-                    log_debug("Fill", "Share Percentage", value=str(share_pct))
-                    spin_buttons[idx].click()
-                    spin_buttons[idx].fill(str(share_pct))
+                log_debug("Fill", "US Share Percentage", value=f"{comp_name} -> {share_pct}%")
+                if idx < len(all_spins):
+                    spin = all_spins[idx]
+                    spin.click()
+                    spin.fill(str(share_pct))
+                    self.page.wait_for_timeout(100)
 
     def select_payroll_companies_and_shares(self, payroll_company_shares: dict, us_count: int = 0):
         """Selects multiple Payroll Companies and enters their share percentages."""
         if not payroll_company_shares:
             return
 
-        btn = self.page.locator(".chakra-modal__content button, button[id^='menu-button-']").filter(has_text=re.compile(r"Select Payroll Company|Payroll Companies", re.IGNORECASE)).first
+        btn = self.page.locator(".chakra-modal__content button, button[id^='menu-button-'], [role='button']").filter(has_text=re.compile(r"Select Payroll Company|Payroll Companies", re.IGNORECASE)).first
+        if not btn.is_visible():
+            btn = self.page.get_by_role("button", name="Select Payroll Company")
+        if not btn.is_visible():
+            btn = self.page.get_by_label("Payroll Companies")
+
         if btn.is_visible():
+            log_debug("Open Payroll Companies Dropdown")
+            btn.click(force=True)
+            self.page.wait_for_timeout(300)
+
             for comp_name in payroll_company_shares.keys():
                 log_debug("Select", "Payroll Company", value=comp_name)
-                try:
-                    btn.scroll_into_view_if_needed()
-                except Exception:
-                    pass
-                btn.click(force=True)
-                self.page.wait_for_timeout(300)
-                item = self.page.get_by_role("menuitem", name=re.compile(re.escape(comp_name[:12]), re.IGNORECASE)).first
+                item = self.page.get_by_role("menuitem", name=re.compile(re.escape(comp_name[:10]), re.IGNORECASE)).first
                 if not item.is_visible():
-                    item = self.page.locator(".chakra-menu__menuitem, [role='menuitem']").filter(has_text=comp_name).first
+                    item = self.page.locator(".chakra-menu__menuitem, [role='menuitem']").filter(has_text=comp_name[:10]).first
                 if item.is_visible():
                     item.click(force=True)
-                else:
-                    self.page.keyboard.press("ArrowDown")
-                    self.page.keyboard.press("Enter")
-                self.page.keyboard.press("Escape")
                 self.page.wait_for_timeout(200)
 
-            # Fill share percentage spinbuttons for Payroll companies
+            # Click on blank space in form to close the dropdown menu (Codegen flow)
+            try:
+                self.page.locator(".chakra-modal__header, .chakra-modal__content").first.click(position={"x": 20, "y": 20}, force=True)
+            except Exception:
+                self.page.keyboard.press("Escape")
+            self.page.wait_for_timeout(400)
+
+            # Fill share percentage spinbuttons for each Payroll company at distinct index (after us_count)
             all_spins = self.page.get_by_role("spinbutton").all()
             if not all_spins:
-                all_spins = self.page.locator(".chakra-modal__content input[type='number']").all()
+                all_spins = self.page.locator(".chakra-modal__content input[type='number'], input[type='number']").all()
+
             payroll_spins = all_spins[us_count:]
             for idx, (comp_name, share_pct) in enumerate(payroll_company_shares.items()):
+                log_debug("Fill", "Payroll Share Percentage", value=f"{comp_name} -> {share_pct}%")
                 if idx < len(payroll_spins):
-                    log_debug("Fill", "Share Percentage", value=str(share_pct))
-                    payroll_spins[idx].click()
-                    payroll_spins[idx].fill(str(share_pct))
+                    spin = payroll_spins[idx]
+                    spin.click()
+                    spin.fill(str(share_pct))
+                    self.page.wait_for_timeout(100)
 
     def fill_director_details(self, director_name: str, us_company_shares: dict = None, payroll_company_shares: dict = None):
         """Fills complete Director form using exact Codegen locators."""
@@ -231,12 +288,13 @@ class DirectorPage(BasePage):
     def get_existing_director_names(self) -> list[str]:
         """Returns list of all director names currently in grid (case normalized)."""
         names = []
-        # Target Name column cell (second td or anchor in row)
         cells = self.page.locator("tbody tr td a, tbody tr td:nth-child(2)").all()
         for cell in cells:
             txt = cell.inner_text().strip()
             if txt and len(txt) > 2 and not txt.isdigit() and "showing" not in txt.lower():
-                names.append(txt)
+                clean_name = txt.splitlines()[-1].strip()
+                if clean_name and clean_name not in names:
+                    names.append(clean_name)
         return names
 
     def click_shareholding_details(self, director_name: str):

@@ -1,0 +1,5 @@
+HR Lens Portal - Test Text Document
+Module: Director Documents & Employee Records
+Purpose: Automated boundary testing for plain text uploads.
+Date: 2026-07-30
+Status: ACTIVE

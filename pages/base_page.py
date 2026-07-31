@@ -103,23 +103,23 @@ class TestStoryLogger:
 
     def start(self):
         import time
-        from utils.logger_formatter import log_test_start
+        from utils.logger import log_test_start
         self.start_time = time.time()
-        log_test_start(self.test_name)
+        log_test_start(module="Director", phase="Phase 1", test=self.test_name)
 
     def log_step(self, action: str, record: str = None, details: dict = None, expected: str = None, actual: str = None, status: str = "PASS"):
-        from utils.logger_formatter import log_step
+        from utils.logger import log_step
         self.step_count += 1
-        log_step(action, record=record, status=status)
+        log_step(action, value=record)
 
     def finish(self, status: str = "PASS"):
         import time
-        from utils.logger_formatter import log_pass, log_fail
-        exec_time = time.time() - self.start_time if self.start_time else 0
+        from utils.logger import log_pass, log_fail
+        elapsed = time.time() - self.start_time if self.start_time else 0
         if status.upper() == "PASS":
-            log_pass(self.test_name, exec_time)
+            log_pass()
         else:
-            log_fail(self.test_name, f"Status: {status}")
+            log_skip(f"Status: {status}")
 
 
 class ValidationFailure(AssertionError):

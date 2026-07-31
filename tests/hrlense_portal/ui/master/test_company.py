@@ -98,10 +98,9 @@ def test_company_name_format_validation(admin_page):
     company_page.navigate_to_company_master()
     company_page.click_add_new_company()
     
-    # Name with numbers and special characters
-    rand_suffix = "".join(random.choices(string.ascii_uppercase, k=6))
-    base_name = f"TestCo {rand_suffix} and Co"
-    input_name = f"123 {base_name} 456"
+    # Authentic corporate name with numbers and special characters
+    base_name = f"{fake.last_name()} {random.choice(['Technologies', 'Enterprises', 'Global', 'Solutions'])}"
+    input_name = f"123 {base_name} & Co 456"
     company_code = f"CMP{fake.random_int(1000, 9999)}"
     
     company_page.fill_company_details(

@@ -89,3 +89,21 @@ class AssetWorkflow:
         self.asset_procurement_page.create_procurement_request(procurement_data)
         self.asset_assignment_page.assign_asset_to_employee(assignment_data)
         logger.info("[WORKFLOW] Asset procurement and assignment completed")
+
+    def ensure_single_category_with_subcategories_workflow(self, category_name: str = "Hardware", sub_categories: list[dict] = None) -> str:
+        """
+        Workflow ensuring a single parent Category record exists (e.g. 'Hardware')
+        and attaching N sub-categories (Laptop, Desktop, Server, Monitor, etc.) underneath without duplicates.
+        """
+        logger.info(f"[WORKFLOW] Ensuring single Category record: '{category_name}' with N sub-categories.")
+        cat_name = self.asset_master_page.ensure_category_exists(name=category_name)
+        if sub_categories:
+            for sub in sub_categories:
+                sub_name = sub.get("name")
+                prefix = sub.get("prefix", "SUB")
+                self.asset_master_page.ensure_sub_category_exists(
+                    category_name=cat_name,
+                    sub_category_name=sub_name,
+                    code_prefix=prefix
+                )
+        return cat_name

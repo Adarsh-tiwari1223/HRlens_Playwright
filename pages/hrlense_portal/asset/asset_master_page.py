@@ -266,3 +266,81 @@ class AssetMasterPage(BasePage):
         logger.debug("Closing open modal")
         self._ensure_modal_closed()
 
+    def get_existing_categories(self) -> list[str]:
+        """Reads and returns all Category names currently displayed in the Categories grid table."""
+        try:
+            self.page.locator("tbody tr").first.wait_for(state="visible", timeout=4000)
+        except Exception:
+            pass
+        rows = self.page.locator("tbody tr").all()
+        categories = []
+        for row in rows:
+            cells = row.locator("td").all()
+            if len(cells) > 1:
+                cat_name = cells[1].inner_text().strip()
+                if cat_name and cat_name not in categories:
+                    categories.append(cat_name)
+        logger.debug(f"Retrieved existing categories from grid: {categories}")
+        return categories
+
+    def get_existing_sub_categories(self) -> list[str]:
+        """Reads and returns all Sub-Category names currently displayed in the Sub Categories grid table."""
+        self.navigate_to_sub_categories()
+        try:
+            self.page.locator("tbody tr").first.wait_for(state="visible", timeout=4000)
+        except Exception:
+            pass
+        rows = self.page.locator("tbody tr").all()
+        sub_categories = []
+        for row in rows:
+            cells = row.locator("td").all()
+            if len(cells) > 2:
+                sub_name = cells[2].inner_text().strip()
+                if sub_name and sub_name not in sub_categories:
+                    sub_categories.append(sub_name)
+        logger.debug(f"Retrieved existing sub-categories from grid: {sub_categories}")
+        return sub_categories
+
+    def ensure_category_exists(self, name: str = "Hardware", description: str = "Hardware Category") -> str:
+        """
+        Ensures a single unique Category record exists.
+        If already present in Asset Master, reuses the single existing Category record instead of creating duplicates.
+        """
+        self.navigate_to_asset_master()
+        existing = self.get_existing_categories()
+        for cat in existing:
+            if cat.lower() == name.lower() or name.lower() in cat.lower():
+                logger.info(f"Category '{cat}' already exists — reusing single Category record.")
+                return cat
+
+        logger.info(f"Category '{name}' not found — creating single Category record.")
+        self.click_add_category()
+        self.fill_category_details(name=name, description=description, toggle_spans=False)
+        self.click_create()
+        self.wait_for_toast_message()
+        return name
+
+    def ensure_sub_category_exists(self, category_name: str = "Hardware", sub_category_name: str = "Laptop", code_prefix: str = "LAP", description: str = "Sub-Category") -> str:
+        """
+        Ensures a Sub-Category record exists under a single parent Category record.
+        Prevents duplicate category and sub-category entries.
+        """
+        parent_cat = self.ensure_category_exists(category_name)
+        existing_sub = self.get_existing_sub_categories()
+        for sub in existing_sub:
+            if sub.lower() == sub_category_name.lower():
+                logger.info(f"Sub-Category '{sub}' already exists under parent Category '{parent_cat}' — reusing single record.")
+                return sub
+
+        logger.info(f"Creating Sub-Category '{sub_category_name}' under single parent Category '{parent_cat}'.")
+        self.click_add_sub_category()
+        self.fill_sub_category_details(
+            category_label=parent_cat,
+            name=sub_category_name,
+            code_prefix=code_prefix,
+            description=description
+        )
+        self.click_create()
+        self.wait_for_toast_message()
+        return sub_category_name
+

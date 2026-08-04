@@ -539,6 +539,30 @@ class BusinessTestData:
             return []
 
     @classmethod
+    def get_branch_groups_map_from_api(cls) -> dict[str, list[str]]:
+        """
+        Fetch all branches via API (GET /Hrlense_Branch) and group them by branch city/name.
+        Returns a dictionary mapping each branch city to all company branch records lying in that city.
+        e.g. {"Varanasi": ["Varanasi"], "Agra": ["Agra"], "Noida": ["Noida"]}
+        """
+        try:
+            from utils.api.payroll_api import get_branches
+            all_branches = get_branches()
+            branch_map = {}
+            for b in all_branches:
+                b_name = b.get("branch_Name", "").strip()
+                if not b_name:
+                    continue
+                city = b_name.split("(")[0].strip() if "(" in b_name else b_name
+                if city not in branch_map:
+                    branch_map[city] = []
+                if b_name not in branch_map[city]:
+                    branch_map[city].append(b_name)
+            return branch_map
+        except Exception:
+            return {"Varanasi": ["Varanasi"], "Agra": ["Agra"], "Noida": ["Noida"]}
+
+    @classmethod
     def get_employees_by_department(cls, department_filter_ids: list[int] = None) -> list[dict]:
         """Fetch employees filtered by department ID(s) from the Employee API (daily disk cached)."""
         try:

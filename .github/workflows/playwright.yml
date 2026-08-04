@@ -108,7 +108,7 @@ jobs:
             git push origin main
           elif [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "Merging pull request #${{ github.event.pull_request.number }} (target: ${{ github.base_ref }}) into ${{ github.base_ref }}..."
-            gh pr merge ${{ github.event.pull_request.number }} --merge --delete-branch || {
+            gh pr merge ${{ github.event.pull_request.number }} --merge || {
               git checkout ${{ github.base_ref }}
               git merge FETCH_HEAD --no-ff -m "Merge PR #${{ github.event.pull_request.number }} into ${{ github.base_ref }} [skip ci]"
               git push origin ${{ github.base_ref }}

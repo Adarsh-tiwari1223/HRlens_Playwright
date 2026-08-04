@@ -18,14 +18,33 @@ env:
   PYTHONWARNINGS: "ignore"
 
 jobs:
+  create-pr:
+    if: github.event_name == 'push' && github.ref_name != 'main' && github.ref_name != 'develop'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - name: Compare & Create PR Automatically
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_EXISTS=$(gh pr list --head "${{ github.ref_name }}" --json number -q '.[0].number')
+          if [ -z "$PR_EXISTS" ]; then
+            echo "Creating automated PR comparing branch '${{ github.ref_name }}' with 'main'..."
+            gh pr create --base main --head "${{ github.ref_name }}" --title "Auto PR: ${{ github.ref_name }} -> main" --body "Automated Pull Request generated on branch push for \`${{ github.ref_name }}\`."
+          else
+            echo "PR #${PR_EXISTS} already exists for branch '${{ github.ref_name }}'."
+          fi
+
   test:
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright/python:v1.49.0-jammy
 
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
 
     steps:
     - uses: actions/checkout@v4.2.2
@@ -35,24 +54,6 @@ jobs:
         cat << 'EOF' > .env
         ${{ secrets.ENV_FILE }}
         EOF
-
-    # Automatically compare & create PR to main if no PR exists yet
-    - name: Compare & Create PR Automatically
-      if: github.event_name == 'push' && github.ref_name != 'main'
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        if ! command -v gh &> /dev/null; then
-          echo "Installing GitHub CLI inside container..."
-          apt-get update -qq && apt-get install -y -qq gh
-        fi
-        PR_EXISTS=$(gh pr list --head "${{ github.ref_name }}" --json number -q '.[0].number')
-        if [ -z "$PR_EXISTS" ]; then
-          echo "Creating automated PR comparing branch '${{ github.ref_name }}' with 'main'..."
-          gh pr create --base main --head "${{ github.ref_name }}" --title "Auto PR: ${{ github.ref_name }} -> main" --body "Automated Pull Request generated on branch push for \`${{ github.ref_name }}\`."
-        else
-          echo "PR #${PR_EXISTS} already exists for branch '${{ github.ref_name }}'."
-        fi
 
     # 1. Install dependencies inside pre-built Playwright container (Quiet Output)
     - name: Install Python dependencies

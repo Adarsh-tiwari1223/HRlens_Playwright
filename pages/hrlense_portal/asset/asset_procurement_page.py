@@ -82,21 +82,27 @@ class AssetProcurementPage(BasePage):
             if label_val:
                 try:
                     select_locator.select_option(label=label_val)
-                    return
+                    if select_locator.input_value() and select_locator.input_value().strip() != "":
+                        return
                 except Exception:
                     pass
             # Find first non-empty value option
-            try:
-                options = select_locator.locator("option").all()
-                for opt in options[1:]:
-                    val = opt.get_attribute("value")
-                    txt = opt.inner_text().strip()
-                    if val and val.strip() != "" and "select" not in txt.lower():
-                        select_locator.select_option(value=val)
-                        return
-                select_locator.select_option(index=1)
-            except Exception:
-                pass
+            for _ in range(5):
+                try:
+                    options = select_locator.locator("option").all()
+                    for opt in options[1:]:
+                        val = opt.get_attribute("value")
+                        txt = opt.inner_text().strip()
+                        if val and val.strip() != "" and "select" not in txt.lower():
+                            select_locator.select_option(value=val)
+                            return
+                    if len(options) > 1:
+                        select_locator.select_option(index=1)
+                        if select_locator.input_value() and select_locator.input_value().strip() != "":
+                            return
+                except Exception:
+                    pass
+                self.page.wait_for_timeout(500)
 
         # 1. Vendor Selection (Select only if unselected)
         try:
@@ -111,6 +117,7 @@ class AssetProcurementPage(BasePage):
             b_select = self.page.get_by_label("Branch*", exact=True)
             if not b_select.input_value() or b_select.input_value().strip() == "":
                 _select_non_empty(b_select, branch_label)
+                self.page.wait_for_timeout(800)
         except Exception:
             pass
 

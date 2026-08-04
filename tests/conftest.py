@@ -184,7 +184,12 @@ def logged_in_page(browser):
 
 @pytest.fixture(scope="module")
 def admin_page(browser, request):
-    context = browser.new_context(**CONTEXT_OPTIONS)
+    if hasattr(browser, "new_context"):
+        context = browser.new_context(**CONTEXT_OPTIONS)
+    elif hasattr(browser, "browser") and browser.browser:
+        context = browser.browser.new_context(**CONTEXT_OPTIONS)
+    else:
+        context = browser
     context.set_default_timeout(settings.DEFAULT_TIMEOUT)
     context.tracing.start(screenshots=True, snapshots=True, sources=True)
     page = context.new_page()
@@ -199,4 +204,5 @@ def admin_page(browser, request):
         context.tracing.stop(path=f"reports/trace_{request.node.name}.zip")
     except Exception:
         pass
-    context.close()
+    if hasattr(browser, "new_context") or (hasattr(browser, "browser") and browser.browser):
+        context.close()

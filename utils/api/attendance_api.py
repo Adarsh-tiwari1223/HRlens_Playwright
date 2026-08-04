@@ -49,3 +49,12 @@ def get_dynamic_approval_hierarchy_api(duration_days: int, user: str = "admin") 
 
     # Fallback Rule: Automatically falls back to ["Branch Head"] if setting does not exist
     return ["Branch Head"]
+
+
+def get_attendance_summary(from_date: str, to_date: str, user: str = "admin") -> list:
+    """GET /Attendance/summary — returns attendance summary records."""
+    try:
+        resp = get("Attendance/summary", user=user, params={"fromDate": from_date, "toDate": to_date})
+        return resp if isinstance(resp, list) else resp.get("data", [])
+    except Exception:
+        return []

@@ -116,12 +116,14 @@ class TestStoryLogger:
 
     def finish(self, status: str = "PASS"):
         import time
-        from utils.logger import log_pass, log_fail
+        from utils.logger import log_pass, log_fail, log_skip
         elapsed = time.time() - self.start_time if self.start_time else 0
         if status.upper() == "PASS":
             log_pass()
-        else:
+        elif status.upper() == "SKIP":
             log_skip(f"Status: {status}")
+        else:
+            log_fail(f"Status: {status}")
 
 
 class ValidationFailure(AssertionError):

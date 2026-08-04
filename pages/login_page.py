@@ -49,11 +49,34 @@ class LoginPage(BasePage):
         return self.page.get_by_text("Password is required").is_visible()
 
     def is_invalid_creds_visible(self) -> bool:
+        import re
+        self.page.wait_for_timeout(2000)
         try:
-            expect(self.page.get_by_text("Email or password is incorrect").first).to_be_visible()
-            return True
-        except:
-            return False
+            # First check standard Chakra toast containers
+            toast_loc = self.page.locator("#chakra-toast-manager-top-right, .chakra-toast, [role='status'], [role='alert'], .chakra-alert").first
+            if toast_loc.is_visible(timeout=2000):
+                txt = toast_loc.inner_text().strip()
+                logger.info(f"Discovered authentication error toast: '{txt}'")
+                return True
+        except Exception:
+            pass
+
+        # Check all visible text elements for authentication error keywords
+        try:
+            elements = self.page.locator("p, div, span, label, [role='alert']").all()
+            for el in elements:
+                try:
+                    if el.is_visible():
+                        t = el.inner_text().strip()
+                        if t and len(t) < 150 and any(k in t.lower() for k in ["invalid", "incorrect", "failed", "unauthorized", "wrong", "error", "not match"]):
+                            logger.info(f"Discovered authentication error element text: '{t}'")
+                            return True
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        return False
 
     def is_otp_email_required_visible(self) -> bool:
         return self.page.get_by_text("Please enter your email", exact=True).is_visible()

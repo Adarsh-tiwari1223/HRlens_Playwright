@@ -103,27 +103,43 @@ def pytest_runtest_makereport(item, call):
 
 @pytest.fixture(scope="function")
 def page(browser, request):
-    # Check if browser is a Browser or a persistent BrowserContext
-    if hasattr(browser, "new_page"):
-        context = browser
-        page = context.new_page()
-        context.set_default_timeout(settings.DEFAULT_TIMEOUT)
-        yield page
-    else:
+    if hasattr(browser, "new_context"):
         context = browser.new_context(**CONTEXT_OPTIONS)
-        context.set_default_timeout(settings.DEFAULT_TIMEOUT)
+        should_close = True
+    elif hasattr(browser, "browser") and browser.browser:
+        context = browser.browser.new_context(**CONTEXT_OPTIONS)
+        should_close = True
+    else:
+        context = browser
+        should_close = False
+
+    context.set_default_timeout(settings.DEFAULT_TIMEOUT)
+    try:
         context.tracing.start(screenshots=True, snapshots=True, sources=True)
-        page = context.new_page()
-        
-        yield page
-        
-        # Save trace ONLY if the test failed!
-        failed = hasattr(request.node, "rep_call") and request.node.rep_call.failed
-        if failed:
+    except Exception:
+        pass
+    page = context.new_page()
+    
+    yield page
+    
+    # Save trace ONLY if the test failed!
+    failed = hasattr(request.node, "rep_call") and request.node.rep_call.failed
+    if failed:
+        try:
             context.tracing.stop(path=f"reports/trace_{request.node.name}.zip")
-        else:
+        except Exception:
+            pass
+    else:
+        try:
             context.tracing.stop()
-        context.close()
+        except Exception:
+            pass
+
+    if should_close:
+        try:
+            context.close()
+        except Exception:
+            pass
 
 
 @pytest.fixture(scope="module")

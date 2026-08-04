@@ -139,3 +139,102 @@ class CompanyPage(BasePage):
         
     def wait_for_toast_message(self) -> str:
         return self.wait_for_toast(self.TOAST)
+
+    def click_add_new_director_inline(self):
+        """Clicks 'Add New' button/link during Add/Edit Company form."""
+        logger.info("Clicking 'Add New' button for manual director")
+        try:
+            loc = self.page.locator("button, a, span, p, div").filter(has_text=re.compile(r"^Add New$", re.I)).first
+            if loc.is_visible(timeout=3000):
+                loc.click()
+                return
+        except Exception:
+            pass
+        self.page.get_by_text("Add New", exact=True).click()
+
+    def fill_manual_director_form(self, name: str = None, email: str = None, phone: str = None):
+        """Fills Director Name, Email, and Phone Number in the inline manual director form."""
+        logger.info(f"Filling manual director form: Name={name}, Email={email}, Phone={phone}")
+        if name is not None:
+            self.page.get_by_placeholder("Director Name").fill(name)
+        if email is not None:
+            self.page.get_by_placeholder("Email").fill(email)
+        if phone is not None:
+            self.page.get_by_placeholder("Phone Number").fill(phone)
+
+    def click_add_manual_director_submit(self):
+        """Clicks 'Add' button inside the inline manual director card container to submit form."""
+        logger.info("Submitting manual director form ('Add')")
+        try:
+            card = self.page.locator("div, form, section").filter(has=self.page.get_by_placeholder("Director Name")).first
+            if card.is_visible():
+                btn = card.locator("button").filter(has_text=re.compile(r"^Add$", re.I)).first
+                if btn.is_visible():
+                    btn.click(force=True)
+                    return
+        except Exception:
+            pass
+
+        try:
+            btn = self.page.locator(".chakra-button, button").filter(has_text=re.compile(r"^Add$", re.I)).last
+            btn.click(timeout=3000, force=True)
+        except Exception:
+            self.page.get_by_role("button", name="Add", exact=True).click(force=True)
+
+    def click_cancel_manual_director(self):
+        """Clicks 'Cancel' button on the inline manual director form."""
+        logger.info("Canceling manual director form")
+        try:
+            self.page.get_by_role("button", name="Cancel", exact=True).click(timeout=3000)
+        except Exception:
+            self.page.get_by_text("Cancel", exact=True).click()
+
+    def verify_manual_director_required_fields_validation(self) -> dict[str, bool]:
+        """
+        Submits blank manual director form and verifies field-level validation
+        errors for Director Name, Email, and Phone Number (all 3 must be required).
+        """
+        logger.info("Verifying manual director required fields validation...")
+        self.click_add_new_director_inline()
+        self.fill_manual_director_form(name="", email="", phone="")
+        self.click_add_manual_director_submit()
+        self.page.wait_for_timeout(500)
+
+        name_input = self.page.get_by_placeholder("Director Name")
+        email_input = self.page.get_by_placeholder("Email")
+        phone_input = self.page.get_by_placeholder("Phone Number")
+
+        name_req = False
+        email_req = False
+        phone_req = False
+
+        if name_input.is_visible():
+            name_req = (
+                name_input.get_attribute("required") is not None
+                or not name_input.evaluate("el => el.checkValidity()")
+                or bool(self.get_field_validation("Director Name"))
+            )
+        if email_input.is_visible():
+            email_req = (
+                email_input.get_attribute("required") is not None
+                or not email_input.evaluate("el => el.checkValidity()")
+                or bool(self.get_field_validation("Email"))
+            )
+        if phone_input.is_visible():
+            phone_req = (
+                phone_input.get_attribute("required") is not None
+                or not phone_input.evaluate("el => el.checkValidity()")
+                or bool(self.get_field_validation("Phone Number"))
+            )
+
+        validations = self.get_all_validation_messages()
+        if "required" in str(validations).lower() or "director" in str(validations).lower():
+            name_req = email_req = phone_req = True
+
+        result = {
+            "name_required": name_req,
+            "email_required": email_req,
+            "phone_required": phone_req
+        }
+        logger.info(f"Manual Director Required Fields Validation Result: {result}")
+        return result

@@ -106,13 +106,12 @@ jobs:
             git checkout main
             git merge origin/develop --no-ff -m "Merge branch 'develop' into main [skip ci]"
             git push origin main
-          elif [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.base_ref }}" = "main" ]; then
-            echo "Merging pull request #${{ github.event.pull_request.number }} into main..."
-            gh pr merge ${{ github.event.pull_request.number }} --merge || {
-              # Fallback: if gh cli fails, try git merge
-              git checkout main
-              git merge FETCH_HEAD --no-ff -m "Merge PR #${{ github.event.pull_request.number }} into main [skip ci]"
-              git push origin main
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "Merging pull request #${{ github.event.pull_request.number }} (target: ${{ github.base_ref }}) into ${{ github.base_ref }}..."
+            gh pr merge ${{ github.event.pull_request.number }} --merge --delete-branch || {
+              git checkout ${{ github.base_ref }}
+              git merge FETCH_HEAD --no-ff -m "Merge PR #${{ github.event.pull_request.number }} into ${{ github.base_ref }} [skip ci]"
+              git push origin ${{ github.base_ref }}
             }
           else
             echo "Skipping merge for event: ${{ github.event_name }} on branch: ${{ github.ref_name }}"

@@ -389,3 +389,26 @@ def test_company_edit_validations(admin_page):
         else:
             admin_page.reload()
             company_page.navigate_to_company_master()
+
+
+@pytest.mark.ui
+@pytest.mark.regression
+@pytest.mark.company
+def test_manual_director_inline_required_fields_validation(admin_page):
+    """
+    Verify that when clicking 'Add New' in Company Master, the manual director inline form
+    enforces required field validation for Director Name, Email, and Phone Number.
+    """
+    logger.info("Verify manual director inline form required fields validation")
+    company_page = CompanyPage(admin_page)
+    company_page.navigate_to_company_master()
+    company_page.click_add_new_company()
+    
+    validation_results = company_page.verify_manual_director_required_fields_validation()
+    assert validation_results["name_required"], "Director Name field must be required"
+    assert validation_results["email_required"], "Email field must be required"
+    assert validation_results["phone_required"], "Phone Number field must be required"
+    
+    # Cancel manual director form and cancel company modal
+    company_page.click_cancel_manual_director()
+    admin_page.get_by_role("button", name="Cancel").click()

@@ -42,6 +42,10 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        if ! command -v gh &> /dev/null; then
+          echo "Installing GitHub CLI inside container..."
+          apt-get update -qq && apt-get install -y -qq gh
+        fi
         PR_EXISTS=$(gh pr list --head "${{ github.ref_name }}" --json number -q '.[0].number')
         if [ -z "$PR_EXISTS" ]; then
           echo "Creating automated PR comparing branch '${{ github.ref_name }}' with 'main'..."

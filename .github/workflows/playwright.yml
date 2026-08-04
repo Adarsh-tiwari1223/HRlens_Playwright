@@ -33,7 +33,7 @@ jobs:
           PR_EXISTS=$(gh pr list --head "${{ github.ref_name }}" --json number -q '.[0].number')
           if [ -z "$PR_EXISTS" ]; then
             echo "Creating automated PR comparing branch '${{ github.ref_name }}' with 'main'..."
-            gh pr create --base main --head "${{ github.ref_name }}" --title "Auto PR: ${{ github.ref_name }} -> main" --body "Automated Pull Request generated on branch push for \`${{ github.ref_name }}\`."
+            gh pr create --base main --head "${{ github.ref_name }}" --title "Auto PR: ${{ github.ref_name }} -> main" --body "Automated Pull Request generated on branch push for \`${{ github.ref_name }}\`." || echo "::warning::To enable auto PR creation, check 'Allow GitHub Actions to create and approve pull requests' in Repository Settings -> Actions -> General -> Workflow permissions."
           else
             echo "PR #${PR_EXISTS} already exists for branch '${{ github.ref_name }}'."
           fi

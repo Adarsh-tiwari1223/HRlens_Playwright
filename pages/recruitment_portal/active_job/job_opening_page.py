@@ -29,8 +29,8 @@ class JobOpeningPage(BasePage):
     URGENCY_LEVEL = "label:has-text('Urgency Level *')"
     WORK_MODE = "label:has-text('Work Mode *')"
     EXPECTED_JOIN_DATE = "[placeholder*='Select Expected Date of']"
-    EXP_MIN = "label:has-text('Experience (in years) Min*')"
-    EXP_MAX = "label:has-text('Experience (in years) Max*')"
+    EXP_MIN = "[placeholder='0 month'], [placeholder*='0 month']"
+    EXP_MAX = "[placeholder='0 months'], [placeholder*='0 months']"
     PUBLISH_BTN = "button:has-text('Publish Job')"
     CONFIRM_BTN = "button:has-text('Confirm')"
     ADDITIONAL_DETAILS = "text=Additional Details"
@@ -39,8 +39,8 @@ class JobOpeningPage(BasePage):
     JD_SUMMARY_EDITOR = ".sun-editor-editable"
 
     # Draft Selectors
-    PENDING_DRAFTS_TITLE = "text=Pending Drafts Found"
-    START_NEW_INSTEAD_BTN = "button:has-text('Start New Instead')"
+    PENDING_DRAFTS_TITLE = "text=Pending Draft Found, text=Pending Drafts Found, text=unfinished job draft"
+    START_NEW_INSTEAD_BTN = "button:has-text('Start New Instead'), button:has-text('Start New'), button:has-text('Start new')"
     EDIT_NEW_JOB_OPENING_BTN = "text=Edit New Job Opening"
     RESUME_DRAFT_TEXT = "text=Resume →"
 
@@ -53,7 +53,7 @@ class JobOpeningPage(BasePage):
         self.page.wait_for_timeout(1000)
 
     def is_draft_modal_visible(self) -> bool:
-        """Returns True if the 'Pending Drafts Found' panel is visible."""
+        """Returns True if the 'Pending Draft Found' panel is visible."""
         return self.check_draft_modal_or_form() == "draft"
 
     def check_draft_modal_or_form(self) -> str:
@@ -62,7 +62,7 @@ class JobOpeningPage(BasePage):
         Returns 'draft' if draft modal is visible, 'form' if creation form is visible, or 'none' if neither.
         """
         for _ in range(30):
-            if self.page.locator(self.PENDING_DRAFTS_TITLE).first.is_visible():
+            if self.page.locator("text=Pending Draft Found, text=Pending Drafts Found, text=unfinished job draft, button:has-text('Start New Instead')").first.is_visible():
                 return "draft"
             if self.page.locator(self.BUSINESS_PROCESS).first.is_visible():
                 return "form"
@@ -71,12 +71,15 @@ class JobOpeningPage(BasePage):
 
     def start_new_instead(self):
         """Clicks the 'Start New Instead' button if visible."""
-        start_new_btn = self.page.locator(self.START_NEW_INSTEAD_BTN).first
-        if start_new_btn.is_visible():
-            logger.info("Draft panel found. Clicking 'Start New Instead'.")
-            start_new_btn.click()
-            self.page.wait_for_load_state("networkidle")
-            self.page.wait_for_timeout(1000)
+        btn = self.page.locator("button:has-text('Start New Instead'), button:has-text('Start New'), button:has-text('Start new')").first
+        try:
+            if btn.is_visible(timeout=3000):
+                logger.info("Draft panel found. Clicking 'Start New Instead'.")
+                btn.click()
+                self.page.wait_for_load_state("networkidle")
+                self.page.wait_for_timeout(1000)
+        except Exception:
+            pass
 
     def resume_first_draft(self):
         """Resumes the first pending draft if visible."""

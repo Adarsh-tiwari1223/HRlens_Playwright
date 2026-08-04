@@ -1,34 +1,30 @@
 """
-Company Master Workflow Layer for HR Lens Portal Master Module.
+Payroll Company Master Workflow Layer for HR Lens Portal Master Module.
 """
 
 import logging
 from playwright.sync_api import Page
-from pages.hrlense_portal.master.company_page import CompanyPage
+from pages.hrlense_portal.master.payroll_company_page import PayrollCompanyPage
 
 logger = logging.getLogger(__name__)
 
-class CompanyWorkflow:
+
+class PayrollCompanyWorkflow:
     def __init__(self, page: Page):
         self.page = page
-        self.company_page = CompanyPage(page)
-
-    def create_company_workflow(self, company_data: dict):
-        logger.info(f"[WORKFLOW] Creating company master: {company_data.get('company_name', 'N/A')}")
-        self.company_page.navigate_to_company_master()
-        self.company_page.add_new_company(company_data)
+        self.payroll_company_page = PayrollCompanyPage(page)
 
     def add_manual_director_workflow(self, name: str, email: str, phone: str) -> dict:
         """
         Flow:
-        1. Go to Company Add/Edit
+        1. Go to Payroll Company Add/Edit
         2. Click 'Add New' (page.get_by_text("Add New", exact=True))
         3. Fill form and click 'Add' button (page.get_by_text("Add", exact=True))
         4. Get posted director record and verify via API
         """
-        logger.info(f"[WORKFLOW] Adding manual director: Name={name}, Email={email}, Phone={phone}")
-        self.company_page.add_manual_director(name, email, phone)
-        posted_name = self.company_page.get_posted_director_record()
+        logger.info(f"[WORKFLOW] Adding manual director in Payroll Company: Name={name}, Email={email}, Phone={phone}")
+        self.payroll_company_page.add_manual_director(name, email, phone)
+        posted_name = self.payroll_company_page.get_posted_director_record()
 
         # Verify via API
         api_verified = False

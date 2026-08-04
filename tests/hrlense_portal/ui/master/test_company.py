@@ -389,3 +389,57 @@ def test_company_edit_validations(admin_page):
         else:
             admin_page.reload()
             company_page.navigate_to_company_master()
+
+
+@pytest.mark.ui
+@pytest.mark.regression
+@pytest.mark.company
+def test_manual_director_inline_required_fields_validation(admin_page):
+    """
+    Verify that when clicking 'Add New' in Company Master, the manual director inline form
+    enforces required field validation for Director Name, Email, and Phone Number.
+    """
+    logger.info("Verify manual director inline form required fields validation")
+    company_page = CompanyPage(admin_page)
+    company_page.navigate_to_company_master()
+    company_page.click_add_new_company()
+    
+    validation_results = company_page.verify_manual_director_required_fields_validation()
+    assert validation_results["name_required"], "Director Name field must be required"
+    assert validation_results["email_required"], "Email field must be required"
+    assert validation_results["phone_required"], "Phone Number field must be required"
+    
+    # Cancel manual director form and cancel company modal
+    company_page.click_cancel_manual_director()
+    admin_page.get_by_role("button", name="Cancel").click()
+
+
+@pytest.mark.ui
+@pytest.mark.regression
+@pytest.mark.company
+def test_add_manual_director_and_verify_api(admin_page):
+    """
+    Verify adding a manual director during Company creation and verifying the director record in API.
+    """
+    logger.info("Verify manual director addition and API verification")
+    from testdata.dynamic.business_test_data import DirectorTestData
+    from workflows.hrlense_portal.master.company_workflow import CompanyWorkflow
+
+    d_data = DirectorTestData.generate_manual_director()
+
+    company_page = CompanyPage(admin_page)
+    company_page.navigate_to_company_master()
+    company_page.click_add_new_company()
+
+    workflow = CompanyWorkflow(admin_page)
+    res = workflow.add_manual_director_workflow(
+        name=d_data["name"],
+        email=d_data["email"],
+        phone=d_data["phone"]
+    )
+
+    assert res["posted_record"], f"Posted director record should be retrieved from Company form"
+    assert res["api_verified"], f"Newly added manual director '{d_data['name']}' should be verified in backend API"
+
+    # Close modal
+    admin_page.get_by_role("button", name="Cancel").click()

@@ -1,5 +1,8 @@
+import logging
 from pages.base_page import BasePage
 from playwright.sync_api import expect
+
+logger = logging.getLogger(__name__)
 
 
 class LoginPage(BasePage):
@@ -11,9 +14,20 @@ class LoginPage(BasePage):
         self.page.get_by_label("Password").fill(password)
 
     def login(self, email: str, password: str):
+        logger.info(f"[UI] Log In As               : {email}")
+        try:
+            self.page.wait_for_selector("input, label:has-text('Email')", timeout=15000)
+        except Exception:
+            pass
         self._fill_email(email)
         self._fill_password(password)
         self.page.get_by_role("button", name="Login").click()
+        try:
+            self.page.wait_for_url(lambda url: "/login" not in url, timeout=12000)
+            self.page.wait_for_load_state("domcontentloaded")
+        except Exception:
+            self.page.wait_for_timeout(1500)
+        logger.info(f"[UI] Logged In As            : {email}")
 
 
 

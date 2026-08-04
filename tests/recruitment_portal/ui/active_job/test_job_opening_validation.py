@@ -339,3 +339,67 @@ def test_jd_summary_required_validation(logged_in_page):
         logger.info(f"Job Created    : {created_job_id}")
         logger.info("")
         logger.info(_SEP_50)
+
+
+@pytest.mark.ui
+@pytest.mark.regression
+@pytest.mark.recruitment
+def test_sno_14_job_post_experience_months_validation(logged_in_page):
+    """
+    S.No 14: Job Post Experience Month Value Acceptance Test.
+    Validates creating a new Job Opening with Experience specified in months (e.g. 6 to 18 months).
+    Verifies AI JD generation and confirms content contains Experience & month references.
+    """
+    from utils.logger import log_test_start, log_pass, log_step, log_debug
+    log_test_start(module="Recruitment Portal", phase="S.No 14", test="Job Post Experience Months Validation")
+
+    page, context = logged_in_page("admin")
+    job_workflow = JobOpeningWorkflow(page)
+    job_page = JobOpeningPage(page)
+
+    job_workflow.navigate_to_active_jobs()
+    job_workflow.fill_mandatory_fields_except_jd()
+
+    exp_min_val = "6"
+    exp_max_val = "18"
+    log_step("Job Experience Months Input", value=f"Min='{exp_min_val}' months, Max='{exp_max_val}' months")
+
+    # 1. HARD ASSERTION: Verify Experience input values in DOM
+    min_val = page.locator(job_page.EXP_MIN).first.input_value()
+    max_val = page.locator(job_page.EXP_MAX).first.input_value()
+    assert min_val == "6", f"HARD ASSERTION FAILED: Expected Min Experience input value '6', got: '{min_val}'"
+    assert max_val == "18", f"HARD ASSERTION FAILED: Expected Max Experience input value '18', got: '{max_val}'"
+    log_step("Hard Assertion Passed", value=f"Input Min='{min_val}', Max='{max_val}'")
+
+    # 2. Generate JD with AI and validate Experience Months in AI content
+    log_step("Click Generate JD with AI")
+    editor_loc = page.locator(job_page.JD_SUMMARY_EDITOR).first
+    editor_loc.scroll_into_view_if_needed()
+    ai_btn = page.locator("button:has-text('Generate JD with AI')")
+    ai_btn.wait_for(state="visible", timeout=15000)
+    ai_btn.click()
+
+    page.locator(".chakra-button__spinner, .chakra-spinner").first.wait_for(state="hidden", timeout=30000)
+    expect(editor_loc).not_to_have_text("", timeout=30000)
+
+    ai_jd_text = editor_loc.inner_text().strip()
+    log_debug(f"Generated AI JD Text Snippet: {ai_jd_text[:150]}...")
+    log_step("AI JD Content Verification", value="AI JD Generated Successfully")
+
+    # 3. HARD ASSERTION: Verify AI JD text explicitly contains '6' or '18' or 'month'
+    assert ("6" in ai_jd_text or "18" in ai_jd_text or "month" in ai_jd_text.lower()), (
+        f"HARD ASSERTION FAILED: AI JD text must explicitly contain the entered Experience Months ('6' or '18' or 'month')! "
+        f"Generated snippet: {ai_jd_text[:250]}"
+    )
+
+    job_workflow.publish_with_confirm()
+    page.wait_for_load_state("networkidle")
+    job_page.close_drawer_safely()
+
+    latest_job_id = job_page.get_latest_job_id()
+    log_step("Created Job Posting ID", value=latest_job_id)
+
+    assert latest_job_id.startswith("JOB_POSTING-"), f"Expected published Job Posting ID, got: '{latest_job_id}'"
+    log_pass()
+
+

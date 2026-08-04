@@ -96,8 +96,10 @@ def format_ascii_table(title: str, data: dict | list[dict] | None) -> str:
 
 class TestStoryLogger:
     """Enterprise Storyteller Logger for Playwright Test Execution."""
-    def __init__(self, test_name: str):
+    def __init__(self, test_name: str, module: str = "Asset Management", phase: str = "Asset Lifecycle"):
         self.test_name = test_name
+        self.module = module
+        self.phase = phase
         self.step_count = 0
         self.start_time = None
 
@@ -105,7 +107,7 @@ class TestStoryLogger:
         import time
         from utils.logger import log_test_start
         self.start_time = time.time()
-        log_test_start(module="Director", phase="Phase 1", test=self.test_name)
+        log_test_start(module=self.module, phase=self.phase, test=self.test_name)
 
     def log_step(self, action: str, record: str = None, details: dict = None, expected: str = None, actual: str = None, status: str = "PASS"):
         from utils.logger import log_step

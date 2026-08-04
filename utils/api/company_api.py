@@ -56,7 +56,6 @@ def get_all_company_names(user: str = "admin") -> list[str]:
 
 def get_branch_name_api(branch_id: int = None) -> list[str]:
     '''get branch name using branch id or without id as reference'''
-    # Note: Assuming the endpoint is 'Branch'. Adjust if different.
     params = {"id": branch_id} if branch_id else None
     response = get("Branch", params=params)
     branches = response.get("data", response.get("records", [])) if isinstance(response, dict) else response
@@ -64,5 +63,3 @@ def get_branch_name_api(branch_id: int = None) -> list[str]:
         branch.get("name") or branch.get("branchName", "")
         for branch in branches
     ]
-
-    

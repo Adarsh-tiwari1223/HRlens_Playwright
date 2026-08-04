@@ -53,8 +53,7 @@ class JobOpeningWorkflow:
         """
         logger.info("[STEP] Open New Job Opening")
         self.job_page.click_create_new_job_opening()
-        if self.job_page.is_draft_modal_visible():
-            self.job_page.start_new_instead()
+        self.job_page.start_new_instead()
 
         logger.info("[STEP] Fill mandatory fields")
 
@@ -88,9 +87,12 @@ class JobOpeningWorkflow:
         self.page.locator(self.job_page.EXPECTED_JOIN_DATE).fill(
             (datetime.now() + timedelta(days=10)).strftime("%Y-%m-%d")
         )
-        self.page.locator(self.job_page.ADDITIONAL_DETAILS).click()
-        self.page.locator(self.job_page.EXP_MIN).fill("1")
-        self.page.locator(self.job_page.EXP_MAX).fill("3")
+        self.page.locator(self.job_page.ADDITIONAL_DETAILS).first.click()
+        self.page.locator(self.job_page.EXP_MIN).first.wait_for(state="visible", timeout=5000)
+        self.page.locator(self.job_page.EXP_MIN).first.fill("6")
+
+        self.page.locator(self.job_page.EXP_MAX).first.wait_for(state="visible", timeout=5000)
+        self.page.locator(self.job_page.EXP_MAX).first.fill("18")
 
         return {
             "business_process": bp_opt,

@@ -1,17 +1,15 @@
-import pytest
-import re
+import os
 import random
+import pytest
 from core.config import settings
 from pages.base_page import TestStoryLogger
 from pages.hrlense_portal.asset.asset_procurement_page import AssetProcurementPage
-from faker import Faker
 
-fake = Faker()
 
 @pytest.mark.ui
 @pytest.mark.asset
 def test_asset_e2e_procurement_flow(logged_in_page):
-    story = TestStoryLogger("Asset Procurement Form Submission Test")
+    story = TestStoryLogger("Asset Procurement Form Submission Test", module="Asset Management", phase="Asset Procurement")
     story.start()
 
     # Step 1: Admin login
@@ -22,35 +20,36 @@ def test_asset_e2e_procurement_flow(logged_in_page):
     procurement_page.navigate_to_asset_procurement()
     procurement_page.click_new_procurement()
 
-    invoice_no = f"INV-{random.randint(10000, 99999)}"
-    # Fill step 1 details using pre-existing dropdown values (index 1)
+    # Step 3: Upload Invoice File & Wait for Auto-Fill Rendering
+    invoices_dir = os.path.abspath("testdata/static/invoices")
+    sample_invoice_path = os.path.join(invoices_dir, "JOB VRITTA 41 1.pdf")
+    if not os.path.exists(sample_invoice_path):
+        sample_invoice_path = os.path.join(invoices_dir, "invoice_1mb.pdf")
+
+    print(f"\n[STEP 3] Uploading Invoice PDF: {sample_invoice_path}")
+    procurement_page.upload_invoice(sample_invoice_path)
+
+    # Wait for content rendering / auto-fill OCR
+    admin_page.wait_for_timeout(3500)
+
+    # Step 4: Inspect and Log all Form Field values to Terminal
+    field_report = procurement_page.inspect_and_log_step1_fields()
+    invoice_no = field_report.get("Invoice No") if field_report.get("Invoice No") not in ["EMPTY", "NOT FOUND", None] else "INV-UPLOADED"
+
+    # Step 5: Select ONLY Branch and Payroll Company if unselected (Preserve prefilled textboxes)
     procurement_page.fill_step1_details(
-        vendor_label=None,
-        branch_label=None,
-        company_label=None,
-        invoice_no=invoice_no,
-        purchase_date="2026-07-23",
-        amount_before_gst="1000",
-        gst_amount="180"
+        invoice_file_path=sample_invoice_path
     )
     procurement_page.click_next()
 
-    # Fill step 2 details using first options (index 1) for category/subcategory
-    procurement_page.fill_step2_item(
-        index=0,
-        category_label=None,
-        sub_category_label=None,
-        brand="Logitech",
-        model="MX Master 3S",
-        quantity="5",
-        price="200"
-    )
+    # Step 6: Inspect prefilled Step 2 line items without modifying values
+    procurement_page.inspect_and_log_asset_line_items()
     procurement_page.click_create()
 
-    # Assert successful procurement toast
+    # Step 7: Assert successful procurement toast response
     toast = procurement_page.wait_for_toast_message()
     is_success = "success" in toast.lower() or "created" in toast.lower() or "procured" in toast.lower()
-    
+
     story.log_step(
         "Submit Asset Procurement Form",
         record=f"Invoice: {invoice_no}",
@@ -59,5 +58,3 @@ def test_asset_e2e_procurement_flow(logged_in_page):
         status="PASS" if is_success else "FAIL"
     )
     assert is_success, f"Procurement failed: {toast}"
-    
-    story.finish(status="PASS")

@@ -18,7 +18,7 @@ fake = Faker()
 @pytest.mark.ui
 @pytest.mark.asset
 def test_asset_lifecycle_flow(logged_in_page):
-    story = TestStoryLogger("Asset Lifecycle Main Stream Flow")
+    story = TestStoryLogger("Asset Lifecycle Main Stream Flow", module="Asset Management", phase="Asset Lifecycle")
     story.start()
 
     # Step 1: Admin login

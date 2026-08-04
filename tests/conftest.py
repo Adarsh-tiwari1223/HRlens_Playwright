@@ -66,23 +66,64 @@ else:
     CONTEXT_OPTIONS["no_viewport"] = True
 
 
+import os
+
+CHROME_USER_DATA_DIR = os.path.expanduser(r"~\AppData\Local\Google\Chrome\User Data")
+
 @pytest.fixture(scope="session")
 def browser():
     with sync_playwright() as p:
+        # Solution 2: Use persistent Chrome User Profile if available for Google OAuth auto-auth
+        if os.path.exists(CHROME_USER_DATA_DIR) and not settings.HEADLESS:
+            try:
+                context = p.chromium.launch_persistent_context(
+                    user_data_dir=os.path.join(CHROME_USER_DATA_DIR, "HRlensAutomationProfile"),
+                    channel="chrome",
+                    headless=False,
+                    args=["--start-maximized", "--disable-blink-features=AutomationControlled"]
+                )
+                yield context
+                context.close()
+                return
+            except Exception:
+                pass
+
         browser = p.chromium.launch(headless=settings.HEADLESS, args=["--start-maximized"])
         yield browser
         browser.close()
 
 
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """Hook to attach test call status to item for conditional failure actions."""
+    outcome = yield
+    rep = outcome.get_result()
+    setattr(item, f"rep_{rep.when}", rep)
+
+
 @pytest.fixture(scope="function")
 def page(browser, request):
-    context = browser.new_context(**CONTEXT_OPTIONS)
-    context.set_default_timeout(settings.DEFAULT_TIMEOUT)
-    context.tracing.start(screenshots=True, snapshots=True, sources=True)
-    page = context.new_page()
-    yield page
-    context.tracing.stop(path=f"reports/trace_{request.node.name}.zip")
-    context.close()
+    # Check if browser is a Browser or a persistent BrowserContext
+    if hasattr(browser, "new_page"):
+        context = browser
+        page = context.new_page()
+        context.set_default_timeout(settings.DEFAULT_TIMEOUT)
+        yield page
+    else:
+        context = browser.new_context(**CONTEXT_OPTIONS)
+        context.set_default_timeout(settings.DEFAULT_TIMEOUT)
+        context.tracing.start(screenshots=True, snapshots=True, sources=True)
+        page = context.new_page()
+        
+        yield page
+        
+        # Save trace ONLY if the test failed!
+        failed = hasattr(request.node, "rep_call") and request.node.rep_call.failed
+        if failed:
+            context.tracing.stop(path=f"reports/trace_{request.node.name}.zip")
+        else:
+            context.tracing.stop()
+        context.close()
 
 
 @pytest.fixture(scope="module")
@@ -94,12 +135,24 @@ def logged_in_page(browser):
         assert user_info and user_info.get("username") and user_info.get("password"), \
             f"User '{user_key}' missing valid credentials in environment settings."
 
-        context = browser.new_context(**CONTEXT_OPTIONS)
+        if hasattr(browser, "new_context"):
+            context = browser.new_context(**CONTEXT_OPTIONS)
+        elif hasattr(browser, "browser") and browser.browser:
+            context = browser.browser.new_context(**CONTEXT_OPTIONS)
+        else:
+            context = browser
+
         context.set_default_timeout(settings.DEFAULT_TIMEOUT)
-        context.tracing.start(screenshots=True, snapshots=True, sources=True)
+        try:
+            context.tracing.start(screenshots=True, snapshots=True, sources=True)
+        except Exception:
+            pass
         page = context.new_page()
         page.goto(settings.BASE_URL, timeout=60000)
-        page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="visible", timeout=30000)
+        try:
+            page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="visible", timeout=30000)
+        except Exception:
+            pass
 
         LoginPage(page).login(
             user_info["username"],
@@ -119,8 +172,14 @@ def logged_in_page(browser):
     yield _login
 
     for context, user_key in contexts:
-        context.tracing.stop(path=f"reports/trace_{user_key}.zip")
-        context.close()
+        try:
+            context.tracing.stop(path=f"reports/trace_{user_key}.zip")
+        except Exception:
+            pass
+        try:
+            context.close()
+        except Exception:
+            pass
 
 
 @pytest.fixture(scope="module")

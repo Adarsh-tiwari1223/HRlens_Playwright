@@ -40,21 +40,36 @@ class BranchGroupPage(BasePage):
         self.page.locator("[role='dialog']").wait_for(state="visible", timeout=10000)
 
 
-    def fill_group_details(self, group_name: str = None, branch_names: list[str] = None):
+    def fill_group_details(self, group_name: str = None, branch_names: list[str] = None, seating_cost: str = "0"):
+        dialog = self.page.locator("[role='dialog']").first
+        if not dialog.is_visible():
+            dialog = self.page
+
         if group_name is not None:
             self.page.get_by_placeholder("e.g. North Zone, Mumbai", exact=False).fill(group_name)
+
+        # Ensure seating cost field is populated with a valid decimal to satisfy backend validation
+        try:
+            seating_ctrl = dialog.locator(".chakra-form-control").filter(has_text=re.compile(r"seating", re.I)).first
+            if seating_ctrl.is_visible():
+                s_input = seating_ctrl.locator("input").first
+                if s_input.is_visible() and not s_input.input_value():
+                    s_input.fill(str(seating_cost))
+        except Exception:
+            pass
         
         if branch_names:
-            self.page.get_by_placeholder("Search branches", exact=False).click()
+            search_input = self.page.get_by_placeholder("Search branches", exact=False)
+            search_input.click()
             import re
             for b_name in branch_names:
                 logger.debug(f"Selecting branch: {b_name}")
-                self.page.get_by_placeholder("Search branches", exact=False).fill(b_name)
+                search_input.fill(b_name)
                 self.page.wait_for_timeout(500)
                 
                 # Match start of option text exactly to avoid substring issues (e.g. Noida vs Greater Noida)
-                pattern = re.compile(rf"^{re.escape(b_name)}\b", re.IGNORECASE)
-                option_locator = self.page.locator(".chakra-portal div, .chakra-portal button, .chakra-portal span").get_by_text(pattern)
+                pattern = re.compile(rf"^{re.escape(b_name)}", re.IGNORECASE)
+                option_locator = self.page.locator(".chakra-portal div, .chakra-portal button, .chakra-portal span, [role='option']").get_by_text(pattern)
                 
                 # Click the option that does not contain a newline to avoid matching the modal wrapper container
                 count = option_locator.count()
@@ -66,11 +81,11 @@ class BranchGroupPage(BasePage):
                         el.click()
                         clicked = True
                         break
-                if not clicked:
+                if not clicked and count > 0:
                     option_locator.first.click()
                 
-                self.page.get_by_placeholder("Search branches", exact=False).fill("")
-                self.page.wait_for_timeout(500)
+                search_input.fill("")
+                self.page.wait_for_timeout(300)
 
     def get_available_branches(self) -> list[str]:
         self.page.get_by_placeholder("Search branches", exact=False).click()

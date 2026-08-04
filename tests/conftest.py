@@ -45,15 +45,22 @@ def pytest_collection_modifyitems(items):
 
 
 def pytest_xdist_auto_num_workers(config):
-    """Parallel Worker Allocation: Assign 1 worker for single module execution, scale to 4 workers across multiple modules."""
+    """
+    Parallel Worker Allocation:
+    - Assign 1 worker when --headed flag is passed or HEADLESS is False (for step-by-step visual execution).
+    - Assign 1 worker when executing a single test file.
+    - Scale to max 4 workers only when running multiple test files in headless mode.
+    """
     import os
+    is_headed = getattr(config.option, "headed", False) or not settings.HEADLESS
+    if is_headed:
+        return 1
+
     file_args = [arg for arg in config.args if arg.endswith('.py')]
     if len(file_args) == 1:
         return 1
     cpu_cores = os.cpu_count() or 4
     return min(cpu_cores, 4)
-
-
 
 
 CONTEXT_OPTIONS = {
@@ -71,10 +78,11 @@ import os
 CHROME_USER_DATA_DIR = os.path.expanduser(r"~\AppData\Local\Google\Chrome\User Data")
 
 @pytest.fixture(scope="session")
-def browser():
+def browser(pytestconfig):
+    is_headed = getattr(pytestconfig.option, "headed", False) or not settings.HEADLESS
     with sync_playwright() as p:
-        # Solution 2: Use persistent Chrome User Profile if available for Google OAuth auto-auth
-        if os.path.exists(CHROME_USER_DATA_DIR) and not settings.HEADLESS:
+        # Use persistent Chrome User Profile if available for Google OAuth auto-auth in headed mode
+        if os.path.exists(CHROME_USER_DATA_DIR) and is_headed:
             try:
                 context = p.chromium.launch_persistent_context(
                     user_data_dir=os.path.join(CHROME_USER_DATA_DIR, "HRlensAutomationProfile"),
@@ -88,7 +96,7 @@ def browser():
             except Exception:
                 pass
 
-        browser = p.chromium.launch(headless=settings.HEADLESS, args=["--start-maximized"])
+        browser = p.chromium.launch(headless=not is_headed, args=["--start-maximized"])
         yield browser
         browser.close()
 
@@ -105,13 +113,13 @@ def pytest_runtest_makereport(item, call):
 def page(browser, request):
     if hasattr(browser, "new_context"):
         context = browser.new_context(**CONTEXT_OPTIONS)
-        should_close = True
+        should_close_context = True
     elif hasattr(browser, "browser") and browser.browser:
         context = browser.browser.new_context(**CONTEXT_OPTIONS)
-        should_close = True
+        should_close_context = True
     else:
         context = browser
-        should_close = False
+        should_close_context = False
 
     context.set_default_timeout(settings.DEFAULT_TIMEOUT)
     try:
@@ -135,7 +143,13 @@ def page(browser, request):
         except Exception:
             pass
 
-    if should_close:
+    # Close test page tab so tab bar does not accumulate open tabs
+    try:
+        page.close()
+    except Exception:
+        pass
+
+    if should_close_context:
         try:
             context.close()
         except Exception:
@@ -193,7 +207,13 @@ def logged_in_page(browser):
         except Exception:
             pass
         try:
-            context.close()
+            for p in context.pages:
+                try:
+                    p.close()
+                except Exception:
+                    pass
+            if hasattr(browser, "new_context") or (hasattr(browser, "browser") and browser.browser):
+                context.close()
         except Exception:
             pass
 
@@ -218,6 +238,10 @@ def admin_page(browser, request):
     yield page
     try:
         context.tracing.stop(path=f"reports/trace_{request.node.name}.zip")
+    except Exception:
+        pass
+    try:
+        page.close()
     except Exception:
         pass
     if hasattr(browser, "new_context") or (hasattr(browser, "browser") and browser.browser):

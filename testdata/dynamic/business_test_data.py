@@ -619,6 +619,19 @@ class DirectorDocumentData:
 
 class DirectorTestData:
     @staticmethod
+    def generate_manual_director() -> dict:
+        fn = fake.first_name()
+        ln = fake.last_name()
+        name = f"{fn} {ln}"
+        email = f"{fn.lower()}.{ln.lower()}{random.randint(100, 999)}@tekinspirations.com"
+        phone = fake.numerify("9#########")
+        return {
+            "name": name,
+            "email": email,
+            "phone": phone
+        }
+
+    @staticmethod
     def generate_director() -> DirectorData:
         return DirectorData(
             director_name=f"{fake.first_name()} {fake.last_name()}",

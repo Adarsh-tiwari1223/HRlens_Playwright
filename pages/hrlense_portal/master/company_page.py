@@ -119,7 +119,7 @@ class CompanyPage(BasePage):
             except Exception as e:
                 logger.warning(f"Error selecting Country: {e}")
 
-        # Order 5: Zip Code (Triggers State & City autofill on blur)
+        # Order 5: Zip Code
         if zip_code:
             try:
                 inp = modal.get_by_placeholder("Enter Zip Code", exact=False)
@@ -132,8 +132,17 @@ class CompanyPage(BasePage):
                     inp.click(force=True)
                     inp.fill("")
                     inp.press_sequentially(zip_code, delay=10)
-                    inp.blur()  # Leave Zip Code textbox to trigger autofill API
+                    inp.blur()
                     logger.info(f"Order 5 - Filled Zip Code: {zip_code}")
+                    
+                    # Wait for backend Zip Code API to populate the state input value
+                    state_inp = modal.locator("input[name='state']").first
+                    try:
+                        handle = state_inp.element_handle()
+                        if handle:
+                            self.page.wait_for_function("el => el && el.value.trim() !== ''", arg=handle, timeout=4000)
+                    except Exception:
+                        pass
             except Exception as e:
                 logger.warning(f"Error filling Zip Code: {e}")
 
@@ -182,7 +191,7 @@ class CompanyPage(BasePage):
         # Order 10: Director Name
         if director:
             try:
-                sel_dir = self.select_react_dropdown("Director", director, container=modal)
+                sel_dir = self.select_react_dropdown("Director Name", director, container=modal)
                 logger.info(f"Order 10 - Selected Director Name: {sel_dir}")
             except Exception:
                 pass
@@ -204,16 +213,16 @@ class CompanyPage(BasePage):
                 pass
 
     def click_add_company(self):
-        logger.info("Clicking Add Company submit button")
-        btn = self.page.locator("button:has-text('Add Company')").last
-        if not btn.is_visible(timeout=1000):
-            btn = self.page.get_by_role("button", name="Add Company", exact=True).last
-        
+        logger.info("Clicking Add Company button")
         try:
-            btn.scroll_into_view_if_needed()
+            self.page.locator("header:has-text('Add New Company'), .chakra-modal__header").first.click(timeout=1000)
         except Exception:
             pass
-        btn.click(force=True)
+
+        modal = self._get_modal()
+        btn = modal.locator("button:has-text('Add Company')").first
+        btn.click()
+        logger.info("Clicked Add Company button")
 
     def click_cancel_company_modal(self):
         logger.info("Clicking Cancel button on Company modal")
@@ -249,18 +258,23 @@ class CompanyPage(BasePage):
 
     def search_company(self, query: str):
         logger.info(f"Searching for company: {query}")
-        search_field = self.page.locator("input[placeholder*='Search']").first
+        search_field = self.page.get_by_placeholder("Search Company Name", exact=False)
+        if not search_field.is_visible(timeout=1000):
+            search_field = self.page.locator("input[placeholder*='Search']").first
         search_field.wait_for(state="visible")
         search_field.click()
         search_field.fill("")
         search_field.press_sequentially(query, delay=30)
-        
-        # Auto-wait natively for the matching table row to become visible
-        row_locator = self.page.locator(f"role=row[name*='{query}']")
+        self.page.wait_for_timeout(500)
+
+    def is_company_listed_in_table(self, company_name: str) -> bool:
+        """Verifies if company name appears in table rows after search."""
+        self.search_company(company_name)
+        row = self.page.locator("tbody tr").filter(has_text=company_name).first
         try:
-            row_locator.wait_for(state="visible", timeout=5000)
+            return row.is_visible(timeout=5000)
         except Exception:
-            pass
+            return False
         
     def wait_for_toast_message(self) -> str:
         return self.wait_for_toast(self.TOAST)

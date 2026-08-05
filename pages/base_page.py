@@ -422,13 +422,13 @@ class BasePage:
             inp.click(force=True, timeout=2000)
             inp.fill("")
             inp.press_sequentially(option_text, delay=20)
-            self.page.wait_for_timeout(400)
+            self.page.wait_for_timeout(600)  # wait for employee search API
             
             selected_text = option_text
             try:
-                # Find visible option in open dropdown list
-                menu_options = self.page.locator("div[id*='option'], [role='option'], div.css-17ezq3, div[class*='option']").filter(has_text=re.compile(f"{re.escape(option_text)}", re.I))
-                if menu_options.first.is_visible(timeout=1000):
+                # Find visible option using stable WAI-ARIA and React-Select attributes
+                menu_options = self.page.locator("div[id*='option'], [role='option'], div[class*='option'], li[class*='option']").filter(has_text=re.compile(f"{re.escape(option_text)}", re.I))
+                if menu_options.first.is_visible(timeout=1500):
                     txt = menu_options.first.inner_text().strip()
                     if txt:
                         selected_text = txt
@@ -440,20 +440,20 @@ class BasePage:
                 self.page.keyboard.press("ArrowDown")
                 self.page.keyboard.press("Enter")
             
-            self.page.wait_for_timeout(300)
+            self.page.wait_for_timeout(500)
             # Read actual tag/text from dropdown container after selection
             try:
-                container_tag = inp.locator("xpath=ancestor::div[contains(@class, 'control') or contains(@class, 'form') or contains(@class, 'group')]//*[contains(@class, 'css-1ny2kle') or contains(@class, 'tag') or contains(@class, 'singleValue')]").first
+                container_tag = inp.locator("xpath=ancestor::div[contains(@class, 'form') or contains(@class, 'control') or contains(@class, 'group')]//span[contains(@class, 'css-1ny2kle') or contains(@class, 'tag') or contains(@class, 'singleValue')]").first
                 if not container_tag.is_visible(timeout=300):
                     container_tag = target.locator("span.css-1ny2kle, .chakra-tag, div[class*='singleValue']").last
                 
-                if container_tag.is_visible(timeout=500):
+                if container_tag.is_visible(timeout=1000):
                     txt = container_tag.inner_text().strip().split("\n")[0].replace("×", "").strip()
-                    if txt:
+                    if txt and txt != option_text:
                         selected_text = txt
             except Exception:
                 pass
-            
+
             logger.debug(f"select_react_dropdown → '{placeholder_text}' = '{selected_text}'")
             return selected_text
         except Exception as e:

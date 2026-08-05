@@ -162,7 +162,7 @@ class PayrollCompanyPage(BasePage):
             except Exception as e:
                 logger.warning(f"Error selecting Country: {e}")
 
-        # Order 5: Zip Code (Triggers State & City autofill on blur)
+        # Order 5: Zip Code
         if zip_code:
             try:
                 inp = modal.get_by_placeholder("Enter Zip Code", exact=False)
@@ -175,8 +175,17 @@ class PayrollCompanyPage(BasePage):
                     inp.click(force=True)
                     inp.fill("")
                     inp.press_sequentially(zip_code, delay=10)
-                    inp.blur()  # Leave Zip Code textbox to trigger autofill API
+                    inp.blur()
                     logger.info(f"Order 5 - Filled Zip Code: {zip_code}")
+                    
+                    # Wait for backend Zip Code API to populate the state input value
+                    state_inp = modal.locator("input[name='state']").first
+                    try:
+                        handle = state_inp.element_handle()
+                        if handle:
+                            self.page.wait_for_function("el => el && el.value.trim() !== ''", arg=handle, timeout=4000)
+                    except Exception:
+                        pass
             except Exception as e:
                 logger.warning(f"Error filling Zip Code: {e}")
 
@@ -225,7 +234,7 @@ class PayrollCompanyPage(BasePage):
         # Order 10: Director Name
         if director:
             try:
-                sel_dir = self.select_react_dropdown("Director", director, container=modal)
+                sel_dir = self.select_react_dropdown("Director Name", director, container=modal)
                 logger.info(f"Order 10 - Selected Director Name: {sel_dir}")
             except Exception:
                 pass
@@ -248,11 +257,13 @@ class PayrollCompanyPage(BasePage):
 
     def click_submit(self):
         """Clicks Submit / Save button in open modal."""
-        btn = self.page.locator("button[type='submit'], button:has-text('Save'), button:has-text('Submit'), button:has-text('Update'), button:has-text('Add Company')").last
-        try:
-            btn.scroll_into_view_if_needed()
-        except Exception:
-            pass
+        modal = self._get_modal()
+        btn = modal.locator("button:has-text('Add Company'), button[type='submit'], button:has-text('Save'), button:has-text('Submit')").first
+        if not btn.is_visible(timeout=1000):
+            btn = modal.get_by_role("button", name="Add Company", exact=True).first
+        if not btn.is_visible(timeout=1000):
+            btn = self.page.locator("button:has-text('Add Company')").last
+        
         btn.click(force=True)
 
     def test_zipcode_autofill(self, zip_code: str) -> dict:

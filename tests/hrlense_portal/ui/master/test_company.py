@@ -497,3 +497,8 @@ def test_create_company_full_form_submission(admin_page):
     toast = company_page.wait_for_toast_message()
     logger.info(f"CAPTURED TOAST MESSAGE: '{toast}'")
     assert any(term in toast.lower() for term in ["success", "created", "added", "saved"]), f"Create company failed with toast: '{toast}'"
+
+    # Search and verify created company appears in the table
+    logger.info(f"Searching and verifying company '{company_name}' in table")
+    assert company_page.is_company_listed_in_table(company_name), f"Created company '{company_name}' not listed in table"
+    logger.info(f"Verified company '{company_name}' is listed in the table!")

@@ -18,33 +18,50 @@ class CompanyWorkflow:
         self.company_page.navigate_to_company_master()
         self.company_page.add_new_company(company_data)
 
-    def add_manual_director_workflow(self, name: str, email: str, phone: str) -> dict:
+    def create_company_with_manual_director_from_scratch(self, company_data: dict, director_data: dict) -> str:
         """
-        Flow:
-        1. Go to Company Add/Edit
-        2. Click 'Add New' (page.get_by_text("Add New", exact=True))
-        3. Fill form and click 'Add' button (page.get_by_text("Add", exact=True))
-        4. Get posted director record and verify via API
+        ADD Operation:
+        1. Open Add Company modal
+        2. Fill company form from scratch (Name, Code, Address, Zip Code)
+        3. Click 'Add New' -> click 'Director Name' label -> fill manual director form -> click 'Add'
+        4. Submit/Save new company
         """
-        logger.info(f"[WORKFLOW] Adding manual director: Name={name}, Email={email}, Phone={phone}")
-        self.company_page.add_manual_director(name, email, phone)
-        posted_name = self.company_page.get_posted_director_record()
+        logger.info(f"[WORKFLOW] Creating company from scratch: {company_data.get('company_name')} with manual director: {director_data.get('name')}")
+        self.company_page.navigate_to_company_master()
+        self.company_page.click_add_new_company()
+        self.company_page.fill_company_details(
+            name=company_data.get("company_name"),
+            address=company_data.get("address"),
+            zip_code=company_data.get("zip_code"),
+            country=company_data.get("country"),
+            state=company_data.get("state"),
+            city=company_data.get("city"),
+            code=company_data.get("code")
+        )
+        self.company_page.add_manual_director(
+            name=director_data.get("name"),
+            email=director_data.get("email"),
+            phone=director_data.get("phone")
+        )
+        self.company_page.click_add_company()
+        self.page.wait_for_timeout(1000)
+        return self.company_page.wait_for_toast_message()
 
-        # Verify via API
-        api_verified = False
-        try:
-            from utils.api.director_api import get_directors_api
-            api_directors = get_directors_api()
-            for d in api_directors:
-                d_name = d.get("directorName") or d.get("name") or d.get("fullName") or ""
-                if d_name and name.lower() in d_name.lower():
-                    logger.info(f"[API VERIFICATION] Director '{name}' successfully found in backend API response!")
-                    api_verified = True
-                    break
-        except Exception as e:
-            logger.warning(f"[API VERIFICATION] Error checking directors API: {e}")
-
-        return {
-            "posted_record": posted_name or name,
-            "api_verified": api_verified or True
-        }
+    def edit_company_add_manual_director_only(self, company_name: str, director_data: dict) -> str:
+        """
+        EDIT Operation:
+        1. Open existing company in edit mode
+        2. Click 'Add New' -> click 'Director Name' label -> fill manual director form -> click 'Add'
+        3. Click 'Update Company' to submit
+        """
+        logger.info(f"[WORKFLOW] Editing company '{company_name}' to add manual director: {director_data.get('name')}")
+        self.company_page.navigate_to_company_master()
+        self.company_page.edit_company(company_name)
+        self.company_page.add_manual_director(
+            name=director_data.get("name"),
+            email=director_data.get("email"),
+            phone=director_data.get("phone")
+        )
+        self.company_page.click_update_company()
+        self.page.wait_for_timeout(1000)
+        return self.company_page.wait_for_toast_message()

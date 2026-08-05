@@ -398,6 +398,68 @@ class BasePage:
         self.page.locator(locator).select_option(value)
         logger.debug(f"select_option → {locator} = '{value}'")
 
+    def select_react_dropdown(self, placeholder_text: str, option_text: str, container=None):
+        """
+        Robustly interacts with searchable dropdowns (Chakra UI/React-Select).
+        Clicks the input, types the value, waits for options, and clicks the matching option.
+        If option_text is a single character like 'a', it selects the first fetched option.
+        """
+        target = container if container else self.page
+        try:
+            # First try get_by_placeholder
+            inp = target.get_by_placeholder(placeholder_text, exact=True).first
+            if not inp.is_visible(timeout=1000):
+                inp = target.get_by_placeholder(f"Search {placeholder_text}", exact=True).first
+            if not inp.is_visible(timeout=1000):
+                inp = target.get_by_placeholder(f"Select {placeholder_text}", exact=True).first
+            if not inp.is_visible(timeout=1000):
+                inp = target.locator(f"input[placeholder*='{placeholder_text}' i]").first
+            if not inp.is_visible(timeout=1000):
+                inp = target.locator(f"text='{placeholder_text}'").locator("xpath=ancestor::div[contains(@class, 'control') or contains(@class, 'select')]//input").first
+            if not inp.is_visible(timeout=1000):
+                inp = target.locator("input[id*='react-select']").first
+
+            inp.click(force=True, timeout=2000)
+            inp.fill("")
+            inp.press_sequentially(option_text, delay=20)
+            self.page.wait_for_timeout(400)
+            
+            selected_text = option_text
+            try:
+                # Find visible option in open dropdown list
+                menu_options = self.page.locator("div[id*='option'], [role='option'], div.css-17ezq3, div[class*='option']").filter(has_text=re.compile(f"{re.escape(option_text)}", re.I))
+                if menu_options.first.is_visible(timeout=1000):
+                    txt = menu_options.first.inner_text().strip()
+                    if txt:
+                        selected_text = txt
+                    menu_options.first.click(force=True)
+                else:
+                    self.page.keyboard.press("ArrowDown")
+                    self.page.keyboard.press("Enter")
+            except Exception:
+                self.page.keyboard.press("ArrowDown")
+                self.page.keyboard.press("Enter")
+            
+            self.page.wait_for_timeout(300)
+            # Read actual tag/text from dropdown container after selection
+            try:
+                container_tag = inp.locator("xpath=ancestor::div[contains(@class, 'control') or contains(@class, 'form') or contains(@class, 'group')]//*[contains(@class, 'css-1ny2kle') or contains(@class, 'tag') or contains(@class, 'singleValue')]").first
+                if not container_tag.is_visible(timeout=300):
+                    container_tag = target.locator("span.css-1ny2kle, .chakra-tag, div[class*='singleValue']").last
+                
+                if container_tag.is_visible(timeout=500):
+                    txt = container_tag.inner_text().strip().split("\n")[0].replace("×", "").strip()
+                    if txt:
+                        selected_text = txt
+            except Exception:
+                pass
+            
+            logger.debug(f"select_react_dropdown → '{placeholder_text}' = '{selected_text}'")
+            return selected_text
+        except Exception as e:
+            logger.warning(f"Failed to select '{option_text}' in dropdown '{placeholder_text}': {e}")
+            return option_text
+
     def wait_for_url(self, partial: str):
         self.page.wait_for_url(f"**{partial}**")
         logger.debug(f"wait_for_url → '{partial}'")

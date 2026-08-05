@@ -88,6 +88,7 @@ def browser(pytestconfig):
                     user_data_dir=os.path.join(CHROME_USER_DATA_DIR, "HRlensAutomationProfile"),
                     channel="chrome",
                     headless=False,
+                    no_viewport=True,
                     args=["--start-maximized", "--disable-blink-features=AutomationControlled"]
                 )
                 yield context

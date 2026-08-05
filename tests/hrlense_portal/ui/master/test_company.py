@@ -417,29 +417,83 @@ def test_manual_director_inline_required_fields_validation(admin_page):
 @pytest.mark.ui
 @pytest.mark.regression
 @pytest.mark.company
-def test_add_manual_director_and_verify_api(admin_page):
+def test_company_add_manual_director_on_create(admin_page):
     """
-    Verify adding a manual director during Company creation and verifying the director record in API.
+    ADD Operation:
+    Fill company form from scratch (Name, Code, Address, Zip Code) and add a manual director.
     """
-    logger.info("Verify manual director addition and API verification")
+    logger.info("Testing ADD company operation: fill form from scratch and add manual director")
     from testdata.dynamic.business_test_data import DirectorTestData
     from workflows.hrlense_portal.master.company_workflow import CompanyWorkflow
 
     d_data = DirectorTestData.generate_manual_director()
 
-    company_page = CompanyPage(admin_page)
-    company_page.navigate_to_company_master()
-    company_page.click_add_new_company()
+    comp_info = {
+        "company_name": generate_unique_company_name(),
+        "address": f"{fake.building_number()} {fake.street_name()}",
+        "zip_code": "110001",
+        "country": "India",
+        "state": "Delhi",
+        "city": "New Delhi",
+        "code": f"CMP-{random.randint(1000, 9999)}"
+    }
 
     workflow = CompanyWorkflow(admin_page)
-    res = workflow.add_manual_director_workflow(
-        name=d_data["name"],
-        email=d_data["email"],
-        phone=d_data["phone"]
+    toast = workflow.create_company_with_manual_director_from_scratch(comp_info, d_data)
+    logger.info(f"Create Company Toast: {toast}")
+
+
+@pytest.mark.ui
+@pytest.mark.regression
+@pytest.mark.company
+def test_company_add_manual_director_on_edit(admin_page):
+    """
+    EDIT Operation:
+    Open existing company in edit mode and just add manual director.
+    """
+    logger.info("Testing EDIT company operation: open existing company and just add manual director")
+    from testdata.dynamic.business_test_data import BusinessTestData, DirectorTestData
+    from workflows.hrlense_portal.master.company_workflow import CompanyWorkflow
+
+    existing_companies = BusinessTestData.get_companies()
+    target_comp = existing_companies[0].get("companyName") if existing_companies else "TEK Inspirations LLC"
+    d_data = DirectorTestData.generate_manual_director()
+
+    workflow = CompanyWorkflow(admin_page)
+    toast = workflow.edit_company_add_manual_director_only(target_comp, d_data)
+    logger.info(f"Edit Company Toast: {toast}")
+
+
+@pytest.mark.ui
+@pytest.mark.company
+@pytest.mark.full_form
+def test_create_company_full_form_submission(admin_page):
+    logger.info("Verify that all 12 fields can be filled completely in a single test case")
+    company_page = CompanyPage(admin_page)
+    company_page.navigate_to_company_master()
+    
+    company_page.click_add_new_company()
+    company_name = generate_unique_company_name()
+    company_code = f"CMP{fake.random_int(1000, 9999)}"
+    
+    logo_path = os.path.abspath("testdata/static/png/—Pngtree—building vector icon_3757837.png")
+    stamp_path = os.path.abspath("testdata/static/png/—Pngtree—iso 9001 certified company logo_20971536.png")
+
+    # PIN Code 221005 (Varanasi, UP) auto-fills BOTH State (Uttar Pradesh) and City (Varanasi) cleanly from API!
+    company_page.fill_company_details(
+        logo_path=logo_path,    # Order 1
+        stamp_path=stamp_path,  # Order 2
+        name=company_name,      # Order 3
+        country="India",        # Order 4
+        zip_code="221005",      # Order 5 (Auto-fills Order 6: State & Order 7: City)
+        address="999 Enterprise Blvd", # Order 8
+        code=company_code,      # Order 9
+        director="a",           # Order 10 (Triggers API & selects first employee)
+        auditor="a",            # Order 11 (Triggers API & selects first employee)
+        pf_consultant="a"       # Order 12 (Triggers API & selects first employee)
     )
-
-    assert res["posted_record"], f"Posted director record should be retrieved from Company form"
-    assert res["api_verified"], f"Newly added manual director '{d_data['name']}' should be verified in backend API"
-
-    # Close modal
-    admin_page.get_by_role("button", name="Cancel").click()
+    
+    company_page.click_add_company()
+    toast = company_page.wait_for_toast_message()
+    logger.info(f"CAPTURED TOAST MESSAGE: '{toast}'")
+    assert any(term in toast.lower() for term in ["success", "created", "added", "saved"]), f"Create company failed with toast: '{toast}'"

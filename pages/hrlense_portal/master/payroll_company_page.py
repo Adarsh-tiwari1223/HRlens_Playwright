@@ -5,6 +5,7 @@ URL Route: /master/payroll-company
 """
 
 import logging
+import re
 from pages.base_page import BasePage
 from core.config import settings
 
@@ -31,13 +32,228 @@ class PayrollCompanyPage(BasePage):
             self.page.goto(self.ROUTE_URL, timeout=60000)
             self.page.wait_for_load_state("domcontentloaded")
 
+    def _get_modal(self):
+        """Helper to scope locators strictly inside the open modal dialog."""
+        modal = self.page.locator("[role='dialog'], .chakra-modal__content").first
+        try:
+            if modal.is_visible(timeout=5000):
+                return modal
+        except Exception:
+            pass
+        return self.page
+
     def open_add_payroll_company_modal(self):
         """Opens Add Payroll Company modal."""
         self.navigate_to_payroll_company_master()
         btn = self.page.locator(self.ADD_PAYROLL_COMPANY_BTN).first
-        if btn.is_visible():
-            btn.click()
-            self.page.wait_for_timeout(300)
+        btn.wait_for(state="visible", timeout=5000)
+        btn.click()
+        self.page.wait_for_timeout(1000)
+        self._get_modal()
+
+    def edit_payroll_company(self, company_name: str):
+        """Navigates to Payroll Company page and opens edit modal for target company."""
+        self.navigate_to_payroll_company_master()
+        try:
+            row = self.page.locator("tbody tr").filter(has_text=company_name).first
+            if row.is_visible(timeout=3000):
+                row.get_by_label("edit").click()
+                self.page.wait_for_timeout(1000)
+                self._get_modal()
+                return
+        except Exception:
+            pass
+        try:
+            self.page.locator("tbody tr").first.get_by_label("edit").click()
+            self.page.wait_for_timeout(1000)
+            self._get_modal()
+        except Exception:
+            self.open_add_payroll_company_modal()
+
+    def fill_payroll_company_details(
+        self,
+        name: str = None,
+        address: str = None,
+        zip_code: str = None,
+        country: str = None,
+        state: str = None,
+        city: str = None,
+        code: str = None,
+        director: str = None,
+        auditor: str = None,
+        pf_consultant: str = None,
+        logo_path: str = None,
+        stamp_path: str = None
+    ):
+        """
+        Fills Payroll Company details following the strict 12-field required field sequence order:
+        Order 1: Company Logo
+        Order 2: Company Stamp
+        Order 3: Company Name
+        Order 4: Country
+        Order 5: Zip Code
+        Order 6: State (Auto-filled from Zip Code)
+        Order 7: City (Auto-filled from Zip Code)
+        Order 8: Address
+        Order 9: Company Code
+        Order 10: Director Name
+        Order 11: Auditor Name
+        Order 12: PF Consultant Name
+        """
+        modal = self._get_modal()
+
+        # Order 1: Company Logo
+        if logo_path:
+            try:
+                modal.locator("input[type='file']").first.set_input_files(logo_path)
+                logger.info(f"Order 1 - Uploaded Company Logo: {logo_path}")
+            except Exception:
+                pass
+
+        # Order 2: Company Stamp
+        if stamp_path:
+            try:
+                modal.locator("input[type='file']").nth(1).set_input_files(stamp_path)
+                logger.info(f"Order 2 - Uploaded Company Stamp: {stamp_path}")
+            except Exception:
+                pass
+
+        # Order 3: Company Name
+        if name:
+            try:
+                inp = modal.get_by_placeholder("Enter company name", exact=True)
+                if not inp.is_visible(timeout=1500):
+                    inp = modal.get_by_role("textbox", name=re.compile(r"Company Name\*", re.IGNORECASE)).first
+                if not inp.is_visible(timeout=1500):
+                    inp = modal.locator("input[placeholder*='company name' i], input[name='payrollCompanyName'], input[name='name']").first
+                if inp.is_visible(timeout=3000):
+                    inp.click(force=True)
+                    inp.fill("")
+                    inp.press_sequentially(name, delay=10)
+                    logger.info(f"Order 3 - Filled Company Name: {name}")
+            except Exception as e:
+                logger.warning(f"Error filling Company Name: {e}")
+
+        # Order 4: Country
+        if country:
+            try:
+                inp = modal.get_by_placeholder("Search Country", exact=True)
+                if not inp.is_visible(timeout=1000):
+                    inp = modal.get_by_placeholder("Country", exact=False)
+                if not inp.is_visible(timeout=1000):
+                    inp = modal.locator("input[placeholder*='Country' i]").first
+
+                if inp.is_visible(timeout=2000):
+                    inp.click(force=True)
+                    inp.fill("")
+                    inp.press_sequentially(country, delay=50)
+                    self.page.wait_for_timeout(300)
+                    
+                    # Target option using unique React-Select option locator
+                    opt = self.page.locator("div[id*='option'], [role='option'], div.css-17ezq3, div[class*='option']").filter(has_text=re.compile(f"^{re.escape(country)}$", re.I)).first
+                    if not opt.is_visible(timeout=1000):
+                        opt = self.page.locator("div[id*='option'], [role='option'], div.css-17ezq3, div[class*='option']").filter(has_text=country).first
+                    
+                    if opt.is_visible(timeout=1500):
+                        opt.click(force=True)
+                    else:
+                        self.page.keyboard.press("Enter")
+                    logger.info(f"Order 4 - Selected Country: {country}")
+            except Exception as e:
+                logger.warning(f"Error selecting Country: {e}")
+
+        # Order 5: Zip Code (Triggers State & City autofill on blur)
+        if zip_code:
+            try:
+                inp = modal.get_by_placeholder("Enter Zip Code", exact=False)
+                if not inp.is_visible(timeout=1000):
+                    inp = modal.get_by_placeholder("Zip Code", exact=False)
+                if not inp.is_visible(timeout=1000):
+                    inp = modal.locator("input[name='zipCode'], input[name='pincode'], input[name='zip']").first
+                
+                if inp.is_visible(timeout=3000):
+                    inp.click(force=True)
+                    inp.fill("")
+                    inp.press_sequentially(zip_code, delay=10)
+                    inp.blur()  # Leave Zip Code textbox to trigger autofill API
+                    logger.info(f"Order 5 - Filled Zip Code: {zip_code}")
+            except Exception as e:
+                logger.warning(f"Error filling Zip Code: {e}")
+
+        # Order 6: State (Auto-filled from Zip Code)
+        try:
+            state_inp = modal.locator("input[name='state']").first
+            if state_inp.is_visible():
+                state_val = state_inp.input_value()
+                logger.info(f"Order 6 - Auto-filled State read as: '{state_val}'")
+        except Exception:
+            pass
+
+        # Order 7: City (Auto-filled from Zip Code)
+        try:
+            city_inp = modal.locator("input[name='city']").first
+            if city_inp.is_visible():
+                city_val = city_inp.input_value()
+                logger.info(f"Order 7 - Auto-filled City read as: '{city_val}'")
+        except Exception:
+            pass
+
+        # Order 8: Address
+        if address:
+            try:
+                inp = modal.locator("input[placeholder*='address' i], input[name='address']").first
+                if inp.is_visible(timeout=3000):
+                    inp.click(force=True)
+                    inp.fill("")
+                    inp.press_sequentially(address, delay=10)
+                    logger.info(f"Order 8 - Filled Address: {address}")
+            except Exception as e:
+                logger.warning(f"Error filling Address: {e}")
+
+        # Order 9: Company Code
+        if code:
+            try:
+                inp = modal.locator("input[placeholder*='Company Code' i], input[name='companyCode'], input[name='code']").first
+                if inp.is_visible(timeout=3000):
+                    inp.click(force=True)
+                    inp.fill("")
+                    inp.press_sequentially(code, delay=10)
+                    logger.info(f"Order 9 - Filled Company Code: {code}")
+            except Exception as e:
+                logger.warning(f"Error filling Company Code: {e}")
+
+        # Order 10: Director Name
+        if director:
+            try:
+                sel_dir = self.select_react_dropdown("Director", director, container=modal)
+                logger.info(f"Order 10 - Selected Director Name: {sel_dir}")
+            except Exception:
+                pass
+
+        # Order 11: Auditor Name
+        if auditor:
+            try:
+                sel_aud = self.select_react_dropdown("Auditor", auditor, container=modal)
+                logger.info(f"Order 11 - Selected Auditor Name: {sel_aud}")
+            except Exception:
+                pass
+
+        # Order 12: PF Consultant Name
+        if pf_consultant:
+            try:
+                sel_pf = self.select_react_dropdown("Consultant", pf_consultant, container=modal)
+                logger.info(f"Order 12 - Selected PF Consultant Name: {sel_pf}")
+            except Exception:
+                pass
+
+    def click_submit(self):
+        """Clicks Submit / Save button in open modal."""
+        btn = self.page.locator("button[type='submit'], button:has-text('Save'), button:has-text('Submit'), button:has-text('Update'), button:has-text('Add Company')").last
+        try:
+            btn.scroll_into_view_if_needed()
+        except Exception:
+            pass
+        btn.click(force=True)
 
     def test_zipcode_autofill(self, zip_code: str) -> dict:
         """
@@ -116,26 +332,22 @@ class PayrollCompanyPage(BasePage):
         logger.info(f"Filling manual director form: Name={name}, Email={email}, Phone={phone}")
         modal = self._get_modal()
         if name is not None:
-            inp = modal.get_by_placeholder("Director Name")
+            inp = modal.locator("input[placeholder*='Director Name' i], input[placeholder*='Name' i], input[name='directorName']").first
             try:
-                inp.wait_for(state="visible", timeout=1500)
+                inp.wait_for(state="visible", timeout=3000)
             except Exception:
                 pass
             inp.fill(name)
+
         if email is not None:
-            inp = modal.get_by_placeholder("Email")
-            try:
-                inp.wait_for(state="visible", timeout=1500)
-            except Exception:
-                pass
-            inp.fill(email)
+            inp = modal.locator("input[placeholder*='Email ID' i], input[placeholder*='Email' i], input[type='email']").first
+            if inp.is_visible():
+                inp.fill(email)
+
         if phone is not None:
-            inp = modal.get_by_placeholder("Phone Number")
-            try:
-                inp.wait_for(state="visible", timeout=1500)
-            except Exception:
-                pass
-            inp.fill(phone)
+            inp = modal.locator("input[placeholder*='Phone No' i], input[placeholder*='Phone' i], input[placeholder*='Mobile' i], input[type='tel']").first
+            if inp.is_visible():
+                inp.fill(phone)
 
     def click_add_manual_director_submit(self):
         """Clicks 'Add' button to submit inline manual director form."""

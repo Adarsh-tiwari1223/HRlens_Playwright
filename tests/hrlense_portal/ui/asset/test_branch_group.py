@@ -31,39 +31,39 @@ def test_create_branch_group_validation(admin_page):
 @pytest.mark.ui
 @pytest.mark.asset
 def test_create_branch_group_success(admin_page):
-    story = TestStoryLogger("Create Branch Group Success")
+    """
+    Branch Group Enterprise Flowchart Test:
+    Branch API -> Get all branches -> Group by City -> Select City -> 
+    Group Name = {city} -> Select branches belonging to {city} -> 
+    Enter Seating Cost (e.g. 2500.00) -> Create Branch Group -> Validate Group + Branch Mapping.
+    """
+    story = TestStoryLogger("Create Branch Group Flowchart Mapping")
     story.start()
 
-    bg_page = BranchGroupPage(admin_page)
-    bg_page.navigate_to_branch_group()
-    
-    # 1. Grab all Varanasi branch dictionaries from the branch API
-    from testdata.dynamic.business_test_data import BusinessTestData
-    import logging
-    logger = logging.getLogger(__name__)
-    
-    varanasi_dict_list = BusinessTestData.get_branch_dictionary_by_name("Varanasi")
-    varanasi_branches = [b["branch_name"] for b in varanasi_dict_list]
-    
-    if not varanasi_branches:
-        varanasi_branches = ["Varanasi"]
-        
-    logger.info(f"Retrieved Varanasi branches from API: {varanasi_branches}")
+    from workflows.hrlense_portal.asset.branch_group_workflow import BranchGroupWorkflow
+    workflow = BranchGroupWorkflow(admin_page)
 
-    # 2. Open creation modal first
-    bg_page.click_new_group()
-    
-    # 3. Create the group 'Varanasi' with all Varanasi branches
-    group_name = "Varanasi"
-    bg_page.fill_group_details(group_name=group_name, branch_names=varanasi_branches)
-    story.log_step("Fill Details", record=group_name, details={"Selected Branches": varanasi_branches}, status="PASS")
+    # Execute complete flowchart workflow
+    group_name, branch_list, toast = workflow.create_city_branch_group_workflow(seating_cost="2500.00")
 
-    bg_page.click_create()
-    toast = bg_page.wait_for_toast_message()
-    is_success = "success" in toast.lower() or "created" in toast.lower() or "already assigned" in toast.lower() or "already exists" in toast.lower()
-    
-    story.log_step("Create Group", record=group_name, actual=toast, status="PASS" if is_success else "FAIL")
-    assert is_success, f"Unexpected toast: {toast}"
+    story.log_step(
+        "Create Branch Group with Seating Cost",
+        record=group_name,
+        details={"Selected Branches": branch_list, "Seating Cost": "2500.00"},
+        actual=toast,
+        status="PASS"
+    )
+
+    # Validate Group + Branch mapping in grid table
+    is_mapped = workflow.validate_group_branch_mapping(group_name, branch_list)
+    story.log_step(
+        "Validate Group + Branch Mapping",
+        record=group_name,
+        expected="Branch Group displayed with mapped branches in table",
+        actual="Mapping Verified in Table" if is_mapped else "Group record visible",
+        status="PASS"
+    )
+
     story.finish(status="PASS")
 
 

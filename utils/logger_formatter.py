@@ -10,33 +10,18 @@ class LoggerFormatter:
 
     @staticmethod
     def format_test_header(module: str, phase: str, test: str) -> str:
-        """Formats standard TEST header for CI/CD and local execution."""
-        return (
-            f"\n{'=' * 80}\n"
-            f"TEST\n"
-            f"{'=' * 80}\n"
-            f"Module : {module}\n"
-            f"Phase  : {phase}\n"
-            f"Test   : {test}\n"
-        )
+        """Formats clean concise test header."""
+        return f"[TEST START] {module} | {phase} | {test}"
 
     @staticmethod
     def format_pass(duration: float) -> str:
         """Formats PASS result block."""
-        return (
-            f"RESULT : PASS\n"
-            f"TIME   : {duration:.2f} sec\n"
-            f"{'=' * 80}\n"
-        )
+        return f"[TEST RESULT: PASS] (Duration: {duration:.2f}s)"
 
     @staticmethod
     def format_skip(reason: str) -> str:
         """Formats SKIPPED result block."""
-        return (
-            f"RESULT : SKIPPED\n"
-            f"REASON : {reason}\n"
-            f"{'=' * 80}\n"
-        )
+        return f"[TEST RESULT: SKIPPED] Reason: {reason}"
 
     @staticmethod
     def format_fail(

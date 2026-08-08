@@ -40,36 +40,9 @@ class CompanyDocumentsPage(BasePage):
         return get_document_validation_rules_api(doc_name=doc_name, category_id=category_id)
 
     def navigate_to_company_documents(self):
-        """
-        Navigates to Company Documents page via left sidebar navigation:
-        1. Click 'Master' menu item in left sidebar.
-        2. Click '• Company Document' link.
-        """
-        logger.info("Navigating to Company Documents via sidebar...")
-        if "/master/company-document" not in self.page.url:
-            try:
-                # 1. Click Master in sidebar
-                master_link = self.page.locator("aside, nav, .sidebar, body").get_by_text("Master", exact=True).first
-                if not master_link.is_visible():
-                    master_link = self.page.get_by_role("button", name=re.compile(r"^Master$", re.IGNORECASE)).first
-                if master_link.is_visible():
-                    master_link.click(force=True)
-                    self.page.wait_for_timeout(300)
-
-                # 2. Click • Company Document link
-                doc_link = self.page.get_by_role("link", name=re.compile(r"Company Document", re.IGNORECASE)).first
-                if not doc_link.is_visible():
-                    doc_link = self.page.locator("a[href*='company-document']").first
-                if doc_link.is_visible():
-                    doc_link.click(force=True)
-                    self.page.wait_for_load_state("domcontentloaded")
-            except Exception as e:
-                logger.warning(f"Sidebar click error: {e}")
-
-        # 3. Direct route navigation fallback
-        if "/master/company-document" not in self.page.url:
-            self.page.goto(self.ROUTE_URL, timeout=60000)
-            self.page.wait_for_load_state("domcontentloaded")
+        """Navigates to Company Documents page via Global Master Menu Helper."""
+        logger.info("Navigating to Company Documents...")
+        self.navigate_to_master_menu("Company Document")
 
     def search_document(self, query: str):
         """Searches for specific document by title in search input."""
@@ -81,10 +54,15 @@ class CompanyDocumentsPage(BasePage):
             self.page.wait_for_timeout(400)
 
     def get_document_row_count(self) -> int:
-        """Returns total number of document rows in table grid."""
+        """Returns total number of valid document rows in table grid."""
         try:
             self.page.locator("tbody tr").first.wait_for(state="visible", timeout=6000)
-            return self.page.locator("tbody tr").count()
+            rows = self.page.locator("tbody tr").all()
+            if len(rows) == 1:
+                txt = rows[0].inner_text().strip().lower()
+                if "no data" in txt or "no record" in txt or "no document" in txt or "found" in txt:
+                    return 0
+            return len(rows)
         except Exception:
             return 0
 
@@ -123,13 +101,13 @@ class CompanyDocumentsPage(BasePage):
             rows = self.page.locator("tbody tr").all()
 
             for i, row in enumerate(rows[:count]):
-                chk = row.locator(f"td:nth-child({chk_col}) .chakra-checkbox__control, td:nth-child({chk_col}) label.chakra-checkbox, .chakra-checkbox, input[type='checkbox']").first
+                chk = row.locator("label.chakra-checkbox, span.chakra-checkbox__control, input[type='checkbox']").first
                 if chk.is_visible():
                     chk.click(force=True)
                     doc_cell = row.locator(f"td:nth-child({doc_col})").first
                     doc_name = doc_cell.inner_text().strip() if doc_cell.is_visible() else row.inner_text().splitlines()[0].strip()
                     selected_names.append(doc_name)
-                    self.page.wait_for_timeout(200)
+                    self.page.wait_for_timeout(300)
 
         except Exception as e:
             logger.warning(f"Error selecting checkboxes: {e}")
@@ -147,20 +125,25 @@ class CompanyDocumentsPage(BasePage):
 
     def wait_and_get_bulk_delete_button(self, timeout: int = 10000):
         """
-        Reusable helper to wait for the dynamically rendered 'Delete Selected (n)' button.
-        Uses regex matching for 'Delete Selected' to ignore count variations (1, 2, 3...).
-        Uses explicit Playwright wait_for(state="visible").
-        Fails with clear error message if button fails to render after checkbox selection.
+        Reusable helper to wait for the dynamically rendered bulk delete button.
         """
-        logger.info("Waiting for dynamic 'Delete Selected' bulk action button to render...")
+        logger.info("Waiting for dynamic bulk delete action button to render...")
         btn_locator = self.page.locator("button, .chakra-button").filter(
-            has_text=re.compile(r"Delete Selected|Multiple Delete|Delete", re.IGNORECASE)
+            has_text=re.compile(r"Delete|Remove|Selected", re.IGNORECASE)
         ).first
+
+        if not btn_locator.is_visible(timeout=1000):
+            btn_locator = self.page.locator("button[aria-label*='delete'], button:has(svg), .chakra-button").filter(
+                has_text=re.compile(r"Delete", re.IGNORECASE)
+            ).first
 
         try:
             btn_locator.wait_for(state="visible", timeout=timeout)
             return btn_locator
         except Exception:
+            fallback_btn = self.page.locator("button:has-text('Delete'), button:has-text('Selected')").first
+            if fallback_btn.is_visible():
+                return fallback_btn
             raise AssertionError(
                 "Bulk action button 'Delete Selected' was not rendered after selecting document checkboxes."
             )

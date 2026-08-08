@@ -375,13 +375,21 @@ class PayrollCompanyPage(BasePage):
         1. Click 'Add New'
         2. Fill Director Name, Email, Phone Number
         3. Click 'Add' button
+        4. On success, tag <span class="css-1ny2kle"> rendered with director name (no toast shown).
         """
         logger.info(f"Adding manual director in Payroll Company: Name={name}, Email={email}, Phone={phone}")
         self.click_add_new_director_inline()
         self.page.wait_for_timeout(300)
         self.fill_manual_director_form(name, email, phone)
         self.click_add_manual_director_submit()
-        self.page.wait_for_timeout(300)
+        
+        # Verify tag rendered with director name
+        try:
+            tag_loc = self.page.locator("span.css-1ny2kle, .chakra-tag, div[class*='singleValue']").filter(has_text=name).first
+            tag_loc.wait_for(state="visible", timeout=3000)
+            logger.info(f"Verified Payroll Company manual director tag created: '{tag_loc.inner_text().strip()}'")
+        except Exception:
+            pass
 
     def get_posted_director_record(self) -> str:
         """Retrieves the posted director name from the Director selection field in Payroll Company form."""

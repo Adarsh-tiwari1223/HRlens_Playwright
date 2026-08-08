@@ -20,19 +20,12 @@ class BranchGroupPage(BasePage):
     TOAST = "#chakra-toast-manager-top-right"
 
     def navigate_to_branch_group(self):
-        logger.debug("Navigating to Branch Group page")
-        self.page.goto(f"{settings.BASE_URL}/master/branch-group")
-        self.page.wait_for_load_state("domcontentloaded")
-        if "/login" in self.page.url:
-            logger.warning("Redirected to login page. Performing authentication...")
-            try:
-                self.page.get_by_label("Email").wait_for(state="visible", timeout=10000)
-                from pages.login_page import LoginPage
-                LoginPage(self.page).login(settings.USERS["admin"]["username"], settings.USERS["admin"]["password"])
-                self.page.goto(f"{settings.BASE_URL}/master/branch-group")
-                self.page.wait_for_load_state("domcontentloaded")
-            except Exception as e:
-                logger.error(f"Auto-authentication failed: {e}")
+        logger.info("Navigating to Branch Group page...")
+        self.navigate_to_master_menu("Branch Group")
+        try:
+            self.page.locator(self.NEW_GROUP_BTN).first.wait_for(state="visible", timeout=10000)
+        except Exception:
+            pass
 
     def click_new_group(self):
         self.page.locator(self.NEW_GROUP_BTN).wait_for(state="visible", timeout=10000)
@@ -40,52 +33,53 @@ class BranchGroupPage(BasePage):
         self.page.locator("[role='dialog']").wait_for(state="visible", timeout=10000)
 
 
-    def fill_group_details(self, group_name: str = None, branch_names: list[str] = None, seating_cost: str = "0"):
+    def fill_group_details(self, group_name: str = None, branch_names: list[str] = None, seating_cost: str = "2500.00"):
         dialog = self.page.locator("[role='dialog']").first
         if not dialog.is_visible():
             dialog = self.page
 
+        # 1. Group Name
         if group_name is not None:
-            self.page.get_by_placeholder("e.g. North Zone, Mumbai", exact=False).fill(group_name)
+            name_input = dialog.get_by_placeholder("e.g. North Zone, Mumbai Cluster", exact=False)
+            if not name_input.is_visible(timeout=1000):
+                name_input = dialog.get_by_label("Group Name*", exact=False)
+            if not name_input.is_visible(timeout=1000):
+                name_input = dialog.locator("input").first
+            name_input.fill(group_name)
 
-        # Ensure seating cost field is populated with a valid decimal to satisfy backend validation
-        try:
-            seating_ctrl = dialog.locator(".chakra-form-control").filter(has_text=re.compile(r"seating", re.I)).first
-            if seating_ctrl.is_visible():
-                s_input = seating_ctrl.locator("input").first
-                if s_input.is_visible() and not s_input.input_value():
-                    s_input.fill(str(seating_cost))
-        except Exception:
-            pass
-        
+        # 2. Seating Cost (per head)
+        if seating_cost is not None:
+            cost_input = dialog.get_by_placeholder("e.g. 2500.00", exact=False)
+            if not cost_input.is_visible(timeout=1000):
+                cost_ctrl = dialog.locator(".chakra-form-control, div").filter(has_text=re.compile(r"Seating Cost", re.I)).first
+                cost_input = cost_ctrl.locator("input").first
+            if cost_input.is_visible(timeout=1000):
+                cost_input.fill(str(seating_cost))
+
+        # 3. Assign Branches
         if branch_names:
-            search_input = self.page.get_by_placeholder("Search branches", exact=False)
-            search_input.click()
-            import re
+            search_input = dialog.get_by_placeholder("Search branches...", exact=False)
+            if not search_input.is_visible(timeout=1000):
+                search_input = dialog.get_by_placeholder("Search branches", exact=False)
+
             for b_name in branch_names:
                 logger.debug(f"Selecting branch: {b_name}")
-                search_input.fill(b_name)
-                self.page.wait_for_timeout(500)
-                
-                # Match start of option text exactly to avoid substring issues (e.g. Noida vs Greater Noida)
-                pattern = re.compile(rf"^{re.escape(b_name)}", re.IGNORECASE)
-                option_locator = self.page.locator(".chakra-portal div, .chakra-portal button, .chakra-portal span, [role='option']").get_by_text(pattern)
-                
-                # Click the option that does not contain a newline to avoid matching the modal wrapper container
-                count = option_locator.count()
-                clicked = False
-                for i in range(count):
-                    el = option_locator.nth(i)
-                    txt = el.inner_text().strip()
-                    if "\n" not in txt:
-                        el.click()
-                        clicked = True
-                        break
-                if not clicked and count > 0:
-                    option_locator.first.click()
-                
-                search_input.fill("")
-                self.page.wait_for_timeout(300)
+                if search_input.is_visible(timeout=1000):
+                    search_input.fill(b_name)
+                    self.page.wait_for_timeout(400)
+
+                # Look for matching branch checkbox / label
+                branch_row = dialog.locator("label, .chakra-checkbox, div").filter(has_text=re.compile(rf"^\s*{re.escape(b_name)}", re.I)).first
+                if not branch_row.is_visible(timeout=1000):
+                    branch_row = dialog.get_by_text(b_name, exact=False).first
+
+                if branch_row.is_visible(timeout=1000):
+                    branch_row.click(force=True)
+                    self.page.wait_for_timeout(200)
+
+                if search_input.is_visible(timeout=1000):
+                    search_input.fill("")
+                    self.page.wait_for_timeout(200)
 
     def get_available_branches(self) -> list[str]:
         self.page.get_by_placeholder("Search branches", exact=False).click()

@@ -1,3 +1,4 @@
+from core.config.settings import logger
 import pytest
 from datetime import date, timedelta
 from pages.hrlense_portal.attendance.leave_page import LeavePage
@@ -30,39 +31,36 @@ def approver_context(logged_in_page, submitted_leave):
 
 @pytest.fixture(scope="module")
 def submitted_leave(employee_context):
-    leave = LeavePage(employee_context)
-    leave.click_my_leave()
-    leave.click_leave_apply()
+    from workflows.hrlense_portal.attendance.leave_workflow import LeaveWorkflow
 
-    from_date = date.today() + timedelta(days=settings.LEAVE_FROM_OFFSET)
-    to_date = from_date + timedelta(days=settings.LEAVE_TO_OFFSET)
+    try:
+        employee_context.goto(settings.BASE_URL)
+    except Exception:
+        pass
 
-    leave._select_date_from_calendar(leave.FROM_DATE_TRIGGER, from_date)
-    leave._select_date_from_calendar(leave.TO_DATE_TRIGGER, to_date)
-    leave.select_leave_type("Vacation Leave")
-    leave.enter_subject("Leave for Vacation Leave")
-    leave.fill_mail_body(
-        f"Dear Sir/Ma'am,\n\n"
-        f"I would like to request leave from {from_date.strftime('%d %b %Y')} to {to_date.strftime('%d %b %Y')} "
-        f"for Vacation Leave.\n\nKindly approve my leave request.\n\nThank you."
+    workflow = LeaveWorkflow(employee_context)
+    result = workflow.apply_leave_and_verify_status_tab_workflow(
+        leave_type="Vacation Leave",
+        from_offset=settings.LEAVE_FROM_OFFSET,
+        to_offset=settings.LEAVE_TO_OFFSET
     )
-    leave.click_submit()
-    leave.click_confirm()
 
-    toast = leave.wait_for_toast(leave.TOAST)
+    toast = result["toast"]
+    from_date = result["from_date"]
+    to_date = result["to_date"]
 
     if "already exists" in toast.lower():
-        dates = leave.extract_dates_from_toast(toast)
+        dates = workflow.leave_page.extract_dates_from_toast(toast)
         from_date, to_date = dates if dates else (from_date, to_date)
         if "approved" in toast.lower():
-            pytest.fail(f"Leave already approved — cannot test approval flow: {toast}")
+            workflow.handle_already_approved_leave(toast)
     elif "successfully" not in toast.lower():
         pytest.fail(f"Unexpected toast: {toast}")
 
-    approver_name = leave.get_approver_name()
+    approver_name = workflow.leave_page.get_approver_name()
 
     return {
-        "employee_name": leave.get_logged_in_employee_name(),
+        "employee_name": workflow.leave_page.get_logged_in_employee_name(),
         "approver_name": approver_name,
         "from_date": from_date,
         "to_date": to_date,
@@ -99,43 +97,34 @@ def leave_page(employee_context):
 # ─── Happy Path ───────────────────────────────────────────────────────────────
 
 @pytest.mark.smoke
+@pytest.mark.smoke
 @pytest.mark.regression
-@pytest.mark.dependency(name="test_apply_leave")
-def test_apply_leave(employee_context):
-    leave = LeavePage(employee_context)
-    from_date = date.today() + timedelta(days=settings.LEAVE_FROM_OFFSET)
-    to_date = from_date + timedelta(days=settings.LEAVE_TO_OFFSET)
+def test_full_leave_apply_and_approve_workflow(logged_in_page, employee_context):
+    """
+    Unified End-to-End Leave Workflow:
+    1. Apply leave -> Capture raw toast -> Dynamically verify UI in matching status tab (Approved/Rejected/Pending).
+    2. If raw toast status != 'approved':
+       - Log in via Approver Manager (e.g. Vivek Singh).
+       - Locate leave request & approve.
+       - Capture approval toast notification & assert pass!
+    """
+    from workflows.hrlense_portal.attendance.leave_workflow import LeaveWorkflow
 
     employee_context.goto(settings.BASE_URL)
-    leave.click_my_leave()
-    expect(employee_context.get_by_text("Leave Apply", exact=False).first).to_be_visible()
-    leave.click_leave_apply()
-
-    leave._select_date_from_calendar(leave.FROM_DATE_TRIGGER, from_date)
-    leave._select_date_from_calendar(leave.TO_DATE_TRIGGER, to_date)
-    leave.get_approver_name()
-
     leave_type = Leave.shuffled()[0]["leave_type"]
-    leave.select_leave_type(leave_type)
-    leave.enter_subject(f"Leave for {leave_type}")
-    leave.fill_mail_body(f"Leave for {leave_type}")
-    leave.click_submit()
-    leave.click_confirm()
 
-    toast = leave.wait_for_toast(leave.TOAST)
-    assert not toast or "successfully" in toast.lower() or "already exists" in toast.lower() or "applied" in toast.lower(), f"Unexpected toast: {toast}"
-
-
-@pytest.mark.regression
-@pytest.mark.dependency(depends=["test_apply_leave"])
-def test_approve_leave(approver_login):
-    leave = approver_login["leave_page"]
-    approved = leave.approve_leave(
-        approver_login["employee_name"],
-        approver_login["from_date"],
-        approver_login["to_date"]
+    workflow = LeaveWorkflow(employee_context)
+    result = workflow.execute_full_leave_apply_and_approval_flow(
+        logged_in_page_func=logged_in_page,
+        leave_type=leave_type,
+        from_offset=settings.LEAVE_FROM_OFFSET,
+        to_offset=settings.LEAVE_TO_OFFSET
     )
-    assert approved, "Leave was not approved"
+
+    assert result["is_located"], f"Submitted leave request for '{leave_type}' was NOT found in target status tab UI"
+    if "approved" not in result["toast"].lower():
+        assert result.get("approved"), f"Leave approval failed for employee. Toast: '{result.get('approval_toast')}'"
+        logger.info(f"[SUCCESS] E2E Leave Apply & Approve Flow completed successfully!")
 
 
 # ─── Validation Tests ─────────────────────────────────────────────────────────

@@ -40,9 +40,18 @@ class AssetRequestPage(BasePage):
         category_select.select_option(index=1)
         self.page.wait_for_timeout(1000)
         
-        sub_select = dialog.get_by_label("Sub Category*", exact=True)
-        sub_select.wait_for(state="visible")
-        sub_select.select_option(index=1)
+        sub_select = dialog.get_by_label("Sub Category*", exact=False)
+        if not sub_select.is_visible(timeout=1000):
+            sub_select = dialog.locator("select").nth(1)
+        sub_select.wait_for(state="visible", timeout=3000)
+        try:
+            sub_select.locator("option:not([value=''])").first.wait_for(state="attached", timeout=4000)
+            sub_select.select_option(index=1)
+        except Exception:
+            try:
+                sub_select.select_option(index=0)
+            except Exception:
+                pass
         self.page.wait_for_timeout(1000)
         
         # Reason

@@ -288,6 +288,56 @@ class BasePage:
         self.page.locator(locator).click()
         logger.debug(f"click → {locator}")
 
+    def navigate_to_master_menu(self, target_link_name: str = None, **kwargs):
+        """
+        Global Master Navigation Helper (3-Step Menu Navigation):
+        1. Checks if target link is already visible.
+        2. Dismisses top-right toast overlay if present.
+        3. Clicks profile button to open dropdown.
+        4. Clicks 'Master' menuitem.
+        5. Clicks target sub-link if provided (e.g. 'Asset Master', 'Company Document').
+        """
+        if target_link_name:
+            link = self.page.locator(f"a[href*='{target_link_name.lower().replace(' ', '-')}'], a:has-text('{target_link_name}')").first
+            if link.is_visible(timeout=300):
+                link.click(force=True)
+                return
+
+        logger.info(f"Navigating to Master menu{' -> ' + target_link_name if target_link_name else ''}...")
+
+        # Step 1: Close active toast overlay if present
+        try:
+            toast_close_btn = self.page.locator(".chakra-toast__close-button, #chakra-toast-manager-top-right button[aria-label*='Close']").first
+            if toast_close_btn.is_visible(timeout=500):
+                toast_close_btn.click(force=True)
+                self.page.wait_for_timeout(300)
+        except Exception:
+            pass
+
+        # Step 2: Click user profile menu button
+        profile_btn = self.page.locator("button[id^='menu-button']:has(.chakra-avatar), button.chakra-menu__menu-button:has(.chakra-avatar), button:has(.chakra-avatar)").first
+        if not profile_btn.is_visible(timeout=1500):
+            profile_btn = self.page.get_by_role("button").filter(has=self.page.locator(".chakra-avatar, h1")).first
+
+        profile_btn.click()
+        self.page.wait_for_timeout(400)
+
+        # Step 3: Click Master menuitem
+        master_item = self.page.locator("[role='menuitem']:has-text('Master'), a:has-text('Master')").first
+        if not master_item.is_visible(timeout=2000):
+            profile_btn.click(force=True)
+            self.page.wait_for_timeout(400)
+
+        master_item.wait_for(state="visible", timeout=4000)
+        master_item.click()
+        self.page.wait_for_timeout(300)
+
+        # Step 4: Click target sub-link if provided
+        if target_link_name:
+            sub_link = self.page.locator(f"a[href*='{target_link_name.lower().replace(' ', '-')}'], a:has-text('{target_link_name}')").first
+            sub_link.wait_for(state="visible", timeout=4000)
+            sub_link.click(force=True)
+
     # ══════════════════════════════════════════════════════════════════════════════
     # FIELD-LEVEL FORM VALIDATION HELPERS (FRAMEWORK-WIDE)
     # ══════════════════════════════════════════════════════════════════════════════

@@ -441,6 +441,11 @@ def test_company_add_manual_director_on_create(admin_page):
     workflow = CompanyWorkflow(admin_page)
     toast = workflow.create_company_with_manual_director_from_scratch(comp_info, d_data)
     logger.info(f"Create Company Toast: {toast}")
+    assert any(term in toast.lower() for term in ["success", "created", "added", "saved"]), f"Create company with manual director failed with toast: '{toast}'"
+
+    # Verify company is listed in table
+    assert workflow.company_page.is_company_listed_in_table(comp_info["company_name"]), f"Company '{comp_info['company_name']}' not listed in table"
+    logger.info(f"Verified company '{comp_info['company_name']}' with manual director is listed in table!")
 
 
 @pytest.mark.ui
@@ -479,18 +484,22 @@ def test_create_company_full_form_submission(admin_page):
     logo_path = os.path.abspath("testdata/static/png/—Pngtree—building vector icon_3757837.png")
     stamp_path = os.path.abspath("testdata/static/png/—Pngtree—iso 9001 certified company logo_20971536.png")
 
-    # PIN Code 221005 (Varanasi, UP) auto-fills BOTH State (Uttar Pradesh) and City (Varanasi) cleanly from API!
+    from testdata.dynamic.business_test_data import LocationTestData
+    us_locations = LocationTestData.get_locations_by_country("United States")
+    location = random.choice(us_locations)
+    logger.info(f"Testing USA Location Lookup - Country: '{location['country']}', Zip Code: '{location['zip_code']}'")
+
     company_page.fill_company_details(
-        logo_path=logo_path,    # Order 1
-        stamp_path=stamp_path,  # Order 2
-        name=company_name,      # Order 3
-        country="India",        # Order 4
-        zip_code="221005",      # Order 5 (Auto-fills Order 6: State & Order 7: City)
+        logo_path=logo_path,           # Order 1
+        stamp_path=stamp_path,         # Order 2
+        name=company_name,             # Order 3
+        country=location["country"],   # Order 4
+        zip_code=location["zip_code"], # Order 5 (Auto-fills Order 6: State & Order 7: City)
         address="999 Enterprise Blvd", # Order 8
-        code=company_code,      # Order 9
-        director="a",           # Order 10 (Triggers API & selects first employee)
-        auditor="a",            # Order 11 (Triggers API & selects first employee)
-        pf_consultant="a"       # Order 12 (Triggers API & selects first employee)
+        code=company_code,             # Order 9
+        director="a",                  # Order 10
+        auditor="a",                   # Order 11
+        pf_consultant="a"              # Order 12
     )
     
     company_page.click_add_company()
@@ -502,3 +511,82 @@ def test_create_company_full_form_submission(admin_page):
     logger.info(f"Searching and verifying company '{company_name}' in table")
     assert company_page.is_company_listed_in_table(company_name), f"Created company '{company_name}' not listed in table"
     logger.info(f"Verified company '{company_name}' is listed in the table!")
+
+
+@pytest.mark.ui
+@pytest.mark.company
+@pytest.mark.full_form
+def test_create_company_manual_director_full_form_submission(admin_page):
+    """
+    Full form submission test case with manual director addition:
+    Order 1: Upload Logo
+    Order 2: Upload Stamp
+    Order 3: Fill Company Name
+    Order 4: Select Country
+    Order 5: Fill Zip Code (Auto-fills Order 6: State & Order 7: City)
+    Order 8: Fill Address
+    Order 9: Fill Company Code
+    Order 10: Click 'Add New' -> Fill Manual Director (Name, Email, Phone) -> Click 'Add'
+    Order 11: Select Auditor Name
+    Order 12: Select PF Consultant Name
+    Then Submit & Verify in Table.
+    """
+    logger.info("Verify full company creation form submission with manual director addition (Order 10)")
+    from testdata.dynamic.business_test_data import DirectorTestData, LocationTestData
+
+    company_page = CompanyPage(admin_page)
+    company_page.navigate_to_company_master()
+    company_page.click_add_new_company()
+
+    company_name = generate_unique_company_name()
+    company_code = f"CMP{fake.random_int(1000, 9999)}"
+    logo_path = os.path.abspath("testdata/static/png/—Pngtree—building vector icon_3757837.png")
+    stamp_path = os.path.abspath("testdata/static/png/—Pngtree—iso 9001 certified company logo_20971536.png")
+
+    location = LocationTestData.get_random_country_and_zip()
+    logger.info(f"Location Lookup - Country: '{location['country']}', Zip Code: '{location['zip_code']}'")
+
+    manual_director_data = DirectorTestData.generate_manual_director()
+    logger.info(f"Generated Manual Director: {manual_director_data}")
+
+    company_page.fill_company_details(
+        logo_path=logo_path,                    # Order 1
+        stamp_path=stamp_path,                  # Order 2
+        name=company_name,                      # Order 3
+        country=location["country"],            # Order 4
+        zip_code=location["zip_code"],          # Order 5 (Auto-fills Order 6 & 7)
+        address="999 Enterprise Blvd",          # Order 8
+        code=company_code,                      # Order 9
+        director=manual_director_data,          # Order 10: Manual Director ('Add New' -> Form -> 'Add')
+        auditor="a",                            # Order 11
+        pf_consultant="a"                       # Order 12
+    )
+
+    company_page.click_add_company()
+    toast = company_page.wait_for_toast_message()
+    logger.info(f"CAPTURED TOAST MESSAGE: '{toast}'")
+    assert any(term in toast.lower() for term in ["success", "created", "added", "saved"]), f"Create company failed with toast: '{toast}'"
+
+    # Search and verify created company appears in table
+    assert company_page.is_company_listed_in_table(company_name), f"Created company '{company_name}' not listed in table"
+    logger.info(f"Verified company '{company_name}' with manual director is listed in the table!")
+
+    # Step 1: Re-open Company form -> Go to Director Name field -> Search & Validate newly added director appears in UI dropdown
+    manual_director_name = manual_director_data.get("name")
+    logger.info(f"[UI STEP] Re-opening Company form to verify '{manual_director_name}' appears in Director Name dropdown...")
+    company_page.click_add_new_company()
+    is_in_ui_dropdown = company_page.verify_director_in_dropdown(manual_director_name)
+    company_page.click_cancel_company_modal()
+
+    assert is_in_ui_dropdown, f"Newly added manual director '{manual_director_name}' was NOT found in UI Director Name dropdown list"
+    logger.info(f"UI VALIDATION PASSED: Manual director '{manual_director_name}' is visible in UI Director Name dropdown list!")
+
+    # Step 2: Validate that newly created manual director is returned in Director API list (Department [4])
+    logger.info(f"[API STEP] Calling Get Director API (Hrlense_Employee with filter={{\"Department\":[4]}}) to validate '{manual_director_name}'...")
+    from utils.api.payroll_api import get_directors_list
+    api_directors = get_directors_list(page=admin_page, search_name=manual_director_name, user="admin")
+    logger.info(f"API Returned Directors for search='{manual_director_name}': {api_directors}")
+    assert any(manual_director_name.lower() in d.lower() for d in api_directors), (
+        f"Manual director '{manual_director_name}' not found in Director API list: {api_directors}"
+    )
+    logger.info(f"API VALIDATION PASSED: Director '{manual_director_name}' exists in backend Director API list!")

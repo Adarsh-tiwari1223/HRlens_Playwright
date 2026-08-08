@@ -81,25 +81,9 @@ CHROME_USER_DATA_DIR = os.path.expanduser(r"~\AppData\Local\Google\Chrome\User D
 def browser(pytestconfig):
     is_headed = getattr(pytestconfig.option, "headed", False) or not settings.HEADLESS
     with sync_playwright() as p:
-        # Use persistent Chrome User Profile if available for Google OAuth auto-auth in headed mode
-        if os.path.exists(CHROME_USER_DATA_DIR) and is_headed:
-            try:
-                context = p.chromium.launch_persistent_context(
-                    user_data_dir=os.path.join(CHROME_USER_DATA_DIR, "HRlensAutomationProfile"),
-                    channel="chrome",
-                    headless=False,
-                    no_viewport=True,
-                    args=["--start-maximized", "--disable-blink-features=AutomationControlled"]
-                )
-                yield context
-                context.close()
-                return
-            except Exception:
-                pass
-
-        browser = p.chromium.launch(headless=not is_headed, args=["--start-maximized"])
-        yield browser
-        browser.close()
+        browser_instance = p.chromium.launch(headless=not is_headed, args=["--start-maximized"])
+        yield browser_instance
+        browser_instance.close()
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)

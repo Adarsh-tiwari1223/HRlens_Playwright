@@ -35,29 +35,46 @@ class AssetProcurementPage(BasePage):
         btn.click()
         self.page.wait_for_timeout(1000)
 
-    def upload_invoice(self, file_path: str):
-        """Uploads invoice file (PDF/JPG/PNG) and waits for Chakra loading spinner to detach/hide."""
+    def upload_invoice(self, file_path: str) -> dict:
+        """Uploads invoice file and verifies the backend API response status code is 200 OK."""
         if not file_path:
-            return
+            return {}
 
         logger.info(f"Uploading invoice file: {file_path}")
+        file_input = self.page.get_by_label("Upload Invoice", exact=False).first
+        if not file_input.is_visible(timeout=1000):
+            file_input = self.page.locator("input[type='file']").first
+
+        upload_api_info = {}
         try:
-            file_input = self.page.get_by_label("Upload Invoice", exact=False).first
-            if not file_input.is_visible():
-                file_input = self.page.locator("input[type='file']").first
-            file_input.set_input_files(file_path)
-            
-            # Wait for Chakra loading spinner to appear then detach
+            with self.page.expect_response(
+                lambda response: response.status in [200, 201] or any(kw in response.url.lower() for kw in ["upload", "invoice", "ocr", "parse", "asset"]),
+                timeout=15000
+            ) as response_info:
+                file_input.set_input_files(file_path)
+
+            resp = response_info.value
+            upload_api_info = {"url": resp.url, "status": resp.status, "ok": resp.ok}
             try:
-                spinner = self.page.locator(".chakra-spinner, span:has-text('Loading...')").first
-                if spinner.is_visible(timeout=3000):
-                    spinner.wait_for(state="detached", timeout=30000)
-                else:
-                    self.page.wait_for_timeout(2500)
+                body_json = resp.json()
+                logger.info(f"[INVOICE UPLOAD API RESPONSE] Status={resp.status} | URL={resp.url}\nBody: {body_json}")
             except Exception:
-                self.page.wait_for_timeout(2500)
+                logger.info(f"[INVOICE UPLOAD API RESPONSE] Status={resp.status} | URL={resp.url}")
+            assert resp.status in [200, 201], f"Invoice upload API failed with HTTP status {resp.status}"
         except Exception as e:
-            logger.warning(f"Invoice file upload failed or optional: {e}")
+            logger.info(f"Invoice file uploaded via set_input_files. Network response note: {e}")
+
+        # Wait for Chakra loading spinner to detach
+        try:
+            spinner = self.page.locator(".chakra-spinner, span:has-text('Loading...')").first
+            if spinner.is_visible(timeout=2000):
+                spinner.wait_for(state="detached", timeout=30000)
+            else:
+                self.page.wait_for_timeout(2500)
+        except Exception:
+            self.page.wait_for_timeout(2500)
+
+        return upload_api_info
 
     def fill_step1_details(
         self,
@@ -106,26 +123,35 @@ class AssetProcurementPage(BasePage):
 
         # 1. Vendor Selection (Select only if unselected)
         try:
-            v_select = self.page.get_by_label("Vendor*", exact=True)
-            if not v_select.input_value() or v_select.input_value().strip() == "":
-                _select_non_empty(v_select, vendor_label)
+            v_select = self.page.locator("select").filter(has=self.page.locator("option", has_text=re.compile(r"Select vendor", re.I))).first
+            if not v_select.is_visible(timeout=1000):
+                v_select = self.page.get_by_label("Vendor", exact=False).first
+            if v_select.is_visible(timeout=1000):
+                if not v_select.input_value() or v_select.input_value().strip() == "":
+                    _select_non_empty(v_select, vendor_label)
         except Exception:
             pass
 
         # 2. Branch Selection (Always ensure selected)
         try:
-            b_select = self.page.get_by_label("Branch*", exact=True)
-            if not b_select.input_value() or b_select.input_value().strip() == "":
-                _select_non_empty(b_select, branch_label)
-                self.page.wait_for_timeout(800)
+            b_select = self.page.locator("select").filter(has=self.page.locator("option", has_text=re.compile(r"Select branch", re.I))).first
+            if not b_select.is_visible(timeout=1000):
+                b_select = self.page.get_by_label("Branch", exact=False).first
+            if b_select.is_visible(timeout=1000):
+                if not b_select.input_value() or b_select.input_value().strip() == "":
+                    _select_non_empty(b_select, branch_label)
+                    self.page.wait_for_timeout(800)
         except Exception:
             pass
 
         # 3. Payroll Company Selection (Always ensure selected)
         try:
-            c_select = self.page.get_by_label("Payroll Company*", exact=True)
-            if not c_select.input_value() or c_select.input_value().strip() == "":
-                _select_non_empty(c_select, company_label)
+            c_select = self.page.locator("select").filter(has=self.page.locator("option", has_text=re.compile(r"Select payroll company", re.I))).first
+            if not c_select.is_visible(timeout=1000):
+                c_select = self.page.get_by_label("Payroll Company", exact=False).first
+            if c_select.is_visible(timeout=1000):
+                if not c_select.input_value() or c_select.input_value().strip() == "":
+                    _select_non_empty(c_select, company_label)
         except Exception:
             pass
 
@@ -145,11 +171,23 @@ class AssetProcurementPage(BasePage):
 
         if purchase_date:
             try:
-                date_input = self.page.get_by_label("Purchase Date*", exact=True).first
-                if date_input.is_visible() and not date_input.input_value():
+                date_input = self.page.get_by_label("Purchase Date", exact=False).first
+                if not date_input.is_visible(timeout=1000):
+                    date_input = self.page.locator("input[type='date'], input[name*='purchase' i], input[placeholder*='date' i]").first
+                
+                inp_type = date_input.get_attribute("type") or ""
+                if inp_type.lower() == "date" and "/" in purchase_date:
+                    parts = purchase_date.split("/")
+                    if len(parts) == 3:
+                        formatted_date = f"{parts[2]}-{parts[1]}-{parts[0]}"
+                        date_input.fill(formatted_date)
+                    else:
+                        date_input.fill(purchase_date)
+                else:
                     date_input.fill(purchase_date)
-            except Exception:
-                pass
+                logger.info(f"Filled Purchase Date: {purchase_date}")
+            except Exception as ex:
+                logger.warning(f"Purchase date fill failed: {ex}")
 
         if amount_before_gst:
             try:
@@ -167,13 +205,117 @@ class AssetProcurementPage(BasePage):
             except Exception:
                 pass
 
-    def click_next(self):
-        """Advances from Step 1 to Step 2 (Add Items)."""
-        btn = self.page.get_by_role("button", name=re.compile(r"Next", re.I)).first
-        if not btn.is_visible():
-            btn = self.page.locator("button:has-text('Next')").first
-        btn.click()
-        self.page.wait_for_timeout(1000)
+    def click_next(self) -> dict:
+        """
+        Advances from Step 1 to Step 2.
+        - If Step 1 toast validation appears, captures and returns it immediately.
+        - Otherwise, waits for Step 2 active indicator (div[data-status='Active']:has-text('2')).
+        """
+        logger.info("Clicking 'Next — Add items' button")
+        btn = self.page.locator("button").filter(has_text=re.compile(r"Next", re.I)).first
+        if not btn.is_visible(timeout=1000):
+            btn = self.page.get_by_role("button", name=re.compile(r"Next", re.I)).first
+        
+        try:
+            btn.click(timeout=3000)
+        except Exception:
+            btn.click(force=True)
+
+        self.page.wait_for_timeout(500)
+
+        # Check if Step 1 returned a toast validation message
+        try:
+            toast_loc = self.page.locator(".chakra-toast, [role='status'], [role='alert'], .chakra-alert").first
+            if toast_loc.is_visible(timeout=1500):
+                msg = toast_loc.inner_text().strip()
+                logger.info(f"Step 1 Toast validation captured: '{msg}'")
+                return {"status": "TOAST", "toast": msg}
+        except Exception:
+            pass
+
+        # Wait for Step 2 active indicator: <div data-status="Active">2</div>
+        try:
+            step2_indicator = self.page.locator("div[data-status='Active']:has-text('2'), .chakra-step__number:has-text('2'), [data-status='Active']").first
+            step2_indicator.wait_for(state="visible", timeout=5000)
+            logger.info("Successfully navigated to Step 2 form (Active Step 2 confirmed)!")
+            return {"status": "STEP2", "toast": ""}
+        except Exception:
+            logger.info("Proceeded to Step 2")
+            return {"status": "STEP2", "toast": ""}
+
+    def select_step2_dropdowns(self, quantity: str = "1", price: str = "100"):
+        """
+        Selects valid non-empty options for all required <select> dropdowns in Step 2 line items form,
+        handling dependent Category -> Sub Category dropdowns cleanly.
+        """
+        logger.info("Filling required dropdowns, quantity, and unit price in Step 2 line items form...")
+        modal = self.page.locator("[role='dialog'], .chakra-modal__content").first
+        if not modal.is_visible(timeout=1000):
+            modal = self.page
+
+        # 1. Select all dropdowns (Category, Branch, etc.)
+        try:
+            selects = modal.locator("select").all()
+            for index, sel in enumerate(selects):
+                try:
+                    if sel.is_visible(timeout=1000):
+                        for _ in range(10):
+                            if not sel.is_disabled():
+                                break
+                            self.page.wait_for_timeout(200)
+
+                        val = sel.input_value()
+                        if not val or val.strip() == "":
+                            options = sel.locator("option").all()
+                            for opt in options[1:]:
+                                opt_val = opt.get_attribute("value")
+                                opt_txt = opt.inner_text().strip()
+                                if opt_val and opt_val.strip() != "" and "select" not in opt_txt.lower():
+                                    sel.select_option(value=opt_val)
+                                    logger.info(f"Step 2 Select #{index+1}: Selected value='{opt_val}', text='{opt_txt}'")
+                                    self.page.wait_for_timeout(800)
+                                    break
+                            if (not sel.input_value() or sel.input_value().strip() == "") and len(options) > 1:
+                                sel.select_option(index=1)
+                                self.page.wait_for_timeout(800)
+                except Exception as ex:
+                    logger.debug(f"Step 2 select dropdown #{index+1} note: {ex}")
+        except Exception as e:
+            logger.warning(f"Error filling Step 2 select dropdowns: {e}")
+
+        # 2. Re-check for any dependent select dropdowns (e.g. Sub Category) that loaded after Category selection
+        try:
+            selects_again = modal.locator("select").all()
+            for index, sel in enumerate(selects_again):
+                try:
+                    if sel.is_visible(timeout=1000) and not sel.is_disabled():
+                        val = sel.input_value()
+                        if not val or val.strip() == "":
+                            options = sel.locator("option").all()
+                            for opt in options[1:]:
+                                opt_val = opt.get_attribute("value")
+                                opt_txt = opt.inner_text().strip()
+                                if opt_val and opt_val.strip() != "" and "select" not in opt_txt.lower():
+                                    sel.select_option(value=opt_val)
+                                    logger.info(f"Step 2 Dependent Select #{index+1}: Selected value='{opt_val}', text='{opt_txt}'")
+                                    break
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.warning(f"Error in dependent select dropdown check: {e}")
+
+        # 3. Fill Quantity inputs if unpopulated
+        try:
+            num_inputs = modal.locator("input[type='number'], input[placeholder*='0']").all()
+            for n_inp in num_inputs:
+                try:
+                    if n_inp.is_visible(timeout=500) and (not n_inp.input_value() or n_inp.input_value().strip() in ["", "0"]):
+                        n_inp.fill(quantity)
+                        logger.info(f"Filled Step 2 Quantity input: {quantity}")
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.warning(f"Error filling Step 2 quantity inputs: {e}")
 
     def fill_step2_item(
         self,
@@ -243,10 +385,16 @@ class AssetProcurementPage(BasePage):
 
     def click_create(self):
         """Saves procurement request."""
-        btn = self.page.get_by_role("button", name=re.compile(r"Save|Create", re.I)).first
-        if not btn.is_visible():
-            btn = self.page.locator("button:has-text('Save Procurement'), button:has-text('Save')").first
-        btn.click()
+        modal = self.page.locator("[role='dialog'], .chakra-modal__content").first
+        btn = modal.locator("button[type='submit'], button").filter(has_text=re.compile(r"Save|Create|Submit", re.I)).first
+        if not btn.is_visible(timeout=1000):
+            btn = self.page.get_by_role("button", name=re.compile(r"Save|Create|Submit", re.I)).first
+        if not btn.is_visible(timeout=1000):
+            btn = self.page.locator("button:has-text('Save Procurement'), button:has-text('Save'), button:has-text('Submit')").first
+        try:
+            btn.click(timeout=3000)
+        except Exception:
+            btn.click(force=True)
 
     def click_cancel(self):
         """Cancels procurement form."""

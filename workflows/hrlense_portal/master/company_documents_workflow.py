@@ -54,6 +54,10 @@ class CompanyDocumentsWorkflow:
         selected_names = self.docs_page.select_multiple_document_checkboxes(count=delete_count)
         log_step("Selected Documents for Bulk Delete", value=", ".join(selected_names))
 
+        if not selected_names:
+            log_debug("No document checkboxes were selected — skipping bulk delete step.")
+            return initial_count, initial_count, [], "NO_DOCUMENTS_TO_DELETE"
+
         toast = self.docs_page.click_bulk_delete()
         log_step("Bulk Delete Toast Notification", value=toast)
 

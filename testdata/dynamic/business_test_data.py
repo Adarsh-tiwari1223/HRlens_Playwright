@@ -336,20 +336,61 @@ class BusinessTestData:
         return random.randint(10000, 99999)
 
     @classmethod
+    def state_branch_pair(cls, state: str = None, branch: str = None) -> tuple[str, str]:
+        """Returns a consistent State and Branch combination."""
+        pairs = [
+            ("UttarPradesh", "Varanasi"),
+            ("Maharashtra", "Mumbai"),
+            ("Karnataka", "Bengaluru"),
+            ("Delhi", "NewDelhi"),
+            ("Telangana", "Hyderabad"),
+            ("TamilNadu", "Chennai"),
+            ("Gujarat", "Ahmedabad"),
+            ("WestBengal", "Kolkata")
+        ]
+        if state and branch:
+            return state, branch
+        return random.choice(pairs)
+
+    @classmethod
+    def geo_category_name(cls, prefix: str = "Hardware", state: str = None, branch: str = None) -> str:
+        """
+        Generates Category Name following pattern:
+        Hardware-{State}-{Branch} (e.g. Hardware-UttarPradesh-Varanasi)
+        """
+        s, b = cls.state_branch_pair(state, branch)
+        return f"{prefix}-{s}-{b}"
+
+    @classmethod
+    def geo_sub_category_names(cls, state: str = None, branch: str = None) -> list[str]:
+        """
+        Generates Sub-Categories following pattern with consistent State + Branch:
+        [
+            Laptop-{State}-{Branch},
+            Desktop-{State}-{Branch},
+            Monitor-{State}-{Branch}
+        ]
+        """
+        s, b = cls.state_branch_pair(state, branch)
+        return [
+            f"Laptop-{s}-{b}",
+            f"Desktop-{s}-{b}",
+            f"Monitor-{s}-{b}"
+        ]
+
+    @classmethod
     def category_name(cls, base_name: str = None) -> str:
-        """Generates a realistic enterprise asset category name."""
-        base = base_name if base_name else random.choice(list(ASSET_TEMPLATES.keys()))
-        return f"{base} - {fake.city()} HQ"
+        """Generates a clean single enterprise asset category name (e.g. 'Hardware', 'Software')."""
+        if base_name:
+            return base_name
+        return random.choice(["Hardware", "Software", "Peripherals", "Office Equipment"])
 
     @classmethod
     def sub_category_name(cls, base_name: str = None) -> str:
-        """Generates a realistic enterprise asset sub-category name."""
-        if not base_name:
-            cat = random.choice(list(ASSET_TEMPLATES.keys()))
-            base = random.choice(list(ASSET_TEMPLATES[cat].keys()))
-        else:
-            base = base_name
-        return f"{base} Div - {fake.word().capitalize()}"
+        """Generates a clean single enterprise asset sub-category name (e.g. 'Laptop', 'Desktop')."""
+        if base_name:
+            return base_name
+        return random.choice(["Laptop", "Desktop", "Monitor", "Printer", "Scanner"])
 
     @classmethod
     def branch_group_name(cls, base_name: str = None) -> str:
@@ -660,3 +701,33 @@ class DirectorTestData:
             expiry_date=future.strftime("%Y-%m-%d"),
             file_name=f"{doc_type.lower()}_sample.pdf"
         )
+
+class LocationTestData:
+    """Provides a list of all countries with valid zip codes for dynamic country selection and location lookup."""
+
+    COUNTRY_ZIP_MAP = [
+        # India
+        {"country": "India", "zip_code": "221005", "expected_state": "Uttar Pradesh", "expected_city": "Varanasi"},
+        # {"country": "India", "zip_code": "110001", "expected_state": "Delhi", "expected_city": "Central Delhi"},
+        {"country": "India", "zip_code": "400001", "expected_state": "Maharashtra", "expected_city": "Mumbai"},
+        {"country": "India", "zip_code": "560001", "expected_state": "Karnataka", "expected_city": "Bangalore"},
+        # United States
+        {"country": "United States", "zip_code": "90210", "expected_state": "California", "expected_city": "Beverly Hills"},
+        {"country": "United States", "zip_code": "10001", "expected_state": "New York", "expected_city": "New York"},
+        # Australia
+        {"country": "Australia", "zip_code": "2000", "expected_state": "New South Wales", "expected_city": "Sydney"},
+        # Germany
+        {"country": "Germany", "zip_code": "10115", "expected_state": "Berlin", "expected_city": "Berlin"}
+    ]
+
+    @classmethod
+    def get_random_country_and_zip(cls) -> dict:
+        """Pick a country at random with equal probability among all unique countries, then pick its valid zip code."""
+        unique_countries = sorted(list({loc["country"] for loc in cls.COUNTRY_ZIP_MAP}))
+        chosen_country = random.choice(unique_countries)
+        country_locations = [loc for loc in cls.COUNTRY_ZIP_MAP if loc["country"] == chosen_country]
+        return random.choice(country_locations)
+
+    @classmethod
+    def get_locations_by_country(cls, country: str) -> list[dict]:
+        return [loc for loc in cls.COUNTRY_ZIP_MAP if country.lower() in loc["country"].lower()]

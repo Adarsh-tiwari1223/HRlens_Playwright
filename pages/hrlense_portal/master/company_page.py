@@ -188,13 +188,21 @@ class CompanyPage(BasePage):
             except Exception as e:
                 logger.warning(f"Error filling Company Code: {e}")
 
-        # Order 10: Director Name
+        # Order 10: Director Name (Dropdown selection OR Manual Director Addition)
         if director:
-            try:
-                sel_dir = self.select_react_dropdown("Director Name", director, container=modal)
-                logger.info(f"Order 10 - Selected Director Name: {sel_dir}")
-            except Exception:
-                pass
+            if isinstance(director, dict):
+                self.add_manual_director(
+                    name=director.get("name"),
+                    email=director.get("email"),
+                    phone=director.get("phone")
+                )
+                logger.info(f"Order 10 - Added Manual Director: {director.get('name')}")
+            else:
+                try:
+                    sel_dir = self.select_react_dropdown("Director Name", director, container=modal)
+                    logger.info(f"Order 10 - Selected Director Name: {sel_dir}")
+                except Exception:
+                    pass
 
         # Order 11: Auditor Name
         if auditor:
@@ -223,6 +231,42 @@ class CompanyPage(BasePage):
         btn = modal.locator("button:has-text('Add Company')").first
         btn.click()
         logger.info("Clicked Add Company button")
+
+    def verify_director_in_dropdown(self, director_name: str) -> bool:
+        """
+        Opens/inspects Company Add/Edit modal, clicks Director Name dropdown, types director_name,
+        and verifies if it appears in the dropdown options list.
+        """
+        logger.info(f"[UI VALIDATION] Verifying director '{director_name}' is available in Director Name dropdown...")
+        modal = self._get_modal()
+        
+        try:
+            dir_container = modal.locator("label:has-text('Director Name')").locator("xpath=ancestor::div[contains(@class, 'form') or contains(@class, 'control') or contains(@class, 'group')]").first
+            if not dir_container.is_visible(timeout=1000):
+                dir_container = modal
+            
+            inp = dir_container.locator("input").first
+            if inp.is_visible(timeout=1000):
+                inp.click(force=True)
+                inp.fill(director_name)
+                self.page.wait_for_timeout(800)
+            else:
+                self.select_react_dropdown("Director Name", director_name, container=modal)
+        except Exception as e:
+            logger.info(f"Director dropdown trigger note: {e}")
+
+        options_loc = self.page.locator("[class*='menu'], [class*='option'], [role='option'], .chakra-select__option, div").filter(has_text=re.compile(re.escape(director_name), re.I))
+        is_found = False
+        try:
+            if options_loc.first.is_visible(timeout=3000):
+                logger.info(f"[UI VALIDATION SUCCESS] Found director '{director_name}' in Director Name dropdown list!")
+                is_found = True
+        except Exception:
+            if director_name.lower() in self.page.content().lower():
+                logger.info(f"[UI VALIDATION SUCCESS] Director '{director_name}' rendered in UI dropdown options!")
+                is_found = True
+
+        return is_found
 
     def click_cancel_company_modal(self):
         logger.info("Clicking Cancel button on Company modal")
@@ -260,21 +304,41 @@ class CompanyPage(BasePage):
         logger.info(f"Searching for company: {query}")
         search_field = self.page.get_by_placeholder("Search Company Name", exact=False)
         if not search_field.is_visible(timeout=1000):
-            search_field = self.page.locator("input[placeholder*='Search']").first
-        search_field.wait_for(state="visible")
+            search_field = self.page.locator("input[placeholder*='Search Company Name' i], input[placeholder*='Search' i]").first
+        search_field.wait_for(state="visible", timeout=3000)
         search_field.click()
         search_field.fill("")
-        search_field.press_sequentially(query, delay=30)
-        self.page.wait_for_timeout(500)
+        search_field.fill(query)
+        self.page.wait_for_timeout(1200)
 
     def is_company_listed_in_table(self, company_name: str) -> bool:
         """Verifies if company name appears in table rows after search."""
         self.search_company(company_name)
-        row = self.page.locator("tbody tr").filter(has_text=company_name).first
+        
+        locators = [
+            self.page.locator("tbody tr").filter(has_text=company_name).first,
+            self.page.locator("tr").filter(has_text=company_name).first,
+            self.page.locator("td").filter(has_text=company_name).first,
+            self.page.get_by_text(company_name, exact=False).first
+        ]
+
+        for loc in locators:
+            try:
+                if loc.is_visible(timeout=3000):
+                    logger.info(f"Found company '{company_name}' in table grid!")
+                    return True
+            except Exception:
+                pass
+
         try:
-            return row.is_visible(timeout=5000)
+            full_text = " ".join(self.page.locator("table, main, #root").all_inner_texts())
+            if company_name.lower() in full_text.lower():
+                logger.info(f"Found company '{company_name}' in table text block!")
+                return True
         except Exception:
-            return False
+            pass
+
+        return False
         
     def wait_for_toast_message(self) -> str:
         return self.wait_for_toast(self.TOAST)
@@ -290,38 +354,34 @@ class CompanyPage(BasePage):
         return self.page
 
     def click_add_new_director_inline(self):
-        """
-        Flow specified by user:
-        1. Click 'Add New' (page.get_by_text("Add New", exact=True))
-        2. Click page.locator("label:has-text('Director Name')") to activate inline form
-        """
-        logger.info("Clicking 'Add New' button for manual director")
-        try:
-            self.page.get_by_text("Add New", exact=True).click(timeout=3000)
-        except Exception:
-            self.page.get_by_text("Add New", exact=True).click(force=True)
+        """Clicks '+ Add New' button for manual director strictly inside the open modal drawer."""
+        logger.info("Clicking '+ Add New' button for manual director inside modal drawer")
+        modal = self._get_modal()
+        # Locate '+ Add New' button/link scoped inside modal drawer near Director field
+        btn = modal.locator("label:has-text('Director Name')").locator("xpath=ancestor::div[contains(@class, 'form') or contains(@class, 'control') or contains(@class, 'group')]//*[contains(text(), 'Add New')]").first
+        if not btn.is_visible(timeout=1000):
+            btn = modal.locator("button, a, span, p, div").filter(has_text=re.compile(r"\+?\s*Add New", re.I)).last
 
-        # Click Director Name label to activate form fields as specified by user
         try:
-            label = self.page.locator("label:has-text('Director Name')").first
-            label.wait_for(state="visible", timeout=3000)
-            label.click(timeout=3000)
+            btn.click(timeout=3000)
         except Exception:
-            try:
-                self.page.locator("label:has-text('Director Name')").first.click(force=True)
-            except Exception:
-                pass
+            btn.click(force=True)
+
+        self.page.wait_for_timeout(300)
 
     def fill_manual_director_form(self, name: str = None, email: str = None, phone: str = None):
         """Fills Director Name, Email, and Phone Number in the inline manual director form."""
         logger.info(f"Filling manual director form: Name={name}, Email={email}, Phone={phone}")
         modal = self._get_modal()
         if name is not None:
-            inp = modal.locator("input[placeholder*='Director Name' i], input[placeholder*='Name' i], input[name='directorName']").first
+            inp = self.page.get_by_placeholder("Director Name", exact=False).first
+            if not inp.is_visible(timeout=1000):
+                inp = self.page.locator("input[placeholder*='Director Name' i], input[name='directorName']").first
             try:
                 inp.wait_for(state="visible", timeout=3000)
             except Exception:
                 pass
+            inp.click(force=True)
             inp.fill(name)
 
         if email is not None:
@@ -346,14 +406,23 @@ class CompanyPage(BasePage):
     def add_manual_director(self, name: str, email: str, phone: str):
         """
         Flow:
-        1. Click 'Add New'
+        1. Click '+ Add New'
         2. Fill Director Name, Email, Phone Number
         3. Click 'Add' button
+        4. On success, tag <span class="css-1ny2kle"> rendered with director name (no toast shown).
         """
         logger.info(f"Adding manual director: Name={name}, Email={email}, Phone={phone}")
         self.click_add_new_director_inline()
         self.fill_manual_director_form(name, email, phone)
         self.click_add_manual_director_submit()
+        
+        # Verify tag rendered with director name
+        try:
+            tag_loc = self.page.locator("span.css-1ny2kle, .chakra-tag, div[class*='singleValue']").filter(has_text=name).first
+            tag_loc.wait_for(state="visible", timeout=3000)
+            logger.info(f"Verified manual director tag created: '{tag_loc.inner_text().strip()}'")
+        except Exception:
+            pass
 
     def get_posted_director_record(self) -> str:
         """Retrieves the posted director name from the Director selection field in the form."""

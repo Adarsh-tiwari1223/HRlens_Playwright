@@ -1,9 +1,10 @@
 import os
-import random
+import logging
 import pytest
-from core.config import settings
 from pages.base_page import TestStoryLogger
-from pages.hrlense_portal.asset.asset_procurement_page import AssetProcurementPage
+from workflows.hrlense_portal.asset.asset_procurement_workflow import AssetProcurementWorkflow
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.mark.ui
@@ -15,46 +16,61 @@ def test_asset_e2e_procurement_flow(logged_in_page):
     # Step 1: Admin login
     admin_page, admin_context = logged_in_page("admin")
 
-    # Step 2: Navigate to Asset Procurement
-    procurement_page = AssetProcurementPage(admin_page)
-    procurement_page.navigate_to_asset_procurement()
-    procurement_page.click_new_procurement()
-
-    # Step 3: Upload Invoice File & Wait for Auto-Fill Rendering
+    # Step 2: Locate Invoice File
     invoices_dir = os.path.abspath("testdata/static/invoices")
     sample_invoice_path = os.path.join(invoices_dir, "JOB VRITTA 41 1.pdf")
     if not os.path.exists(sample_invoice_path):
         sample_invoice_path = os.path.join(invoices_dir, "invoice_1mb.pdf")
 
-    print(f"\n[STEP 3] Uploading Invoice PDF: {sample_invoice_path}")
-    procurement_page.upload_invoice(sample_invoice_path)
+    logger.info(f"[STEP 2] Running Asset Procurement Workflow with Invoice: {sample_invoice_path}")
 
-    # Wait for content rendering / auto-fill OCR
-    admin_page.wait_for_timeout(3500)
-
-    # Step 4: Inspect and Log all Form Field values to Terminal
-    field_report = procurement_page.inspect_and_log_step1_fields()
-    invoice_no = field_report.get("Invoice No") if field_report.get("Invoice No") not in ["EMPTY", "NOT FOUND", None] else "INV-UPLOADED"
-
-    # Step 5: Select ONLY Branch and Payroll Company if unselected (Preserve prefilled textboxes)
-    procurement_page.fill_step1_details(
-        invoice_file_path=sample_invoice_path
+    # Step 3: Execute Asset Procurement Workflow with step-by-step reporting
+    workflow = AssetProcurementWorkflow(admin_page)
+    toast = workflow.procure_asset_with_invoice(
+        invoice_file_path=sample_invoice_path,
+        story=story
     )
-    procurement_page.click_next()
 
-    # Step 6: Inspect prefilled Step 2 line items without modifying values
-    procurement_page.inspect_and_log_asset_line_items()
-    procurement_page.click_create()
-
-    # Step 7: Assert successful procurement toast response
-    toast = procurement_page.wait_for_toast_message()
-    is_success = "success" in toast.lower() or "created" in toast.lower() or "procured" in toast.lower()
+    is_success = any(term in toast.lower() for term in ["success", "created", "procured", "saved", "added"])
 
     story.log_step(
         "Submit Asset Procurement Form",
-        record=f"Invoice: {invoice_no}",
+        record=f"Invoice File: {os.path.basename(sample_invoice_path)}",
         expected="Asset Procurement entry should be created successfully",
         actual=f"Toast message received: '{toast}'" if is_success else f"Failed: {toast}",
         status="PASS" if is_success else "FAIL"
     )
-    assert is_success, f"Procurement failed: {toast}"
+    assert is_success, f"Procurement failed with toast message: '{toast}'"
+
+
+@pytest.mark.ui
+@pytest.mark.asset
+def test_asset_manual_procurement_flow(logged_in_page):
+    story = TestStoryLogger("Manual Asset Procurement Submission Test", module="Asset Management", phase="Asset Procurement")
+    story.start()
+
+    admin_page, admin_context = logged_in_page("admin")
+
+    import random
+    inv_num = f"MAN-INV-{random.randint(10000, 99999)}"
+    logger.info(f"[MANUAL PROCUREMENT] Generating Manual Procurement Invoice No: {inv_num}")
+
+    workflow = AssetProcurementWorkflow(admin_page)
+    toast = workflow.create_manual_procurement(
+        invoice_no=inv_num,
+        purchase_date="01/05/2024",
+        amount_before_gst="15000",
+        gst_amount="2700",
+        story=story
+    )
+
+    is_success = any(term in toast.lower() for term in ["success", "created", "procured", "saved", "added"])
+
+    story.log_step(
+        "Submit Manual Asset Procurement Form",
+        record=f"Invoice No: {inv_num}, Amount: ₹15,000",
+        expected="Manual Asset Procurement entry should be created successfully",
+        actual=f"Toast message received: '{toast}'" if is_success else f"Failed: {toast}",
+        status="PASS" if is_success else "FAIL"
+    )
+    assert is_success, f"Manual procurement failed with toast message: '{toast}'"

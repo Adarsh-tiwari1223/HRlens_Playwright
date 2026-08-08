@@ -330,6 +330,57 @@ def get_employees_by_department(department_id: int = 0, department_filter_ids: l
     return get("Hrlense_Employee", user=user, params=params)
 
 
+def get_directors_list(page=None, search_name: str = "", user: str = "admin") -> list[str]:
+    """
+    GET /Hrlense_Employee?department_Id=4&lazyParams=...&filter={}&search=...
+    Fetches all director employees from backend API (department_Id=4).
+    """
+    import requests
+    from core.config import settings
+
+    try:
+        creds = settings.USERS.get(user, settings.USERS.get("admin"))
+        payload = {
+            "email": creds["username"],
+            "user": creds["username"],
+            "password": creds["password"]
+        }
+        login_resp = requests.post(f"{settings.API_BASE_URL}/user/login", json=payload, timeout=10)
+        if login_resp.status_code != 200:
+            login_resp = requests.post(f"{settings.API_BASE_URL}/user/login", data=payload, timeout=10)
+
+        token = ""
+        if login_resp.status_code == 200:
+            token = login_resp.json().get("token", "")
+
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        params = {
+            "department_Id": "4",
+            "lazyParams": json.dumps({"first": 0, "rows": 1000, "page": 0, "sortField": "", "sortOrder": 1}),
+            "filter": json.dumps({}),
+            "search": search_name
+        }
+
+        resp = requests.get(f"{settings.API_BASE_URL}/Hrlense_Employee", headers=headers, params=params, timeout=10)
+        if resp.status_code == 200:
+            body = resp.json()
+            data = body.get("data", []) if isinstance(body, dict) else body
+            names = []
+            if isinstance(data, list):
+                for emp in data:
+                    n = emp.get("fullName") or f"{emp.get('firstName', '')} {emp.get('lastName', '')}".strip()
+                    if n and n not in names:
+                        names.append(n)
+            logger.info(f"[API] Fetched {len(names)} directors from Hrlense_Employee API (department_Id=4) for search='{search_name}': {names}")
+            return names
+        else:
+            logger.warning(f"[API Error] HTTP {resp.status_code}: {resp.text}")
+    except Exception as e:
+        logger.warning(f"[API Exception]: {e}")
+
+    return []
+
+
 def get_companies(rows: int = 50, user: str = "admin") -> list[dict]:
     """
     GET /Hrlense_Company — fetch company master records.

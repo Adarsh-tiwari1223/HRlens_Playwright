@@ -1,3 +1,4 @@
+import re
 import random
 from dataclasses import dataclass, asdict
 from datetime import timedelta
@@ -420,9 +421,11 @@ class BusinessTestData:
         contact_person = f"{first_name} {last_name}"
 
         # Production-grade domain name mapping
-        clean_org = org_name.lower().replace("pvt", "").replace("ltd", "").replace("solutions", "").replace("tech", "").replace("india", "").replace(" ", "").replace(".", "").replace(",", "")[:15]
+        clean_org = re.sub(r'[^a-zA-Z0-9]', '', org_name.lower().replace("pvt", "").replace("ltd", "").replace("solutions", "").replace("tech", "").replace("india", ""))[:12]
         domain = f"{clean_org}{suffix % 100}"
-        email = f"{first_name.lower()}.{last_name.lower()}@{domain}.co.in"
+        clean_first = re.sub(r'[^a-zA-Z0-9]', '', first_name).lower()
+        clean_last = re.sub(r'[^a-zA-Z0-9]', '', last_name).lower()
+        email = f"{clean_first}.{clean_last}@{domain}.co.in"
 
         # Indian phone number starting with valid prefix
         phone = fake.numerify(random.choice(["9#########", "8#########", "7#########", "6#########"]))

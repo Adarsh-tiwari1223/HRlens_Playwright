@@ -514,7 +514,7 @@ class BasePage:
         self.page.wait_for_url(f"**{partial}**")
         logger.debug(f"wait_for_url → '{partial}'")
 
-    def wait_for_toast(self, locator: str, timeout: int = 10000) -> str:
+    def wait_for_toast(self, locator: str, timeout: int = 4000) -> str:
         toast_loc = self.page.locator(
             f"{locator} .chakra-toast, {locator} [role='status'], {locator} [role='alert'], "
             f".chakra-toast, [role='status'], [role='alert'], .chakra-alert"

@@ -231,3 +231,26 @@ def admin_page(browser, request):
         pass
     if hasattr(browser, "new_context") or (hasattr(browser, "browser") and browser.browser):
         context.close()
+
+
+@pytest.fixture(autouse=True)
+def clean_page_state_after_test(request):
+    """
+    Autouse fixture executed for every test.
+    Teardown: Closes open dialogs, clears overlays, and safely resets page state
+    so subsequent tests never encounter sticky modal overlays or wrong tab state.
+    """
+    yield
+    page = request.node.funcargs.get("admin_page") or request.node.funcargs.get("page")
+    if page and not page.is_closed():
+        try:
+            modal_close = page.locator("[role='dialog'] .chakra-modal__close-btn, [role='dialog'] button:has-text('Cancel')").first
+            if modal_close.is_visible():
+                modal_close.click(force=True)
+                page.wait_for_timeout(300)
+        except Exception:
+            pass
+        try:
+            page.evaluate("() => window.scrollTo(0, 0)")
+        except Exception:
+            pass

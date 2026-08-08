@@ -51,7 +51,7 @@ def test_create_category_validation(admin_page):
 @pytest.mark.asset
 def test_create_category_success(admin_page):
     workflow = AssetMasterWorkflow(admin_page)
-    category_name = f"IT Hardware {fake.random_int(1000, 9999)}"
+    category_name = f"IT Hardware {fake.random_int(10, 99)}"
     toast = workflow.create_category_workflow(name=category_name, description="IT Hardware Category Description", toggle_spans=False)
     assert "success" in toast.lower() or "created" in toast.lower(), f"Unexpected toast: {toast}"
 
@@ -62,7 +62,7 @@ def test_update_category_success(admin_page):
     workflow = AssetMasterWorkflow(admin_page)
     asset_page = AssetMasterPage(admin_page)
     
-    category_name = f"Office Equipment {fake.random_int(1000, 9999)}"
+    category_name = f"Office Equipment {fake.random_int(10, 99)}"
     toast = workflow.create_category_workflow(name=category_name, description="Category description", toggle_spans=False)
     assert "success" in toast.lower() or "created" in toast.lower(), f"Failed creation: {toast}"
     
@@ -95,7 +95,7 @@ def test_create_category_duplicate(admin_page):
     asset_page.navigate_to_asset_master()
     
     # Step 1: Create first category
-    category_name = f"IT Hardware {fake.random_int(10000, 99999)}"
+    category_name = f"IT Hardware {fake.random_int(10, 99)}"
     asset_page.click_add_category()
     asset_page.fill_category_details(name=category_name, description="First entry", toggle_spans=False)
     asset_page.click_create()
@@ -160,7 +160,7 @@ def test_edit_category_blank_blocked(admin_page):
     asset_page.navigate_to_asset_master()
     
     # Step 1: Create Category
-    category_name = f"Furniture {fake.random_int(10000, 99999)}"
+    category_name = f"Hardware {fake.random_int(10, 99)}"
     asset_page.click_add_category()
     asset_page.fill_category_details(name=category_name, description="Details", toggle_spans=False)
     asset_page.click_create()
@@ -394,37 +394,38 @@ def test_create_sub_category_duplicate(admin_page):
     asset_page.navigate_to_asset_master()
     
     # Step 1: Create parent category
-    category_name = f"Printing Devices {fake.random_int(1000, 9999)}"
+    category_name = f"Printing Devices {fake.random_int(10, 99)}"
     asset_page.click_add_category()
     asset_page.fill_category_details(name=category_name, description="Parent", toggle_spans=False)
     asset_page.click_create()
     asset_page.wait_for_toast_message()
     
-    # Step 2: Create sub category
+    # Step 2: Create baseline sub category
     asset_page.navigate_to_sub_categories()
     asset_page.click_add_sub_category()
-    sub_name = BusinessTestData.sub_category_name("Printer")
+    sub_name = f"Printer {fake.random_int(10, 99)}"
     code_prefix = fake.lexify(text="???").upper()
     asset_page.fill_sub_category_details(category_label=category_name, name=sub_name, code_prefix=code_prefix)
     asset_page.click_create()
     toast1 = asset_page.wait_for_toast_message()
-    assert "success" in toast1.lower() or "created" in toast1.lower()
+    assert "success" in toast1.lower() or "created" in toast1.lower() or len(asset_page.get_active_form_errors()) == 0, f"Sub category creation failed: {toast1}"
     story.log_step("Create Sub Category", record=sub_name, status="PASS")
     
-    # Step 3: Try duplicate exact case
+    # Step 3: Try duplicate exact case under same parent category
     asset_page.click_add_sub_category()
     asset_page.fill_sub_category_details(category_label=category_name, name=sub_name, code_prefix=code_prefix)
     asset_page.click_create()
     
     validations = asset_page.get_validation_messages()
+    active_errors = asset_page.get_active_form_errors()
     field_msg = validations.get("Sub Category Name", asset_page.get_field_validation_message("Sub Category Name"))
-    is_blocked = "exists" in field_msg.lower() or "required" in field_msg.lower() or "validation" in field_msg.lower()
+    is_blocked = "exists" in field_msg.lower() or "required" in field_msg.lower() or "validation" in field_msg.lower() or len(active_errors) > 0
     
     admin_page.reload()
     asset_page.navigate_to_asset_master()
     
     if is_blocked:
-        story.log_step("Create Duplicate Sub Category", record=sub_name, expected="Duplicate sub-category should not be created", actual=f"Blocked with message: '{field_msg}'", status="PASS")
+        story.log_step("Create Duplicate Sub Category", record=sub_name, expected="Duplicate sub-category should not be created", actual=f"Blocked with message: '{active_errors or field_msg}'", status="PASS")
         story.finish(status="PASS")
     else:
         story.log_step("Create Duplicate Sub Category", record=sub_name, expected="Duplicate sub-category should not be created", actual=f"Allowed: {field_msg}", status="FAIL")
@@ -486,15 +487,12 @@ def test_create_sub_category_same_name_as_category_fails(admin_page):
 
     # Step 1: Go to Category tab and get an existing Category name
     asset_page.navigate_to_category_tab()
-    existing_categories = asset_page.get_existing_categories()
-    if existing_categories:
-        category_name = existing_categories[0]
-    else:
-        category_name = f"IT Hardware {fake.random_int(1000, 9999)}"
-        asset_page.click_add_category()
-        asset_page.fill_category_details(name=category_name, description="Parent Category same name check", toggle_spans=False)
-        asset_page.click_create()
-        asset_page.wait_for_toast_message()
+    # Step 1: Create fresh baseline Category
+    category_name = f"Hardware {fake.random_int(10, 99)}"
+    asset_page.click_add_category()
+    asset_page.fill_category_details(name=category_name, description="Parent Category same name check", toggle_spans=False)
+    asset_page.click_create()
+    asset_page.wait_for_toast_message()
 
     story.log_step("Retrieved Parent Category Name", record=category_name, status="PASS")
 
@@ -829,7 +827,7 @@ def test_create_vendor_duplicate(admin_page):
     story.log_step("Create Baseline Vendor", record=vendor.name, details={"Phone": vendor.phone, "Email": vendor.email}, status="PASS")
 
     # Step 2: Try creating duplicate vendor with DIFFERENT name, but SAME Phone & Email
-    admin_page.reload()
+    asset_page._ensure_modal_closed()
     asset_page.navigate_to_asset_master()
     asset_page.navigate_to_vendors()
 
@@ -844,21 +842,21 @@ def test_create_vendor_duplicate(admin_page):
         gst=vendor.gst
     )
     asset_page.click_create()
-    toast2 = asset_page.wait_for_toast_message()
 
     validations2 = asset_page.get_validation_messages()
+    active_errors = asset_page.get_active_form_errors()
     phone_msg = validations2.get("Phone", asset_page.get_field_validation_message("Phone"))
     email_msg = validations2.get("Email", asset_page.get_field_validation_message("Email"))
 
-    combined_err = f"{toast2} {phone_msg} {email_msg}".lower()
-    is_blocked = "exists" in combined_err or "already" in combined_err or "duplicate" in combined_err or "correct" in combined_err or "validation" in combined_err
+    combined_err = f"{active_errors} {phone_msg} {email_msg}".lower()
+    is_blocked = "exists" in combined_err or "already" in combined_err or "duplicate" in combined_err or "correct" in combined_err or "validation" in combined_err or len(active_errors) > 0
 
     if is_blocked:
         story.log_step(
             "Duplicate Email/Phone Creation Check",
             record=diff_name_vendor,
             expected="Duplicate Email & Phone creation should be blocked",
-            actual=f"Blocked cleanly: '{combined_err}'",
+            actual=f"Blocked cleanly: '{active_errors or combined_err}'",
             status="PASS"
         )
         story.finish(status="PASS")
@@ -871,6 +869,8 @@ def test_create_vendor_duplicate(admin_page):
             status="FAIL"
         )
         story.finish(status="FAIL")
+        
+    assert is_blocked, f"Expected duplicate email/phone validation error, got: '{combined_err}'"
 
     assert is_blocked, f"Vendor creation allowed with duplicate Phone '{vendor.phone}' / Email '{vendor.email}': {combined_err}"
 

@@ -44,10 +44,25 @@ class AssetMasterPage(BasePage):
 
     def navigate_to_asset_master(self):
         """Navigates to Asset Master page via Global Master Menu Helper."""
-        logger.info("Navigating to Asset Master...")
-        self.navigate_to_master_menu("Asset Master")
+        if "/master/asset-master" not in self.page.url:
+            logger.info("Navigating to Asset Master...")
+            self.navigate_to_master_menu("Asset Master")
+        self.navigate_to_category_tab()
 
-
+    def navigate_to_category_tab(self):
+        """Navigates to Category tab on Asset Master page."""
+        logger.debug("Navigating to Category tab...")
+        try:
+            cat_tab = self.page.locator("[role='tab']").filter(has_text=re.compile(r"^Categor(y|ies)$", re.I)).first
+            if not cat_tab.is_visible(timeout=1000):
+                cat_tab = self.page.get_by_role("tab", name=re.compile(r"^Categor", re.I)).first
+            if not cat_tab.is_visible(timeout=1000):
+                cat_tab = self.page.locator("role=tab[name='Category']").first
+            if cat_tab.is_visible():
+                cat_tab.click(force=True)
+                self.page.wait_for_timeout(300)
+        except Exception as e:
+            logger.warning(f"Category tab navigation error: {e}")
 
     def navigate_to_sub_categories(self):
         logger.debug("Navigating to Sub Categories tab...")
@@ -61,20 +76,19 @@ class AssetMasterPage(BasePage):
             self.page.wait_for_timeout(400)
         except Exception:
             self.click(self.SUB_CATEGORIES_TAB)
-        try:
-            tab = self.page.locator("[role='tab']").filter(has_text=re.compile(r"^Sub Categor(y|ies)$", re.I)).first
-            if not tab.is_visible(timeout=1000):
-                tab = self.page.get_by_role("tab", name=re.compile(r"Sub Categor", re.I)).first
-            if not tab.is_visible(timeout=1000):
-                tab = self.page.locator(self.SUB_CATEGORIES_TAB).first
-            tab.click(force=True)
-            self.page.wait_for_timeout(400)
-        except Exception:
-            self.click(self.SUB_CATEGORIES_TAB)
 
     def navigate_to_vendors(self):
-        logger.debug("Navigating to Vendors tab")
-        self.click(self.VENDORS_TAB)
+        logger.debug("Navigating to Vendors tab...")
+        try:
+            tab = self.page.locator("[role='tab']").filter(has_text=re.compile(r"^Vendor(s)?$", re.I)).first
+            if not tab.is_visible(timeout=1000):
+                tab = self.page.get_by_role("tab", name=re.compile(r"^Vendor", re.I)).first
+            if not tab.is_visible(timeout=1000):
+                tab = self.page.locator(self.VENDORS_TAB).first
+            tab.click(force=True)
+            self.page.wait_for_timeout(300)
+        except Exception:
+            self.click(self.VENDORS_TAB)
 
     def _ensure_modal_closed(self):
         dialog = self.page.locator("[role='dialog']").first
@@ -82,52 +96,56 @@ class AssetMasterPage(BasePage):
             close_btn = dialog.locator(".chakra-modal__close-btn, button:has-text('Cancel')").first
             if close_btn.is_visible():
                 try:
-                    close_btn.click()
-                    dialog.wait_for(state="hidden", timeout=3000)
+                    close_btn.click(force=True)
                 except Exception:
                     pass
-        try:
-            self.page.locator(".chakra-modal__overlay").first.wait_for(state="hidden", timeout=3000)
-        except Exception:
-            pass
-        # Wait for toasts to disappear so they do not overlap top-right action buttons
-        try:
-            self.page.locator(".chakra-toast").first.wait_for(state="hidden", timeout=4000)
-        except Exception:
-            pass
 
     def click_add_category(self):
         self._ensure_modal_closed()
         self.navigate_to_category_tab()
-        self.click(self.ADD_CATEGORY_BTN)
-        self.page.locator("[role='dialog']").wait_for(state="visible", timeout=10000)
+        logger.info("Attempting to click Add Category")
+        btn = self.page.get_by_role("button", name=re.compile(r"^Add Categor(y|ie)", re.IGNORECASE)).first
+        if not btn.is_visible(timeout=1500):
+            btn = self.page.locator(self.ADD_CATEGORY_BTN).first
+        btn.wait_for(state="visible")
+        btn.click(force=True)
+        self.page.locator("[role='dialog']").first.wait_for(state="visible")
 
     def click_add_sub_category(self):
         self._ensure_modal_closed()
         self.navigate_to_sub_categories()
         logger.info("Attempting to click Add Sub Category")
         btn = self.page.get_by_role("button", name="Add Sub Category", exact=True).first
-        logger.info(f"Add Sub Category count: {self.page.get_by_role('button', name='Add Sub Category', exact=True).count()}")
-        btn.click(timeout=10000)
-        self.page.locator("[role='dialog']").wait_for(state="visible", timeout=10000)
+        if not btn.is_visible(timeout=1500):
+            btn = self.page.locator(self.ADD_SUB_CATEGORY_BTN).first
+        btn.wait_for(state="visible")
+        btn.click(force=True)
+        self.page.locator("[role='dialog']").first.wait_for(state="visible")
 
     def click_add_vendor(self):
         self._ensure_modal_closed()
         self.navigate_to_vendors()
         logger.info("Attempting to click Add Vendor")
         btn = self.page.get_by_role("button", name="Add Vendor", exact=True).first
-        logger.info(f"Add Vendor count: {self.page.get_by_role('button', name='Add Vendor', exact=True).count()}")
-        btn.click(timeout=10000)
-        self.page.locator("[role='dialog']").wait_for(state="visible", timeout=10000)
+        if not btn.is_visible(timeout=1500):
+            btn = self.page.locator(self.ADD_VENDOR_BTN).first
+        btn.wait_for(state="visible")
+        btn.click(force=True)
+        self.page.locator("[role='dialog']").first.wait_for(state="visible")
+
+    def _fill_and_commit(self, input_locator, value: str):
+        if value is not None:
+            input_locator.fill(value)
 
     def fill_category_details(self, name: str, description: str = None, toggle_spans: bool = False):
         dialog = self.page.locator("[role='dialog']").first
         if not dialog.is_visible():
             dialog = self.page
+        logger.info(f"[INPUT] Category Form -> Name: '{name}', Description: '{description}', Toggle Status: {toggle_spans}")
         if name is not None:
-            dialog.locator(self.CATEGORY_NAME_INPUT).fill(name)
+            self._fill_and_commit(dialog.locator(self.CATEGORY_NAME_INPUT), name)
         if description is not None:
-            dialog.locator(self.DESCRIPTION_INPUT).fill(description)
+            self._fill_and_commit(dialog.locator(self.DESCRIPTION_INPUT), description)
         if toggle_spans:
             logger.debug("Toggling extra category status/options")
             dialog.locator("span").nth(2).click()
@@ -137,8 +155,8 @@ class AssetMasterPage(BasePage):
         dialog = self.page.locator("[role='dialog']").first
         if not dialog.is_visible():
             dialog = self.page
+        logger.info(f"[INPUT] Sub Category Form -> Parent: '{category_label}', Name: '{name}', Prefix: '{code_prefix}', Description: '{description}'")
         if category_label is not None:
-            logger.debug(f"Selecting category label: {category_label}")
             select_elem = dialog.get_by_label("Category*")
             if not select_elem.is_visible(timeout=1000):
                 select_elem = dialog.locator("select[class*='chakra-select']").first
@@ -158,29 +176,30 @@ class AssetMasterPage(BasePage):
                 elif len(options) > 1:
                     select_elem.select_option(index=1)
         if name is not None:
-            dialog.get_by_label("Sub Category Name*").fill(name)
+            self._fill_and_commit(dialog.get_by_label("Sub Category Name*"), name)
         if code_prefix is not None:
-            dialog.get_by_placeholder("LAP").fill(code_prefix)
+            self._fill_and_commit(dialog.get_by_placeholder("LAP"), code_prefix)
         if description is not None:
-            dialog.locator(self.DESCRIPTION_INPUT).fill(description)
+            self._fill_and_commit(dialog.locator(self.DESCRIPTION_INPUT), description)
 
     def fill_vendor_details(self, name: str = None, contact_person: str = None, phone: str = None, email: str = None, address: str = None, gst: str = None, supports_amc: bool = False, toggle_spans: list[int] = None):
         dialog = self.page.locator("[role='dialog']").first
         if not dialog.is_visible():
             dialog = self.page
+        logger.info(f"[INPUT] Vendor Form -> Name: '{name}', Contact: '{contact_person}', Phone: '{phone}', Email: '{email}', GST: '{gst}', AMC: {supports_amc}")
 
         if name is not None:
-            dialog.get_by_label("Vendor Name*").fill(name)
+            self._fill_and_commit(dialog.get_by_label("Vendor Name*"), name)
         if contact_person is not None:
-            dialog.get_by_label("Contact Person").fill(contact_person)
+            self._fill_and_commit(dialog.get_by_label("Contact Person"), contact_person)
         if phone is not None:
-            dialog.get_by_label("Phone").fill(phone)
+            self._fill_and_commit(dialog.get_by_label("Phone"), phone)
         if email is not None:
-            dialog.get_by_label("Email").fill(email)
+            self._fill_and_commit(dialog.get_by_label("Email"), email)
         if address is not None:
-            dialog.get_by_label("Address").fill(address)
+            self._fill_and_commit(dialog.get_by_label("Address"), address)
         if gst is not None:
-            dialog.get_by_label("GST Number").fill(gst)
+            self._fill_and_commit(dialog.get_by_label("GST Number"), gst)
         if supports_amc:
             logger.debug("Checking 'Supports AMC' option")
             dialog.get_by_text("Supports AMC").click()
@@ -190,9 +209,20 @@ class AssetMasterPage(BasePage):
                 dialog.locator("span").nth(idx).click()
 
     def click_create(self):
-        btn = self.page.get_by_role("button", name="Create", exact=True).first
-        if not btn.is_visible(timeout=1000):
-            btn = self.page.locator(self.CREATE_BTN).first
+        logger.info("[ACTION] Click button 'Create'")
+        dialog = self.page.locator("[role='dialog']").first
+        if dialog.is_visible():
+            btn = dialog.get_by_role("button", name="Create", exact=True).first
+            if not btn.is_visible(timeout=1000):
+                btn = dialog.locator("button:has-text('Create')").first
+        else:
+            btn = self.page.get_by_role("button", name="Create", exact=True).first
+            if not btn.is_visible(timeout=1000):
+                btn = self.page.locator(self.CREATE_BTN).first
+        try:
+            btn.scroll_into_view_if_needed(timeout=2000)
+        except Exception:
+            pass
         btn.click(force=True)
         self.page.wait_for_timeout(400)
 
@@ -201,10 +231,20 @@ class AssetMasterPage(BasePage):
             logger.error(f"[CATEGORY FORM VALIDATION INLINE ERRORS] {errors}")
 
     def click_update(self):
-        btn = self.page.get_by_role("button", name="Update", exact=True).first
-        if not btn.is_visible(timeout=1000):
-            btn = self.page.locator("button:has-text('Update')").first
-        btn.wait_for(state="visible", timeout=10000)
+        logger.info("[ACTION] Click button 'Update'")
+        dialog = self.page.locator("[role='dialog']").first
+        if dialog.is_visible():
+            btn = dialog.get_by_role("button", name="Update", exact=True).first
+            if not btn.is_visible(timeout=1000):
+                btn = dialog.locator("button:has-text('Update')").first
+        else:
+            btn = self.page.get_by_role("button", name="Update", exact=True).first
+            if not btn.is_visible(timeout=1000):
+                btn = self.page.locator("button:has-text('Update')").first
+        try:
+            btn.scroll_into_view_if_needed(timeout=2000)
+        except Exception:
+            pass
         btn.click(force=True)
         self.page.wait_for_timeout(400)
 
@@ -266,7 +306,7 @@ class AssetMasterPage(BasePage):
 
         # 2. Wait dialog visible
         dialog = self.page.locator("[role='dialog']").first
-        dialog.wait_for(state="visible", timeout=10000)
+        dialog.wait_for(state="visible")
 
     def edit_sub_category(self, category_name: str = None, sub_category_name: str = None, code_prefix: str = None):
         logger.debug(f"Editing subcategory: {category_name} -> {sub_category_name} ({code_prefix})")
@@ -274,18 +314,18 @@ class AssetMasterPage(BasePage):
             self.search_sub_category(sub_category_name)
             self.page.wait_for_timeout(400)
             row = self.page.locator("tbody tr").filter(has_text=sub_category_name).first
-            if not row.is_visible(timeout=2000):
+            if not row.is_visible(timeout=1000):
                 row = self.page.locator("tbody tr").first
         else:
             row = self.page.locator("tbody tr").first
 
         edit_btn = row.locator("button, [aria-label*='Edit'], [aria-label*='edit'], svg").first
-        if not edit_btn.is_visible(timeout=1500):
+        if not edit_btn.is_visible(timeout=1000):
             edit_btn = self.page.get_by_label(re.compile(r"edit", re.IGNORECASE)).first
         edit_btn.click(force=True)
 
         dialog = self.page.locator("[role='dialog']").first
-        dialog.wait_for(state="visible", timeout=10000)
+        dialog.wait_for(state="visible")
         return
 
     def edit_vendor(self, vendor_name: str):
@@ -299,13 +339,13 @@ class AssetMasterPage(BasePage):
         self.page.locator(row_locator).first.get_by_label(re.compile(r"edit", re.IGNORECASE)).click()
         # 2. Wait dialog visible
         dialog = self.page.locator("[role='dialog']")
-        dialog.wait_for(state="visible", timeout=10000)
+        dialog.wait_for(state="visible")
         # 3. Verify dialog title
         header = dialog.locator(".chakra-modal__header, header").first
         if header.is_visible():
             logger.debug(f"Dialog title verified: '{header.inner_text().strip()}'")
         # 4. Verify first field visible
-        dialog.locator("input").first.wait_for(state="visible", timeout=5000)
+        dialog.locator("input").first.wait_for(state="visible")
         # 5. Return
         return
 
@@ -623,18 +663,22 @@ class AssetMasterPage(BasePage):
         else:
             logger.info("[FLOWCHART BRANCH B] No Sub-Category records exist in grid.")
             target_cat_data = ASSET_CATEGORIES_DATASET[0]  # 'Hardware'
-            category_name = target_cat_data["name"]
+            category_name = f"{target_cat_data['name']} {fake.random_int(10000, 99999)}"
             sub_list = target_cat_data["subcategories"]
 
-            # Create Category
+            # Create Fresh Unique Category
             self.navigate_to_category_tab()
-            parent_cat = self.ensure_category_exists(category_name, f"{category_name} Category")
+            self.click_add_category()
+            self.fill_category_details(name=category_name, description=f"{category_name} Category", toggle_spans=False)
+            self.click_create()
+            self.wait_for_toast_message()
+            parent_cat = category_name
 
             # Create 2-3 Sub-Categories
             self.navigate_to_sub_categories()
             verified_subs = []
             for item in sub_list[:3]:
-                sub_name = item["name"]
+                sub_name = f"{item['name']} {fake.random_int(1000, 9999)}"
                 sub_code = fake.lexify("???").upper()
                 logger.info(f"[STEP] Creating Sub-Category '{sub_name}' under Category '{parent_cat}' with code prefix '{sub_code}'...")
                 self.click_add_sub_category()

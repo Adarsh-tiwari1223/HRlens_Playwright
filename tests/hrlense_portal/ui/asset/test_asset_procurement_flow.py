@@ -51,16 +51,13 @@ def test_asset_manual_procurement_flow(logged_in_page):
 
     admin_page, admin_context = logged_in_page("admin")
 
-    import random
-    inv_num = f"MAN-INV-{random.randint(10000, 99999)}"
-    logger.info(f"[MANUAL PROCUREMENT] Generating Manual Procurement Invoice No: {inv_num}")
+    from testdata.dynamic.business_test_data import BusinessTestData
+    procurement_data = BusinessTestData.procurement()
+    logger.info(f"[MANUAL PROCUREMENT] Dynamic Test Data Generated: Invoice No={procurement_data.invoice_no}, Date={procurement_data.purchase_date}, Taxable=₹{procurement_data.amount_before_gst}, GST=₹{procurement_data.gst_amount}, Total=₹{procurement_data.total_amount}, Qty={procurement_data.quantity}")
 
     workflow = AssetProcurementWorkflow(admin_page)
     toast = workflow.create_manual_procurement(
-        invoice_no=inv_num,
-        purchase_date="01/05/2024",
-        amount_before_gst="15000",
-        gst_amount="2700",
+        procurement_data=procurement_data,
         story=story
     )
 
@@ -68,9 +65,10 @@ def test_asset_manual_procurement_flow(logged_in_page):
 
     story.log_step(
         "Submit Manual Asset Procurement Form",
-        record=f"Invoice No: {inv_num}, Amount: ₹15,000",
+        record=f"Invoice No: {procurement_data.invoice_no}, Amount: ₹{procurement_data.amount_before_gst}, Total: ₹{procurement_data.total_amount}",
         expected="Manual Asset Procurement entry should be created successfully",
         actual=f"Toast message received: '{toast}'" if is_success else f"Failed: {toast}",
         status="PASS" if is_success else "FAIL"
     )
     assert is_success, f"Manual procurement failed with toast message: '{toast}'"
+

@@ -635,6 +635,36 @@ class BusinessTestData:
         except Exception:
             return []
 
+    @classmethod
+    def procurement(cls, vendor_label: str = None, branch_label: str = None, company_label: str = None) -> "ProcurementData":
+        """Generates dynamic, realistic Asset Procurement test data."""
+        from datetime import datetime, timedelta
+        inv_no = f"INV-{fake.bothify('???-#####').upper()}"
+        p_date = (datetime.now() - timedelta(days=random.randint(1, 28))).strftime("%d/%m/%Y")
+        amount = random.randint(10000, 80000)
+        gst = round(amount * 0.18, 2)
+        total = round(amount + gst, 2)
+        qty = random.randint(1, 5)
+        unit_price = round(amount / qty, 2)
+        brands = ["Dell", "Apple", "Lenovo", "HP", "Asus", "Acer", "Samsung", "Logitech"]
+        brand = random.choice(brands)
+        model = f"{brand}-{fake.lexify('???').upper()}-{fake.random_int(100, 999)}"
+
+        return ProcurementData(
+            invoice_no=inv_no,
+            purchase_date=p_date,
+            amount_before_gst=f"{amount:.2f}",
+            gst_amount=f"{gst:.2f}",
+            total_amount=f"{total:.2f}",
+            vendor_label=vendor_label,
+            branch_label=branch_label,
+            company_label=company_label,
+            brand=brand,
+            model=model,
+            quantity=str(qty),
+            unit_price=f"{unit_price:.2f}"
+        )
+
 
 class VendorTestData:
     @staticmethod
@@ -702,6 +732,23 @@ class DirectorTestData:
             file_name=f"{doc_type.lower()}_sample.pdf"
         )
 
+
+@dataclass
+class ProcurementData:
+    invoice_no: str
+    purchase_date: str
+    amount_before_gst: str
+    gst_amount: str
+    total_amount: str
+    vendor_label: str | None = None
+    branch_label: str | None = None
+    company_label: str | None = None
+    brand: str = "Dell"
+    model: str = "XPS"
+    quantity: str = "1"
+    unit_price: str = "1000.00"
+
+
 class LocationTestData:
     """Provides a list of all countries with valid zip codes for dynamic country selection and location lookup."""
 
@@ -731,3 +778,4 @@ class LocationTestData:
     @classmethod
     def get_locations_by_country(cls, country: str) -> list[dict]:
         return [loc for loc in cls.COUNTRY_ZIP_MAP if country.lower() in loc["country"].lower()]
+

@@ -23,20 +23,23 @@ else:
 if os.path.exists(f".env.{ENV}"):
     load_dotenv(f".env.{ENV}", override=True)
 
-BASE_URL = os.getenv("BASE_URL")
+# Explicit STG and PROD URLs
+BASE_URL_STG = os.getenv("BASE_URL_STG") or "https://stg-hrlense.jobvritta.com"
+API_BASE_URL_STG = os.getenv("API_BASE_URL_STG") or "https://audit.jobvritta.com/api"
 
-# Explicit STG and PROD API URLs
-API_BASE_URL_STG = os.getenv("API_BASE_URL_STG")
-API_BASE_URL_PROD = os.getenv("API_BASE_URL_PROD")
+BASE_URL_PROD = os.getenv("BASE_URL_PROD") or "https://www.hrlense.com"
+API_BASE_URL_PROD = os.getenv("API_BASE_URL_PROD") or "https://hrmsapi.jobvritta.com/api"
 
 # Legacy fallback
 API_BASE_URL_LEGACY = os.getenv("API_BASE_URL")
 
-# Determine active API_BASE_URL based on ENV (strictly STG default)
+# Determine active BASE_URL and API_BASE_URL based on ENV
 if ENV == "prod":
-    API_BASE_URL = (API_BASE_URL_PROD or "https://hrmsapi.jobvritta.com/api").strip()
+    BASE_URL = (os.getenv("BASE_URL_PROD") or "https://www.hrlense.com").strip()
+    API_BASE_URL = (os.getenv("API_BASE_URL_PROD") or "https://hrmsapi.jobvritta.com/api").strip()
 else:
-    API_BASE_URL = (API_BASE_URL_STG or API_BASE_URL_LEGACY or "https://audit.jobvritta.com/api").strip()
+    BASE_URL = (os.getenv("BASE_URL_STG") or os.getenv("BASE_URL") or "https://stg-hrlense.jobvritta.com").strip()
+    API_BASE_URL = (os.getenv("API_BASE_URL_STG") or API_BASE_URL_LEGACY or "https://audit.jobvritta.com/api").strip()
 
 
 
@@ -58,7 +61,8 @@ LEAVE_BACK_DATE_OFFSET = int(os.getenv("LEAVE_BACK_DATE_OFFSET", "1"))
 EMPLOYEE_USER = os.getenv("EMPLOYEE_USER", "uttam_kumar")
 
 def _get_env(key: str, default: str = None) -> str:
-    val = os.getenv(key, default)
+    env_key = f"{key}_{ENV.upper()}"
+    val = os.getenv(env_key) or os.getenv(key, default)
     return val.strip() if val else default
 
 USERS = {

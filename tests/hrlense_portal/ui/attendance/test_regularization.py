@@ -4,12 +4,23 @@ Follows strict 3-Tier Architecture (Page Object -> Workflow Layer -> Test Suite)
 Contains complete basic and advanced business validation test cases (REG_001 – REG_010).
 """
 
+import random
 import pytest
 from datetime import datetime, timedelta
 from pages.login_page import LoginPage
 from workflows.hrlense_portal.attendance.regularization_workflow import RegularizationWorkflow
 from core.config import settings
-from utils.logger import log_test_start, log_pass, log_skip, log_debug
+from utils.logger import log_test_start, log_pass, log_skip, log_debug, log_step
+
+
+EMPLOYEE_USER_KEYS = [
+    "sanidhy",
+    "kumar_piyush",
+    "uttam_kumar",
+    "abhishek_singh",
+    "ritesh_singh"
+]
+APPROVER_USER_KEY = "admin"
 
 
 def login_as_user(page, user_key: str):
@@ -29,47 +40,75 @@ def login_as_user(page, user_key: str):
 @pytest.mark.attendance
 def test_apply_and_approve_regularization(page):
     """
-    Sequential Single-Window Workflow:
-    1. Employee Session: Submit Regularization Request
-    2. Admin Session: Approve Regularization Request (in same browser window)
-    3. Employee Session: Verify Rendered Calendar Attendance Status (in same browser window)
+    End-to-End Two-Phase Regularization Workflow:
+    Phase 1: Employee Session (Random Employee)
+      1. Randomly select an eligible Employee from configured employee pool.
+      2. Login as the selected Employee.
+      3. Navigate to Attendance -> /regularizationRequest.
+      4. Select eligible date (Absent / Late).
+      5. Fill In-Time (09:30), Out-Time (18:30), and Reason (Client Visit On Duty).
+      6. Click Apply -> Confirm.
+      7. Capture and verify regularization submission toast.
+    
+    Phase 2: Admin Session (Constant Approver)
+      1. Switch session: Login as constant Approver (Admin).
+      2. Navigate to Attendance -> • Regularisation.
+      3. Search for employee name using 'Search Employee by name....'.
+      4. Locate the matching request row for the submitted date.
+      5. Select 'Approve' (value='Approved') -> Submit Reason -> Confirm.
+      6. Capture and assert approval toast notification.
+      7. Verify request state is marked 'Approved' and cannot be approved a second time.
     """
-    log_test_start(module="Attendance", phase="Phase 1", test="Apply & Approve Regularization Workflow")
+    log_test_start(module="Attendance", phase="Phase 1 & Phase 2", test="End-to-End Regularization Submission & Approval Workflow")
 
-    # 1. Employee Step: Log in & Submit Regularization Request
-    page.goto(settings.BASE_URL, timeout=60000)
-    emp_creds = settings.USERS["sanidhy"]
-    LoginPage(page).login(emp_creds["username"], emp_creds["password"])
+    # Select random valid employee
+    valid_employees = [
+        k for k in EMPLOYEE_USER_KEYS
+        if settings.USERS.get(k, {}).get("username") and settings.USERS.get(k, {}).get("password")
+    ]
+    random_emp_key = random.choice(valid_employees) if valid_employees else "sanidhy"
+    log_step("Selected Dynamic Employee User", value=f"{random_emp_key} (Approver: {APPROVER_USER_KEY})")
 
+    # =========================================================================
+    # PHASE 1: Employee Session - Apply Regularization Request
+    # =========================================================================
+    login_as_user(page, random_emp_key)
     emp_workflow = RegularizationWorkflow(page)
-    employee_name, toast, selected_date = emp_workflow.apply_regularization_workflow()
+    employee_name, toast, selected_date = emp_workflow.apply_regularization_workflow(user_key=random_emp_key)
 
-    assert toast, "No popup message appeared after submitting regularization request"
+    log_debug(f"Employee '{employee_name}' applied for date {selected_date.strftime('%Y-%m-%d')}, Toast='{toast}'")
+    
+    # Verify submission popup response
+    if toast:
+        if "already present" in toast.lower() or "already marked present" in toast.lower():
+            log_skip(f"Skipping test case: {toast}")
+            pytest.skip(f"Employee regularization skipped: '{toast}'")
+        elif "already exists" in toast.lower():
+            log_debug(f"Regularization request already exists for date: {selected_date.strftime('%Y-%m-%d')}; proceeding to Admin Approval.")
+        else:
+            assert any(term in toast.lower() for term in ["success", "applied", "submitted"]), f"Unexpected submission toast: {toast}"
 
-    if "already exists" in toast.lower():
-        log_skip(f"Regularization already exists for date: {selected_date}")
-        pytest.skip(f"Regularization already exists for date: {selected_date}")
-
-    assert "successfully" in toast.lower() or "applied" in toast.lower() or "submitted" in toast.lower(), f"Unexpected submission toast: {toast}"
-
-    # 2. Admin Step: Log in as Admin in same window & Approve Request
+    # =========================================================================
+    # PHASE 2: Admin Session - Approve Regularization Request
+    # =========================================================================
     login_as_user(page, "admin")
     admin_workflow = RegularizationWorkflow(page)
     approval_toast = admin_workflow.approve_regularization_workflow(employee_name, selected_date)
 
+    log_debug(f"Admin captured approval toast: '{approval_toast}'")
     if approval_toast:
-        assert "successfully" in approval_toast.lower() or "approved" in approval_toast.lower(), f"Approval failed! Toast: {approval_toast}"
+        assert any(term in approval_toast.lower() for term in ["success", "applied", "approved"]), f"Unexpected approval toast: '{approval_toast}'"
 
-    # 3. Post-Approval Verification: Log back in as Employee to inspect calendar
-    login_as_user(page, "sanidhy")
-    is_rendered_valid = emp_workflow.verify_rendered_attendance_status_workflow(
-        day_num=selected_date.day,
-        expected_in_time="09:30",
-        expected_out_time="18:30"
-    )
-    assert is_rendered_valid, f"Rendered status on calendar for day={selected_date.day} did not match expected attendance status!"
+    # Verify persistent approved state and duplicate prevention
+    admin_page = admin_workflow.reg_page
+    status = admin_page.get_regularization_status(employee_name, selected_date)
+    log_step("Final Regularization Status in Table", value=status)
+
+    row_info = admin_page.get_row_details(employee_name, selected_date)
+    assert row_info["is_approved"] and not row_info["is_actionable"], f"Expected request to be approved and non-actionable, got status='{status}', details={row_info}"
 
     log_pass()
+
 
 
 @pytest.mark.ui

@@ -8,9 +8,23 @@ logger = logging.getLogger(__name__)
 class LoginPage(BasePage):
 
     def _fill_email(self, email: str):
+        try:
+            elem = self.page.locator("input[type='email'], input[name='email' i], input[placeholder*='email' i]").first
+            if elem.is_visible(timeout=2000):
+                elem.fill(email)
+                return
+        except Exception:
+            pass
         self.page.get_by_label("Email").fill(email)
 
     def _fill_password(self, password: str):
+        try:
+            elem = self.page.locator("input[type='password'], input[name='password' i]").first
+            if elem.is_visible(timeout=2000):
+                elem.fill(password)
+                return
+        except Exception:
+            pass
         self.page.get_by_label("Password").fill(password)
 
     def login(self, email: str, password: str):

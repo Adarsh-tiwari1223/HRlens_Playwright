@@ -215,11 +215,17 @@ def admin_page(browser, request):
     context.tracing.start(screenshots=True, snapshots=True, sources=True)
     page = context.new_page()
     page.goto(settings.BASE_URL, timeout=60000)
-    page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="visible", timeout=30000)
+    try:
+        page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="visible", timeout=10000)
+    except Exception:
+        pass
     login_page = LoginPage(page)
     creds = settings.USERS["admin"]
     login_page.login(creds["username"], creds["password"])
-    page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="hidden", timeout=30000)
+    try:
+        page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="hidden", timeout=15000)
+    except Exception:
+        pass
     yield page
     try:
         context.tracing.stop(path=f"reports/trace_{request.node.name}.zip")

@@ -135,6 +135,7 @@ class AssetProcurementWorkflow:
 
     def create_manual_procurement(
         self,
+        procurement_data = None,
         vendor_label: str = None,
         branch_label: str = None,
         company_label: str = None,
@@ -145,25 +146,46 @@ class AssetProcurementWorkflow:
         story: TestStoryLogger = None
     ) -> str:
         """
-        Executes manual Asset Procurement workflow without invoice upload.
+        Executes manual Asset Procurement workflow with 100% dynamic test data.
         """
-        logger.info("[WORKFLOW] Starting Manual Asset Procurement")
+        from testdata.dynamic.business_test_data import BusinessTestData, ProcurementData
+        
+        if procurement_data is None:
+            if not invoice_no:
+                procurement_data = BusinessTestData.procurement(
+                    vendor_label=vendor_label,
+                    branch_label=branch_label,
+                    company_label=company_label
+                )
+            else:
+                procurement_data = ProcurementData(
+                    invoice_no=invoice_no,
+                    purchase_date=purchase_date or "01/05/2024",
+                    amount_before_gst=amount_before_gst or "15000.00",
+                    gst_amount=gst_amount or "2700.00",
+                    total_amount=str(float(amount_before_gst or "15000.00") + float(gst_amount or "2700.00")),
+                    vendor_label=vendor_label,
+                    branch_label=branch_label,
+                    company_label=company_label
+                )
+
+        logger.info(f"[WORKFLOW] Starting Dynamic Manual Asset Procurement | Invoice: {procurement_data.invoice_no}, Date: {procurement_data.purchase_date}, Amount: ₹{procurement_data.amount_before_gst}")
         self.procurement_page.navigate_to_asset_procurement()
         self.procurement_page.click_new_procurement()
 
         self.procurement_page.fill_step1_details(
-            vendor_label=vendor_label,
-            branch_label=branch_label,
-            company_label=company_label,
-            invoice_no=invoice_no,
-            purchase_date=purchase_date,
-            amount_before_gst=amount_before_gst,
-            gst_amount=gst_amount
+            vendor_label=procurement_data.vendor_label,
+            branch_label=procurement_data.branch_label,
+            company_label=procurement_data.company_label,
+            invoice_no=procurement_data.invoice_no,
+            purchase_date=procurement_data.purchase_date,
+            amount_before_gst=procurement_data.amount_before_gst,
+            gst_amount=procurement_data.gst_amount
         )
         if story:
             story.log_step(
                 "Fill Step 1 Form Data (Manual)",
-                record=f"Vendor: {vendor_label}, Branch: {branch_label}, Payroll Co: {company_label}, Invoice No: {invoice_no}, Amount: ₹{amount_before_gst}",
+                record=f"Vendor: {procurement_data.vendor_label or 'Selected'}, Branch: {procurement_data.branch_label or 'Selected'}, Payroll Co: {procurement_data.company_label or 'Selected'}, Invoice No: {procurement_data.invoice_no}, Amount: ₹{procurement_data.amount_before_gst}, GST: ₹{procurement_data.gst_amount}",
                 expected="Step 1 details filled successfully",
                 actual="Step 1 form inputs filled cleanly",
                 status="PASS"
@@ -176,7 +198,12 @@ class AssetProcurementWorkflow:
             return step1_toast
 
         # Step 2 form filling & dropdown selection
-        self.procurement_page.select_step2_dropdowns()
+        self.procurement_page.select_step2_dropdowns(
+            quantity=procurement_data.quantity,
+            price=procurement_data.unit_price,
+            brand=procurement_data.brand,
+            model=procurement_data.model
+        )
         self.procurement_page.inspect_and_log_asset_line_items()
 
         self.procurement_page.click_create()

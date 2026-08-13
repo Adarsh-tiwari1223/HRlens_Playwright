@@ -58,3 +58,71 @@ def get_attendance_summary(from_date: str, to_date: str, user: str = "admin") ->
         return resp if isinstance(resp, list) else resp.get("data", [])
     except Exception:
         return []
+
+
+def get_employee_monthly_attendance_api(month: int = 8, year: int = 2026, user: str = "sanidhy") -> list[dict]:
+    """
+    GET /Hrlense_Attendance/GetEmployeeMonthlyAttendanceByEmployee?month={month}&year={year}
+    Fetches employee monthly attendance records.
+    """
+    try:
+        resp = get(
+            "Hrlense_Attendance/GetEmployeeMonthlyAttendanceByEmployee",
+            user=user,
+            params={"month": str(month), "year": str(year)}
+        )
+        if isinstance(resp, list):
+            return resp
+        elif isinstance(resp, dict):
+            return resp.get("data") or resp.get("result") or resp.get("attendance") or []
+        return []
+    except Exception:
+        return []
+
+
+def get_eligible_regularization_dates_api(month: int = 8, year: int = 2026, user: str = "sanidhy") -> list[dict]:
+    """
+    Business Rule:
+    Fetch monthly attendance via API, filter for status != 'Present'.
+    Returns list of eligible dates that the employee can regularize:
+    [{'day': 3, 'date': '2026-08-03', 'status': 'Absent'}, ...]
+    """
+    records = get_employee_monthly_attendance_api(month=month, year=year, user=user)
+    eligible = []
+    for item in records:
+        status = str(
+            item.get("status") or
+            item.get("attendanceStatus") or
+            item.get("dayStatus") or
+            item.get("punchStatus") or
+            ""
+        ).strip()
+
+        # Only dates where status is NOT Present are eligible for regularization
+        if status and status.upper() not in ["PRESENT"]:
+            date_val = item.get("date") or item.get("attendanceDate") or item.get("dayDate") or item.get("currentDate")
+            day_val = item.get("day") or item.get("dayNumber")
+            day_num = None
+            if date_val and isinstance(date_val, str):
+                try:
+                    clean_d = date_val.split("T")[0]
+                    if "-" in clean_d:
+                        parts = clean_d.split("-")
+                        day_num = int(parts[-1]) if len(parts[0]) == 4 else int(parts[0])
+                except Exception:
+                    pass
+
+            if day_num is None and day_val:
+                try:
+                    day_num = int(day_val)
+                except Exception:
+                    pass
+
+            if day_num:
+                eligible.append({
+                    "day": day_num,
+                    "date": date_val,
+                    "status": status,
+                    "raw": item
+                })
+    return eligible

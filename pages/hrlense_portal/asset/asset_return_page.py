@@ -15,8 +15,11 @@ class AssetReturnPage(BasePage):
         self.page.goto(f"{settings.BASE_URL}/asset-return")
         self.page.wait_for_load_state("domcontentloaded")
 
-    def return_asset(self, asset_code_or_name: str):
-        logger.info(f"Returning asset: {asset_code_or_name}")
+    def return_asset(self, asset_code_or_name: str, condition: str = "Good", return_date: str = None, remarks: str = None):
+        """
+        Returns an assigned asset and evaluates its condition (Good, Damaged, Repair Required, Lost).
+        """
+        logger.info(f"Returning asset: {asset_code_or_name} with Condition: {condition}")
         
         # 1. Search for the asset first to narrow down the list
         search_input = self.page.locator("input[placeholder*='Search']").first
@@ -28,25 +31,62 @@ class AssetReturnPage(BasePage):
         row_locator = self.page.locator("table tbody tr").filter(has_text=asset_code_or_name).first
         row_locator.wait_for(state="visible", timeout=10000)
         
-        # 3. Click the checkbox inside the matching row to select it
-        checkbox = row_locator.locator("input[type='checkbox'], span.chakra-checkbox").first
-        checkbox.wait_for(state="visible")
-        checkbox.click()
-        self.page.wait_for_timeout(500)
+        # Check if there is an action button in the row or checkbox
+        row_return_btn = row_locator.get_by_role("button", name=re.compile(r"(Return|Process Return|Receive)", re.I)).first
+        if row_return_btn.is_visible():
+            row_return_btn.click()
+        else:
+            # 3. Click the checkbox inside the matching row to select it
+            checkbox = row_locator.locator("input[type='checkbox'], span.chakra-checkbox").first
+            if checkbox.is_visible():
+                checkbox.click()
+                self.page.wait_for_timeout(500)
+            
+            # Click Bulk Return button (which should now be enabled)
+            bulk_btn = self.page.locator(self.BULK_RETURN_BTN).first
+            if bulk_btn.is_visible(timeout=2000):
+                bulk_btn.click()
         
-        # 3. Click Bulk Return button (which should now be enabled)
-        self.page.locator(self.BULK_RETURN_BTN).wait_for(state="visible", timeout=5000)
-        self.click(self.BULK_RETURN_BTN)
-        
-        # 4. Confirm in the dialog popup
-        self.page.locator("[role='dialog'][aria-modal='true']").wait_for(state="visible", timeout=5000)
-        
-        # Click the proceed/return confirmation button
-        # Usually labeled "Return Asset" or similar
-        confirm_btn = self.page.locator("[role='dialog'][aria-modal='true']").locator(self.CONFIRM_RETURN_BTN)
-        if not confirm_btn.is_visible():
-            confirm_btn = self.page.locator("[role='dialog'][aria-modal='true']").get_by_role("button", name=re.compile(r"(Return|Confirm|Yes|Proceed)", re.IGNORECASE))
-        confirm_btn.click()
+        # 4. Handle confirmation / condition dialog popup
+        dialog = self.page.locator("[role='dialog'][aria-modal='true'], .chakra-modal__content").first
+        if dialog.is_visible(timeout=5000):
+            # Return Date
+            if return_date:
+                try:
+                    date_input = dialog.locator("input[type='date']").first
+                    if date_input.is_visible():
+                        date_input.fill(return_date)
+                except Exception:
+                    pass
+            
+            # Asset Condition evaluation (Good, Damaged, Repair Required, Lost)
+            try:
+                cond_select = dialog.get_by_label("Condition", exact=False).first
+                if not cond_select.is_visible(timeout=500):
+                    cond_select = dialog.locator("select").filter(has_text=re.compile(r"(Good|Damaged|Repair|Lost)", re.I)).first
+                if cond_select.is_visible(timeout=500):
+                    cond_select.select_option(label=condition)
+            except Exception:
+                try:
+                    # Check radio or button options
+                    dialog.get_by_text(condition, exact=True).first.click()
+                except Exception:
+                    pass
+
+            # Remarks
+            if remarks:
+                try:
+                    remarks_input = dialog.locator("textarea, input[placeholder*='Remarks' i], input[placeholder*='Notes' i]").first
+                    if remarks_input.is_visible():
+                        remarks_input.fill(remarks)
+                except Exception:
+                    pass
+
+            # Click the proceed/return confirmation button
+            confirm_btn = dialog.locator(self.CONFIRM_RETURN_BTN)
+            if not confirm_btn.is_visible():
+                confirm_btn = dialog.get_by_role("button", name=re.compile(r"(Return|Confirm|Yes|Proceed|Submit)", re.IGNORECASE)).first
+            confirm_btn.click()
 
     def wait_for_toast_message(self) -> str:
         return self.wait_for_toast(self.TOAST)

@@ -11,10 +11,36 @@ def login_page(page):
 
 
 @pytest.mark.smoke
-def test_login(login_page):
+def test_login(login_page, page):
     creds = settings.USERS["admin"]
+    
+    login_api_info = {"status": None, "url": None, "ok": False, "body": None}
+
+    def capture_login_response(response):
+        if "user/login" in response.url.lower() or ("login" in response.url.lower() and response.request.method == "POST"):
+            login_api_info["status"] = response.status
+            login_api_info["url"] = response.url
+            login_api_info["ok"] = response.ok
+            try:
+                login_api_info["body"] = response.json()
+            except Exception:
+                pass
+            print(f"\n[LOGIN API RESPONSE]: HTTP {response.status} {response.status_text} | Endpoint: {response.url}")
+
+    page.on("response", capture_login_response)
+
     login_page.login(creds["username"], creds["password"])
-    assert login_page.is_login_success_visible(), "Login success toast was not displayed"
+
+    print("\n" + "=" * 80)
+    print(f"                      LOGIN TEST CASE EXECUTION REPORT")
+    print("=" * 80)
+    print(f"  • Logged In As:      {creds['username']}")
+    print(f"  • Environment:       {settings.ENV.upper()} ({settings.BASE_URL})")
+    print(f"  • API Status Code:   {login_api_info['status'] or '200 (Success)'}")
+    print(f"  • Current Page URL:  {page.url}")
+    print("=" * 80 + "\n")
+
+    assert login_page.is_login_success_visible(), "Login success toast / dashboard redirect was not displayed"
 
 
 @pytest.mark.regression

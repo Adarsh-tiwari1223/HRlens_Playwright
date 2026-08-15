@@ -31,13 +31,34 @@ class AssetAssignmentPage(BasePage):
         self.page.locator(".chakra-portal, [role='listbox']").get_by_text(employee_name, exact=False).first.click()
         
         # Category dropdown
-        import re
-        self.page.get_by_label("Category*", exact=True).select_option(label=category)
-        self.page.wait_for_timeout(500)
+        if category:
+            cat_select = self.page.get_by_label("Category*", exact=True)
+            if not cat_select.is_visible(timeout=1000):
+                cat_select = self.page.locator("select").first
+            try:
+                cat_select.select_option(label=category)
+            except Exception:
+                options = cat_select.locator("option").all_inner_texts()
+                for idx, opt in enumerate(options):
+                    if category.lower() in opt.lower():
+                        cat_select.select_option(index=idx)
+                        break
+            self.page.wait_for_timeout(500)
         
         # Sub Category dropdown
-        self.page.get_by_label("Sub Category*", exact=True).select_option(label=sub_category)
-        self.page.wait_for_timeout(1000) # Wait for assets list to populate
+        if sub_category:
+            sub_select = self.page.get_by_label("Sub Category*", exact=True)
+            if not sub_select.is_visible(timeout=1000):
+                sub_select = self.page.locator("select").nth(1)
+            try:
+                sub_select.select_option(label=sub_category)
+            except Exception:
+                options = sub_select.locator("option").all_inner_texts()
+                for idx, opt in enumerate(options):
+                    if sub_category.lower() in opt.lower():
+                        sub_select.select_option(index=idx)
+                        break
+            self.page.wait_for_timeout(1000) # Wait for assets list to populate
         
         # Assets selector custom menu dropdown
         trigger_btn = self.page.get_by_role("button", name="Select assets to assign")

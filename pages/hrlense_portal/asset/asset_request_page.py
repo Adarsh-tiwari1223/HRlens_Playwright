@@ -17,12 +17,14 @@ class AssetRequestPage(BasePage):
 
     def accept_asset(self, asset_code_or_name: str) -> bool:
         logger.info(f"Accepting asset: {asset_code_or_name}")
-        self.page.wait_for_timeout(2000)
-        # Target the card container class '.css-prwjms' containing the asset code
-        card_locator = self.page.locator(".css-prwjms").filter(has_text=asset_code_or_name).first
-        accept_btn = card_locator.get_by_role("button", name="Accept Asset")
-        if accept_btn.is_visible():
+        self.page.wait_for_timeout(1000)
+        card_locator = self.page.locator(".css-prwjms, .chakra-card, div.chakra-stack, table tbody tr, div[role='row']").filter(has_text=asset_code_or_name).first
+        accept_btn = card_locator.get_by_role("button", name=re.compile(r"Accept Asset|Accept", re.I)).first
+        if not accept_btn.is_visible(timeout=2000):
+            accept_btn = self.page.get_by_role("button", name=re.compile(r"Accept Asset|Accept", re.I)).first
+        if accept_btn.is_visible(timeout=3000):
             accept_btn.click()
+            self.page.wait_for_timeout(500)
             return True
         logger.warning(f"Accept Asset button not visible for asset: {asset_code_or_name}")
         return False

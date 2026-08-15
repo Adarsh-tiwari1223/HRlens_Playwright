@@ -53,11 +53,48 @@ class AssetMaintenancePage(BasePage):
         if remarks:
             self.page.get_by_placeholder("e.g. Sent to authorized service center").fill(remarks)
 
-    def click_submit_case(self):
-        self.click(self.SUBMIT_CASE_BTN)
-
-    def click_cancel(self):
-        self.click(self.CANCEL_BTN)
+    def complete_maintenance(self, asset_code_or_name: str, resolution: str = "Repaired", cost: str = None, remarks: str = None):
+        """
+        Marks an in-progress maintenance case as complete (Repaired -> Available, or Unrepairable -> Damaged).
+        """
+        import re
+        logger.info(f"Completing maintenance for asset: {asset_code_or_name}, Resolution: {resolution}")
+        
+        # Search asset in maintenance list
+        search_input = self.page.locator("input[placeholder*='Search']").first
+        if search_input.is_visible():
+            search_input.fill(asset_code_or_name)
+            self.page.wait_for_timeout(2000)
+            
+        row = self.page.locator("table tbody tr").filter(has_text=asset_code_or_name).first
+        if row.is_visible(timeout=5000):
+            action_btn = row.get_by_role("button", name=re.compile(r"(Complete|Resolve|Update|Action)", re.I)).first
+            if action_btn.is_visible():
+                action_btn.click()
+                self.page.wait_for_timeout(1000)
+                
+                # Check dialog
+                dialog = self.page.locator("[role='dialog'][aria-modal='true'], .chakra-modal__content").first
+                if dialog.is_visible(timeout=5000):
+                    # Resolution dropdown / select
+                    try:
+                        res_select = dialog.get_by_label("Status", exact=False).first
+                        if not res_select.is_visible():
+                            res_select = dialog.locator("select").first
+                        if res_select.is_visible():
+                            res_select.select_option(label=resolution)
+                    except Exception:
+                        pass
+                    
+                    if remarks:
+                        try:
+                            dialog.locator("textarea, input[placeholder*='Remarks']").first.fill(remarks)
+                        except Exception:
+                            pass
+                            
+                    submit_btn = dialog.get_by_role("button", name=re.compile(r"(Complete|Save|Submit|Update)", re.I)).first
+                    if submit_btn.is_visible():
+                        submit_btn.click()
 
     def wait_for_toast_message(self) -> str:
         return self.wait_for_toast(self.TOAST)

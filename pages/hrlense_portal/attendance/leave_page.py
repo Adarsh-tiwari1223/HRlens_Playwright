@@ -146,30 +146,74 @@ class LeavePage(BasePage):
 
     def wait_for_apply_spinner_and_toast(self) -> str:
         """
-        Waits for loading spinner on Apply/Confirm button to detach/disappear, then captures toast message.
+        Waits for loading spinner on Apply/Confirm button or modal to detach,
+        waits for confirmation dialog to close, and captures toast message.
         """
-        logger.info("Waiting for button spinner to complete...")
+        logger.info("Waiting for button/modal spinner to complete...")
+        
+        # 1. Wait for any loading spinners to detach
+        for spinner_sel in [
+            "button .chakra-spinner",
+            ".chakra-spinner",
+            "button[data-loading]",
+            ".chakra-modal__content .chakra-spinner",
+            ".chakra-drawer__content .chakra-spinner",
+            "svg.animate-spin"
+        ]:
+            try:
+                s = self.page.locator(spinner_sel).first
+                if s.is_visible(timeout=500):
+                    s.wait_for(state="detached", timeout=20000)
+                    logger.info("Loading spinner finished & detached.")
+                    break
+            except Exception:
+                pass
+
+        # 2. Wait for Confirm modal to close
         try:
-            spinner = self.page.locator("button .chakra-spinner, .chakra-spinner, button[data-loading]").first
-            if spinner.is_visible(timeout=2000):
-                spinner.wait_for(state="detached", timeout=15000)
+            confirm_modal = self.page.locator(".chakra-modal__content, section[role='dialog']").first
+            if confirm_modal.is_visible(timeout=500):
+                confirm_modal.wait_for(state="hidden", timeout=8000)
         except Exception:
             pass
 
-        try:
-            confirm_btn = self.page.locator(self.CONFIRM_BTN).first
-            if confirm_btn.is_visible(timeout=1000):
-                confirm_btn.wait_for(state="hidden", timeout=5000)
-        except Exception:
-            pass
-
+        # 3. Capture Toast across all Chakra toast positions and alert containers
         toast = ""
-        try:
-            toast_loc = self.page.locator("#chakra-toast-manager-top-right .chakra-toast, #chakra-toast-manager-top-right [role='status'], .chakra-toast, [role='status'], [role='alert']").first
-            toast_loc.wait_for(state="visible", timeout=10000)
-            toast = toast_loc.inner_text().strip()
+        toast_selectors = [
+            "#chakra-toast-manager-top-right .chakra-toast",
+            "#chakra-toast-manager-top .chakra-toast",
+            "#chakra-toast-manager-bottom-right .chakra-toast",
+            "#chakra-toast-manager-bottom .chakra-toast",
+            ".chakra-toast",
+            ".chakra-toast__title",
+            "[role='status']",
+            "[role='alert']",
+            ".chakra-alert"
+        ]
+
+        for sel in toast_selectors:
+            try:
+                t_loc = self.page.locator(sel).first
+                if t_loc.is_visible(timeout=1500):
+                    txt = t_loc.inner_text().strip()
+                    if txt:
+                        toast = txt
+                        break
+            except Exception:
+                continue
+
+        # If not immediately found, wait up to 6 seconds for toast to appear
+        if not toast:
+            try:
+                t_loc = self.page.locator(", ".join(toast_selectors)).first
+                t_loc.wait_for(state="visible", timeout=6000)
+                toast = t_loc.inner_text().strip()
+            except Exception:
+                pass
+
+        if toast:
             logger.info(f"Captured Toast: '{toast}'")
-        except Exception:
+        else:
             logger.info("No toast message displayed or toast covered/hidden")
 
         return toast

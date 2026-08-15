@@ -305,6 +305,22 @@ class BasePage:
 
         logger.info(f"Navigating to Master menu{' -> ' + target_link_name if target_link_name else ''}...")
 
+        # Step 0: Ensure any open modal dialog or overlay is closed
+        try:
+            dialog = self.page.locator("[role='dialog'], .chakra-modal__content").first
+            if dialog.is_visible(timeout=300):
+                close_btn = dialog.locator(".chakra-modal__close-btn, button[aria-label*='Close' i], button:has-text('Cancel'), button:has-text('Close')").first
+                if close_btn.is_visible(timeout=300):
+                    close_btn.click(force=True)
+                else:
+                    self.page.keyboard.press("Escape")
+                self.page.wait_for_timeout(300)
+            if self.page.locator(".chakra-modal__overlay").first.is_visible(timeout=300):
+                self.page.keyboard.press("Escape")
+                self.page.locator(".chakra-modal__overlay").first.wait_for(state="hidden", timeout=1500)
+        except Exception:
+            pass
+
         # Step 1: Close active toast overlay if present
         try:
             toast_close_btn = self.page.locator(".chakra-toast__close-button, #chakra-toast-manager-top-right button[aria-label*='Close']").first
@@ -320,17 +336,14 @@ class BasePage:
             profile_btn = self.page.get_by_role("button").filter(has=self.page.locator(".chakra-avatar, h1")).first
 
         profile_btn.click()
-        self.page.wait_for_timeout(400)
 
         # Step 3: Click Master menuitem
         master_item = self.page.locator("[role='menuitem']:has-text('Master'), a:has-text('Master')").first
-        if not master_item.is_visible(timeout=2000):
+        if not master_item.is_visible(timeout=1000):
             profile_btn.click(force=True)
-            self.page.wait_for_timeout(400)
 
         master_item.wait_for(state="visible", timeout=4000)
         master_item.click()
-        self.page.wait_for_timeout(300)
 
         # Step 4: Click target sub-link if provided
         if target_link_name:

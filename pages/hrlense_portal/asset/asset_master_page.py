@@ -133,7 +133,22 @@ class AssetMasterPage(BasePage):
             dialog.locator("span").nth(2).click()
             dialog.locator("span").nth(1).click()
 
-    def fill_sub_category_details(self, category_label: str = None, name: str = None, code_prefix: str = None, description: str = None):
+    def fill_sub_category_details(
+        self,
+        category_label: str = None,
+        name: str = None,
+        code_prefix: str = None,
+        description: str = None,
+        category_name: str = None,
+        sub_category_name: str = None,
+        prefix: str = None,
+        toggle_spans: bool = False,
+        **kwargs
+    ):
+        category_label = category_label or category_name
+        name = name or sub_category_name
+        code_prefix = code_prefix or prefix
+
         dialog = self.page.locator("[role='dialog']").first
         if not dialog.is_visible():
             dialog = self.page
@@ -163,8 +178,26 @@ class AssetMasterPage(BasePage):
             dialog.get_by_placeholder("LAP").fill(code_prefix)
         if description is not None:
             dialog.locator(self.DESCRIPTION_INPUT).fill(description)
+        if toggle_spans:
+            logger.debug("Toggling extra sub-category spans")
+            try:
+                dialog.locator("span").nth(2).click()
+                dialog.locator("span").nth(1).click()
+            except Exception:
+                pass
 
-    def fill_vendor_details(self, name: str = None, contact_person: str = None, phone: str = None, email: str = None, address: str = None, gst: str = None, supports_amc: bool = False, toggle_spans: list[int] = None):
+    def fill_vendor_details(
+        self,
+        name: str = None,
+        contact_person: str = None,
+        phone: str = None,
+        email: str = None,
+        address: str = None,
+        gst: str = None,
+        supports_amc: bool = False,
+        toggle_spans: list[int] | bool = None,
+        **kwargs
+    ):
         dialog = self.page.locator("[role='dialog']").first
         if not dialog.is_visible():
             dialog = self.page
@@ -185,9 +218,17 @@ class AssetMasterPage(BasePage):
             logger.debug("Checking 'Supports AMC' option")
             dialog.get_by_text("Supports AMC").click()
         if toggle_spans:
-            logger.debug(f"Toggling vendor option spans: {toggle_spans}")
-            for idx in toggle_spans:
-                dialog.locator("span").nth(idx).click()
+            if isinstance(toggle_spans, (list, tuple)):
+                logger.debug(f"Toggling vendor option spans: {toggle_spans}")
+                for idx in toggle_spans:
+                    dialog.locator("span").nth(idx).click()
+            elif isinstance(toggle_spans, bool) and toggle_spans:
+                logger.debug("Toggling vendor default spans")
+                try:
+                    dialog.locator("span").nth(2).click()
+                    dialog.locator("span").nth(1).click()
+                except Exception:
+                    pass
 
     def click_create(self):
         btn = self.page.get_by_role("button", name="Create", exact=True).first

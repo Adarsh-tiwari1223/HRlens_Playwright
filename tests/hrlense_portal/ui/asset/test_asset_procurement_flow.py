@@ -45,30 +45,33 @@ def test_asset_e2e_procurement_flow(logged_in_page):
 
 @pytest.mark.ui
 @pytest.mark.asset
-def test_asset_manual_procurement_flow(logged_in_page):
-    story = TestStoryLogger("Manual Asset Procurement Submission Test", module="Asset Management", phase="Asset Procurement")
+def test_asset_procurement_with_png_invoice(logged_in_page):
+    story = TestStoryLogger("Asset Procurement via PNG Image Invoice Test", module="Asset Management", phase="Asset Procurement")
     story.start()
 
     admin_page, admin_context = logged_in_page("admin")
 
-    from testdata.dynamic.business_test_data import BusinessTestData
-    procurement_data = BusinessTestData.procurement()
-    logger.info(f"[MANUAL PROCUREMENT] Dynamic Test Data Generated: Invoice No={procurement_data.invoice_no}, Date={procurement_data.purchase_date}, Taxable=₹{procurement_data.amount_before_gst}, GST=₹{procurement_data.gst_amount}, Total=₹{procurement_data.total_amount}, Qty={procurement_data.quantity}")
+    invoices_dir = os.path.abspath("testdata/static/invoices")
+    sample_invoice_path = os.path.join(invoices_dir, "invoice_1mb.png")
+    if not os.path.exists(sample_invoice_path):
+        sample_invoice_path = os.path.join(invoices_dir, "JOB VRITTA 41 1.pdf")
+
+    logger.info(f"[STEP 2] Running Asset Procurement Workflow with Image Invoice: {sample_invoice_path}")
 
     workflow = AssetProcurementWorkflow(admin_page)
-    toast = workflow.create_manual_procurement(
-        procurement_data=procurement_data,
+    toast = workflow.procure_asset_with_invoice(
+        invoice_file_path=sample_invoice_path,
         story=story
     )
 
     is_success = any(term in toast.lower() for term in ["success", "created", "procured", "saved", "added"])
 
     story.log_step(
-        "Submit Manual Asset Procurement Form",
-        record=f"Invoice No: {procurement_data.invoice_no}, Amount: ₹{procurement_data.amount_before_gst}, Total: ₹{procurement_data.total_amount}",
-        expected="Manual Asset Procurement entry should be created successfully",
+        "Submit Asset Procurement Form with PNG Invoice",
+        record=f"Invoice File: {os.path.basename(sample_invoice_path)}",
+        expected="Asset Procurement entry should be created successfully via uploaded PNG invoice",
         actual=f"Toast message received: '{toast}'" if is_success else f"Failed: {toast}",
         status="PASS" if is_success else "FAIL"
     )
-    assert is_success, f"Manual procurement failed with toast message: '{toast}'"
+    assert is_success, f"Procurement with PNG invoice failed with toast message: '{toast}'"
 

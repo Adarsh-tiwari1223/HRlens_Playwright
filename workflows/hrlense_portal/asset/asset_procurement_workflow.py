@@ -62,7 +62,11 @@ class AssetProcurementWorkflow:
                 status="PASS"
             )
 
-        self.page.wait_for_timeout(3000)
+        # Step 3: Wait for any spinner to disappear dynamically
+        try:
+            self.page.locator(".chakra-spinner, span:has-text('Loading...')").first.wait_for(state="hidden", timeout=5000)
+        except Exception:
+            pass
 
         # Step 3: Read and log OCR prefilled form fields
         field_report = self.procurement_page.inspect_and_log_step1_fields()

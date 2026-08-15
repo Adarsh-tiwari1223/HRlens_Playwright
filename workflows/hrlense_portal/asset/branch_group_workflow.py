@@ -19,6 +19,26 @@ class BranchGroupWorkflow:
         self.page = page
         self.branch_group_page = BranchGroupPage(page)
 
+    def create_branch_group_workflow(self, group_name: str = None, branch_names: list[str] = None, seating_cost: str = "2500.00", search_query: str = None) -> str:
+        """Workflow to open Branch Group, click New Group, fill details, and submit."""
+        logger.info(f"[WORKFLOW] Creating Branch Group: '{group_name}'")
+        self.branch_group_page.navigate_to_branch_group()
+        self.branch_group_page.click_new_group()
+        if not branch_names:
+            branch_names = self.branch_group_page.get_api_company_branches()
+        self.branch_group_page.fill_group_details(
+            group_name=group_name or "Varanasi",
+            branch_names=branch_names,
+            seating_cost=seating_cost,
+            search_query=search_query or "Varanasi"
+        )
+        self.branch_group_page.click_create()
+        toast = self.branch_group_page.wait_for_toast_message()
+        logger.info(f"[WORKFLOW] Branch Group creation toast result: '{toast}'")
+        # Ensure modal dialog is cleanly closed if creation failed/blocked
+        self.branch_group_page._ensure_modal_closed()
+        return toast
+
     def create_city_branch_group_workflow(self, city: str = None, seating_cost: str = "2500.00") -> tuple[str, list[str], str]:
         """
         Executes the 1:1 Branch Group flow:
@@ -67,16 +87,15 @@ class BranchGroupWorkflow:
         Validates that the created Branch Group is displayed in the grid table with its mapped branches.
         """
         self.branch_group_page.navigate_to_branch_group()
-        self.page.wait_for_timeout(500)
-
         # Search for group_name in table search box if present
         search_input = self.page.get_by_placeholder("Search", exact=False)
-        if search_input.is_visible():
+        if search_input.is_visible(timeout=500):
             search_input.fill(group_name)
-            self.page.wait_for_timeout(500)
 
         row = self.page.locator("tbody tr").filter(has_text=group_name).first
-        if not row.is_visible(timeout=3000):
+        try:
+            row.wait_for(state="visible", timeout=5000)
+        except Exception:
             logger.warning(f"[BRANCH GROUP VALIDATION] Group '{group_name}' not found in grid rows.")
             return False
 

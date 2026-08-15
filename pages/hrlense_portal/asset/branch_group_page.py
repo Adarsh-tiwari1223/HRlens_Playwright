@@ -76,8 +76,11 @@ class BranchGroupPage(BasePage):
 
     def click_new_group(self):
         self._ensure_modal_closed()
-        self.page.locator(self.NEW_GROUP_BTN).wait_for(state="visible", timeout=10000)
-        self.click(self.NEW_GROUP_BTN)
+        btn = self.page.locator("button:has-text('New Group'), button:has-text('Add Group'), button:has-text('Add Branch Group')").first
+        if not btn.is_visible(timeout=2000):
+            btn = self.page.get_by_role("button", name=re.compile(r"New Group|Add Group|Add Branch Group", re.I)).first
+        btn.wait_for(state="visible", timeout=10000)
+        btn.click()
         self.page.locator("[role='dialog']").wait_for(state="visible", timeout=10000)
 
 
@@ -97,7 +100,7 @@ class BranchGroupPage(BasePage):
             logger.warning(f"Failed to fetch branches from API: {e}")
         return ["Varanasi", "Agra", "Noida"]
 
-    def fill_group_details(self, group_name: str = None, branch_names: list[str] = None, seating_cost: str = "2500.00"):
+    def fill_group_details(self, group_name: str = None, branch_names: list[str] = None, seating_cost: str = "2500.00", search_query: str = None):
         dialog = self.page.locator("[role='dialog']").first
         if not dialog.is_visible():
             dialog = self.page
@@ -108,7 +111,7 @@ class BranchGroupPage(BasePage):
             if not name_input.is_visible(timeout=1000):
                 name_input = dialog.get_by_label("Group Name*", exact=False)
             if not name_input.is_visible(timeout=1000):
-                name_input = dialog.locator("input").first
+                name_input = dialog.locator("input[placeholder*='e.g.' i], input").first
             name_input.fill(group_name)
 
         # 2. Seating Cost (per head)
@@ -120,57 +123,48 @@ class BranchGroupPage(BasePage):
             if cost_input.is_visible(timeout=1000):
                 cost_input.fill(str(seating_cost))
 
-        # 3. Assign Branches* (Search stored company branches via API and check)
-        if branch_names is not None:
-            search_input = dialog.locator("input[placeholder*='Search'], input[placeholder*='branch']").first
-            if not search_input.is_visible(timeout=1000):
-                search_input = dialog.get_by_placeholder("Search branches", exact=False)
-
-            selected_count = 0
-            for b_name in branch_names:
-                b_clean = str(b_name).strip()
-                if not b_clean or "*" in b_clean or "Group" in b_clean:
-                    continue
-                logger.info(f"[ASSIGN BRANCHES] Searching stored company branch: '{b_clean}'")
-                if search_input.is_visible(timeout=1000):
-                    search_input.fill("")
-                    search_input.fill(b_clean)
-                    self.page.wait_for_timeout(300)
-
-                # Look for matching branch checkbox in body (never header select-all)
-                branch_row = dialog.locator("tbody tr, div[role='row'], label.chakra-checkbox").filter(has_text=re.compile(rf"{re.escape(b_clean)}", re.I)).first
-                if not branch_row.is_visible(timeout=1000):
-                    clean_city = b_clean.split("(")[0].strip() if "(" in b_clean else b_clean
-                    branch_row = dialog.locator("tbody tr, div[role='row'], label.chakra-checkbox").filter(has_text=re.compile(rf"{re.escape(clean_city)}", re.I)).first
-
-                if branch_row.is_visible(timeout=1000):
-                    chk_elem = branch_row.locator(".chakra-checkbox__control, input[type='checkbox'], span, label").first
-                    if chk_elem.is_visible():
-                        chk_elem.click(force=True)
-                    else:
-                        branch_row.click(force=True)
-                    self.page.wait_for_timeout(200)
-                    selected_count += 1
-                    logger.info(f"[ASSIGN BRANCHES] Checked company branch: '{b_clean}'")
-
-            # Clear search filter cleanly after specific selections are made
+        # 3. Search branches
+        target_search = search_query or (branch_names[0] if branch_names else "Varanasi")
+        if target_search:
+            clean_search = str(target_search).split("(")[0].strip()
+            search_input = dialog.locator("input[placeholder*='Search branches'], input[placeholder*='Search']").first
             if search_input.is_visible(timeout=1000):
-                search_input.fill("")
-                self.page.wait_for_timeout(200)
+                search_input.fill(clean_search)
+                logger.info(f"[ASSIGN BRANCHES] Searched branches by: '{clean_search}'")
 
-            # Fallback: if branch_names was provided but none matched, select first row checkbox in tbody only
-            if selected_count == 0 and branch_names:
-                first_body_chk = dialog.locator("tbody tr .chakra-checkbox__control, tbody label.chakra-checkbox, tbody input[type='checkbox']").first
-                if first_body_chk.is_visible(timeout=1000):
-                    first_body_chk.click(force=True)
-                    self.page.wait_for_timeout(200)
-                    logger.info("[ASSIGN BRANCHES] Checked first body company branch checkbox.")
+        # 4. Select all checkbox
+        select_all_locators = [
+            dialog.locator("div.chakra-stack, label.chakra-checkbox").filter(has_text=re.compile(r"Select all", re.I)).locator(".chakra-checkbox__control, input[type='checkbox']").first,
+            dialog.locator("label.chakra-checkbox:has-text('Select all')").first,
+            dialog.locator("div:has(> p:has-text('Select all')) .chakra-checkbox__control").first,
+            dialog.get_by_text("Select all", exact=False).first,
+            dialog.locator(".chakra-checkbox__control").first
+        ]
+        clicked = False
+        for loc in select_all_locators:
+            try:
+                if loc.is_visible(timeout=500):
+                    loc.click(force=True)
+                    clicked = True
+                    logger.info("[ASSIGN BRANCHES] Checked 'Select all' checkbox.")
+                    break
+            except Exception:
+                continue
+
+        if not clicked:
+            first_chk = dialog.locator(".chakra-checkbox__control, input[type='checkbox']").first
+            if first_chk.is_visible(timeout=1000):
+                first_chk.click(force=True)
+                logger.info("[ASSIGN BRANCHES] Checked first available branch checkbox.")
 
     def get_available_branches(self) -> list[str]:
         return self.get_api_company_branches()
 
     def click_create(self):
-        self.click(self.CREATE_BTN)
+        btn = self.page.locator("button:has-text('Create Group'), button:has-text('Create'), button[type='submit']").first
+        if not btn.is_visible(timeout=1000):
+            btn = self.page.get_by_role("button", name=re.compile(r"Create Group|Create", re.I)).first
+        btn.click()
 
     def click_update(self):
         self.click(self.UPDATE_BTN)

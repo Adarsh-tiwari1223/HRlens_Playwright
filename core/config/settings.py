@@ -105,6 +105,70 @@ USERS = {
     "abhishek_singh": {
         "username": _get_env("ABHISHEK_SINGH_USERNAME"),
         "password": _get_env("ABHISHEK_SINGH_PASSWORD")
+    },
+    "it_admin": {
+        "username": _get_env("IT_ADMIN_USERNAME"),
+        "password": _get_env("IT_ADMIN_PASSWORD")
+    },
+    "it_agra_ritesh": {
+        "username": _get_env("IT_AGRA_RITESHYADAV_USERNAME"),
+        "password": _get_env("IT_AGRA_RITESHYADAV_PASSWORD")
+    },
+    "it_lucknow_amit": {
+        "username": _get_env("IT_LUCKNOW_AMITPAL_USERNAME"),
+        "password": _get_env("IT_LUCKNOW_AMITPAL_PASSWORD")
+    },
+    "it_greaternoida_shubham": {
+        "username": _get_env("IT_GREATERNOIDA_SHUBHAMKUMAR_USERNAME"),
+        "password": _get_env("IT_GREATERNOIDA_SHUBHAMKUMAR_PASSWORD")
+    },
+    "it_admin_greaternoida": {
+        "username": _get_env("IT_ADMIN_GREATERNOIDA_USERNAME"),
+        "password": _get_env("IT_ADMIN_GREATERNOIDA_PASSWORD")
+    },
+    "it_varanasi_raunak": {
+        "username": _get_env("IT_VARANASI_RAUNAKRAI_USERNAME"),
+        "password": _get_env("IT_VARANASI_RAUNAKRAI_PASSWORD")
+    },
+    "it_jaipur_ashu": {
+        "username": _get_env("IT_JAIPUR_ASHUSAIN_USERNAME"),
+        "password": _get_env("IT_JAIPUR_ASHUSAIN_PASSWORD")
+    },
+    "it_admin_jaipur": {
+        "username": _get_env("IT_ADMIN_JAIPUR_USERNAME"),
+        "password": _get_env("IT_ADMIN_JAIPUR_PASSWORD")
+    },
+    "it_meerut_aditya": {
+        "username": _get_env("IT_MEERUT_ADITYASAXENA_USERNAME"),
+        "password": _get_env("IT_MEERUT_ADITYASAXENA_PASSWORD")
+    },
+    "it_noida_puneet": {
+        "username": _get_env("IT_NOIDA_PUNEETPRASAD_USERNAME"),
+        "password": _get_env("IT_NOIDA_PUNEETPRASAD_PASSWORD")
+    },
+    "it_noida_amarjeet": {
+        "username": _get_env("IT_NOIDA_AMARJEETKUMAR_USERNAME"),
+        "password": _get_env("IT_NOIDA_AMARJEETKUMAR_PASSWORD")
+    },
+    "it_varanasi_ashutosh": {
+        "username": _get_env("IT_VARANASI_ASHUTOSHKUMAR_USERNAME"),
+        "password": _get_env("IT_VARANASI_ASHUTOSHKUMAR_PASSWORD")
+    },
+    "it_noida_abhishek": {
+        "username": _get_env("IT_NOIDA_ABHISHEKKUMAR_USERNAME"),
+        "password": _get_env("IT_NOIDA_ABHISHEKKUMAR_PASSWORD")
+    },
+    "it_agra_sandeep": {
+        "username": _get_env("IT_AGRA_SANDEEPSINGH_USERNAME"),
+        "password": _get_env("IT_AGRA_SANDEEPSINGH_PASSWORD")
+    },
+    "it_noida_chandan": {
+        "username": _get_env("IT_NOIDA_CHANDAN_USERNAME"),
+        "password": _get_env("IT_NOIDA_CHANDAN_PASSWORD")
+    },
+    "it_varanasi_tejasav": {
+        "username": _get_env("IT_VARANASI_TEJASAVJAISWAL_USERNAME"),
+        "password": _get_env("IT_VARANASI_TEJASAVJAISWAL_PASSWORD")
     }
 }
 

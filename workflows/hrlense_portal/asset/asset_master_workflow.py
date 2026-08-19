@@ -15,14 +15,36 @@ class AssetMasterWorkflow:
         self.asset_master_page = AssetMasterPage(page)
 
     def create_category_workflow(self, name: str, description: str = "", toggle_spans: bool = False) -> str:
-        self.asset_master_page.navigate_to_asset_master()
+        if "asset-master" not in self.page.url:
+            self.asset_master_page.navigate_to_asset_master()
+        else:
+            self.asset_master_page.navigate_to_category_tab()
         self.asset_master_page.click_add_category()
         self.asset_master_page.fill_category_details(name=name, description=description, toggle_spans=toggle_spans)
         self.asset_master_page.click_create()
-        return self.asset_master_page.wait_for_toast_message()
+        feedback = self.asset_master_page.get_submission_feedback()
+        self.asset_master_page._ensure_modal_closed()
+        return feedback
+
+    def create_sub_category_workflow(self, category_name: str, sub_category_name: str, prefix: str = "LAP", description: str = "") -> str:
+        if "asset-master" not in self.page.url:
+            self.asset_master_page.navigate_to_asset_master()
+        self.asset_master_page.navigate_to_sub_categories()
+        self.asset_master_page.click_add_sub_category()
+        self.asset_master_page.fill_sub_category_details(
+            category_label=category_name,
+            name=sub_category_name,
+            code_prefix=prefix,
+            description=description
+        )
+        self.asset_master_page.click_create()
+        feedback = self.asset_master_page.get_submission_feedback()
+        self.asset_master_page._ensure_modal_closed()
+        return feedback
 
     def create_vendor_workflow(self, vendor_data: dict) -> str:
-        self.asset_master_page.navigate_to_asset_master()
+        if "asset-master" not in self.page.url:
+            self.asset_master_page.navigate_to_asset_master()
         self.asset_master_page.navigate_to_vendors()
         self.asset_master_page.click_add_vendor()
         self.asset_master_page.fill_vendor_details(
@@ -36,7 +58,9 @@ class AssetMasterWorkflow:
             toggle_spans=vendor_data.get("toggle_spans", True)
         )
         self.asset_master_page.click_create()
-        return self.asset_master_page.wait_for_toast_message()
+        feedback = self.asset_master_page.get_submission_feedback()
+        self.asset_master_page._ensure_modal_closed()
+        return feedback
 
     def setup_category_with_subcategories_workflow(self) -> tuple[str, list[dict]]:
         """

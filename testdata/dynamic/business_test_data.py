@@ -1,3 +1,4 @@
+import re
 import random
 from dataclasses import dataclass, asdict
 from datetime import timedelta
@@ -244,7 +245,7 @@ ASSET_TEMPLATES = {
     }
 }
 
-BRANCHES = ["Noida HQ", "Bangalore Tech Park", "Pune Development Center", "Mumbai Corporate", "Hyderabad R&D"]
+BRANCHES = ["Varanasi", "Agra", "Noida", "Greater Noida"]
 DEPARTMENTS = ["Engineering", "Information Technology", "Finance & Accounts", "Human Resources", "Sales & Marketing"]
 CURRENCIES = ["INR", "USD", "EUR", "GBP"]
 STATUSES = ["Available", "Assigned", "In Repair", "Under Maintenance", "Retired", "Lost", "Scrapped"]
@@ -400,34 +401,36 @@ class BusinessTestData:
 
     @classmethod
     def vendor(cls, company_name: str = None) -> VendorData:
-        """Generates realistic Indian enterprise vendor information."""
-        suffix = cls.get_unique_suffix()
+        """Generates realistic enterprise vendor information with ZERO numbers in vendor name."""
+        clean_vendor_names = [
+            "Dell Technologies Pvt Ltd",
+            "Apple India Pvt Ltd",
+            "Lenovo Enterprise Pvt Ltd",
+            "HP Solutions Pvt Ltd",
+            "Samsung Electronics Pvt Ltd",
+            "Logitech Tech Pvt Ltd",
+            "Cisco Systems India Pvt Ltd",
+            "Microsoft Corporation India"
+        ]
         
-        # Indian corporate name structure
         if not company_name:
-            org_name = fake.company()
-            if not org_name.endswith("Ltd") and not org_name.endswith("Pvt Ltd"):
-                org_name = f"{org_name} Technologies Pvt Ltd"
+            org_name = random.choice(clean_vendor_names)
         else:
-            org_name = company_name
+            # Strip any numbers from company_name to strictly satisfy User Rule
+            org_name = re.sub(r"\d+", "", company_name).strip()
             if not org_name.endswith("Ltd") and not org_name.endswith("Pvt Ltd"):
-                org_name = f"{org_name} {suffix} Solutions Pvt Ltd"
-            else:
-                org_name = f"{org_name} {suffix}"
+                org_name = f"{org_name} Solutions Pvt Ltd"
 
         first_name = fake.first_name()
         last_name = fake.last_name()
         contact_person = f"{first_name} {last_name}"
 
-        # Production-grade domain name mapping
-        clean_org = org_name.lower().replace("pvt", "").replace("ltd", "").replace("solutions", "").replace("tech", "").replace("india", "").replace(" ", "").replace(".", "").replace(",", "")[:15]
-        domain = f"{clean_org}{suffix % 100}"
+        clean_domain = re.sub(r"[^a-zA-Z]", "", org_name.lower().replace("pvt", "").replace("ltd", "").replace("solutions", "").replace("tech", "").replace("india", "").replace("corporation", ""))[:12]
+        domain = clean_domain if clean_domain else "enterprise"
         email = f"{first_name.lower()}.{last_name.lower()}@{domain}.co.in"
 
-        # Indian phone number starting with valid prefix
         phone = fake.numerify(random.choice(["9#########", "8#########", "7#########", "6#########"]))
 
-        # Indian GSTIN format: State Code (2d) + PAN (10 chars) + Entity (1d) + Z (1d) + Check (1d)
         state_code = random.choice(["09", "27", "29", "22", "07", "33", "19", "24"])
         pan_letters = "".join(random.choices("ABCDEFGHIJKLMNOPQRSTUVWXYZ", k=5))
         pan_digits = f"{random.randint(1000, 9999)}"

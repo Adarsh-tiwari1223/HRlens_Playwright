@@ -39,7 +39,7 @@ fake = Faker("en_IN")
 @pytest.mark.asset
 class TestAssetAssignmentWorkflowSpec:
 
-    @pytest.mark.smoke
+    @pytest.mark.regression
     def test_aa_001_direct_assignment_accept(self, logged_in_page):
         """
         AA_001: Direct Assignment → Employee Accepts Asset (E2E)

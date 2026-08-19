@@ -29,6 +29,7 @@ from pages.hrlense_portal.asset.asset_disposal_page import AssetDisposalPage
 from pages.hrlense_portal.asset.asset_assignment_page import AssetAssignmentPage
 from pages.hrlense_portal.asset.asset_request_page import AssetRequestPage
 from pages.hrlense_portal.asset.asset_entry_page import AssetEntryPage
+from utils.dynamic_employee_selector import get_random_dynamic_employee
 
 logger = logging.getLogger(__name__)
 
@@ -38,14 +39,21 @@ logger = logging.getLogger(__name__)
 @pytest.mark.lifecycle_outcome
 class TestAssetConditionLifecycleOutcomeSpec:
 
-    def _ensure_assigned_asset_for_return(self, admin_page, logged_in_page, employee_name="Sanidhy Tiwari", user_key="sanidhy") -> str:
+    def _ensure_assigned_asset_for_return(self, admin_page, logged_in_page, employee_name=None, user_key=None) -> str:
         """
         Helper ensuring a fresh active assigned asset exists on the Assigned Assets grid for return:
-        1. Creates a fresh Available asset entry (guarantees available stock in category/subcategory)
-        2. Performs direct assignment to target employee
-        3. Employee accepts assignment on employee portal
-        4. Returns exact assigned asset code for condition return verification
+        1. Dynamically grabs an active department-wise employee if not specified
+        2. Creates a fresh Available asset entry (guarantees available stock in category/subcategory)
+        3. Performs direct assignment to target dynamic employee
+        4. Employee accepts assignment on employee portal
+        5. Returns exact assigned asset code for condition return verification
         """
+        if not employee_name or not user_key:
+            emp = get_random_dynamic_employee()
+            employee_name = emp["name"]
+            user_key = emp.get("user_key", "sanidhy")
+
+        logger.info(f"[HELPER] Dynamically selected target employee: '{employee_name}' ({user_key}) for lifecycle outcome test.")
         # Step 1: Create a fresh Available asset entry
         logger.info(f"[HELPER] Creating fresh Available asset for '{employee_name}' lifecycle outcome test.")
         entry_page = AssetEntryPage(admin_page)

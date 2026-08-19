@@ -141,7 +141,60 @@ class AssetMasterPage(BasePage):
                         return txt
         except Exception as ex:
             logger.warning(f"Could not read existing Vendor: {ex}")
-        return "Dell Technologies"
+    def get_all_existing_categories(self) -> list[str]:
+        """Returns list of all category names currently present in the Category table."""
+        if "asset-master" not in self.page.url:
+            self.navigate_to_asset_master()
+        self.navigate_to_category_tab()
+        cats = []
+        try:
+            self.page.locator("tbody tr").first.wait_for(state="visible", timeout=4000)
+            for r in self.page.locator("tbody tr").all():
+                cells = r.locator("td").all()
+                if cells:
+                    txt = cells[0].inner_text().strip()
+                    if txt and not txt.startswith("No ") and txt not in cats:
+                        cats.append(txt)
+        except Exception:
+            pass
+        return cats
+
+    def get_all_existing_sub_categories(self) -> list[dict]:
+        """Returns list of all sub-categories [{'category': ..., 'sub_category': ...}] currently in table."""
+        if "asset-master" not in self.page.url:
+            self.navigate_to_asset_master()
+        self.navigate_to_sub_categories()
+        subs = []
+        try:
+            self.page.locator("tbody tr").first.wait_for(state="visible", timeout=4000)
+            for r in self.page.locator("tbody tr").all():
+                cells = r.locator("td").all()
+                if len(cells) >= 2:
+                    cat = cells[0].inner_text().strip()
+                    sub = cells[1].inner_text().strip()
+                    if cat and sub and not cat.startswith("No "):
+                        subs.append({"category": cat, "sub_category": sub})
+        except Exception:
+            pass
+        return subs
+
+    def get_all_existing_vendors(self) -> list[str]:
+        """Returns list of all vendor names currently in the Vendors table."""
+        if "asset-master" not in self.page.url:
+            self.navigate_to_asset_master()
+        self.navigate_to_vendors()
+        vendors = []
+        try:
+            self.page.locator("tbody tr, table tr").first.wait_for(state="visible", timeout=4000)
+            for r in self.page.locator("tbody tr, table tr").all():
+                cells = r.locator("td").all()
+                if cells:
+                    txt = cells[0].inner_text().strip()
+                    if txt and not txt.startswith("No ") and txt not in vendors:
+                        vendors.append(txt)
+        except Exception:
+            pass
+        return vendors
 
     def _ensure_modal_closed(self):
         dialog = self.page.locator("[role='dialog']").first
@@ -435,12 +488,32 @@ class AssetMasterPage(BasePage):
         """Discovers and returns all field-level validation error messages displayed in the current form/dialog."""
         return self.get_all_validation_messages()
 
-    def get_field_validation_message(self, field_label_or_locator: str) -> str:
-        """Returns the specific field-level validation error text displayed below a form control."""
-        return self.get_field_validation(field_label_or_locator)
+    def get_submission_feedback(self) -> str:
+        """
+        Dynamically captures submission response using Playwright's native visibility locators:
+        1. Checks for toast alert (Success / Error).
+        2. Checks for inline form validation error (.chakra-form__error-message).
+        3. Returns the captured feedback immediately without hardcoded sleep/timeouts.
+        """
+        feedback_loc = self.page.locator(
+            "#chakra-toast-manager-top-right .chakra-toast, .chakra-toast, "
+            ".chakra-form__error-message, [role='alert'], [role='status'], [id$='-feedback']"
+        ).first
 
-    def wait_for_toast_message(self) -> str:
+        if feedback_loc.is_visible():
+            text = feedback_loc.inner_text().strip()
+            if text:
+                logger.debug(f"[SUBMISSION FEEDBACK] Captured: '{text}'")
+                return text
+
+        inline_errs = self.get_active_form_errors()
+        if inline_errs:
+            return f"Validation: {', '.join(inline_errs)}"
+
         return self.wait_for_toast(self.TOAST)
+
+    def wait_for_toast_message(self, timeout: int = 5000) -> str:
+        return self.wait_for_toast(self.TOAST, timeout=timeout)
 
     def set_category_inactive(self, category_name: str):
         """Edit a category and toggle its Active status to Inactive."""

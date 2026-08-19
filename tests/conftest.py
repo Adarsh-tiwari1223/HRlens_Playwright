@@ -225,6 +225,15 @@ def admin_page(browser, request):
     try:
         page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="hidden", timeout=15000)
     except Exception:
+        try:
+            if page.get_by_text("Please enter your Login Details", exact=True).is_visible(timeout=2000):
+                page.get_by_role("button", name="Login").click()
+                page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="hidden", timeout=15000)
+        except Exception:
+            pass
+    try:
+        page.wait_for_load_state("domcontentloaded", timeout=5000)
+    except Exception:
         pass
     yield page
     try:

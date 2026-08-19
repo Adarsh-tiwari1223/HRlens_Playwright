@@ -33,15 +33,100 @@ class LoginPage(BasePage):
             self.page.wait_for_selector("input, label:has-text('Email')", timeout=15000)
         except Exception:
             pass
+
+        captured_api_events = []
+
+        def _on_response(response):
+            try:
+                url_lower = response.url.lower()
+                if "api" in url_lower or "auth" in url_lower or "login" in url_lower or "token" in url_lower:
+                    status = response.status
+                    try:
+                        body_snippet = response.text()[:500]
+                    except Exception:
+                        body_snippet = "<binary/unreadable>"
+
+                    captured_api_events.append({
+                        "type": "RESPONSE",
+                        "url": response.url,
+                        "status": status,
+                        "body": body_snippet
+                    })
+                    if status >= 400:
+                        logger.error(f"[LOGIN API ERROR] Status {status} | URL: {response.url}\nPayload/Response: {body_snippet}")
+                    else:
+                        logger.info(f"[LOGIN API SUCCESS] Status {status} | URL: {response.url}")
+            except Exception:
+                pass
+
+        def _on_request_failed(request):
+            try:
+                url_lower = request.url.lower()
+                if "api" in url_lower or "auth" in url_lower or "login" in url_lower or "token" in url_lower:
+                    failure_text = request.failure or "CORS/Network error"
+                    captured_api_events.append({
+                        "type": "REQUEST_FAILED",
+                        "url": request.url,
+                        "status": "FAILED/CORS",
+                        "body": str(failure_text)
+                    })
+                    logger.error(f"[LOGIN API CORS/NETWORK FAILURE] URL: {request.url} | Error: {failure_text}")
+            except Exception:
+                pass
+
+        self.page.on("response", _on_response)
+        self.page.on("requestfailed", _on_request_failed)
+
         self._fill_email(email)
         self._fill_password(password)
-        self.page.get_by_role("button", name="Login").click()
+
+        try:
+            self.page.get_by_role("button", name="Login").click()
+        except Exception as click_err:
+            logger.error(f"[UI] Login button click error: {click_err}")
+
+        # Wait for redirect away from /login
+        login_succeeded = False
         try:
             self.page.wait_for_url(lambda url: "/login" not in url, timeout=12000)
             self.page.wait_for_load_state("domcontentloaded")
+            login_succeeded = True
+            logger.info(f"[UI] Logged In As            : {email}")
         except Exception:
-            self.page.wait_for_timeout(1500)
-        logger.info(f"[UI] Logged In As            : {email}")
+            login_succeeded = ("/login" not in self.page.url)
+
+        try:
+            self.page.remove_listener("response", _on_response)
+            self.page.remove_listener("requestfailed", _on_request_failed)
+        except Exception:
+            pass
+
+        if not login_succeeded:
+            # Capture any visible UI toast/error message
+            toast_text = ""
+            try:
+                alert = self.page.locator(".chakra-toast, [role='alert'], .chakra-alert").first
+                if alert.is_visible(timeout=1500):
+                    toast_text = alert.inner_text().strip()
+            except Exception:
+                pass
+
+            api_summary_lines = []
+            for ev in captured_api_events:
+                api_summary_lines.append(f"  • [{ev['type']}] Status: {ev['status']} | URL: {ev['url']}\n    Response: {ev['body']}")
+
+            api_report = "\n".join(api_summary_lines) if api_summary_lines else "  • No API response captured (Network blocked/CORS)."
+
+            error_message = (
+                f"\n{'='*60}\n"
+                f"[AUTHENTICATION FAILED] User '{email}' failed to log in.\n"
+                f"Browser remained on: {self.page.url}\n"
+                f"UI Toast/Error Message: '{toast_text or '<None>'}'\n"
+                f"Backend API Diagnostics:\n{api_report}\n"
+                f"{'='*60}\n"
+            )
+            logger.error(error_message)
+            raise AssertionError(error_message)
 
 
 

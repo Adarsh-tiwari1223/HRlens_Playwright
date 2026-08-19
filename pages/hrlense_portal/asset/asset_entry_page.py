@@ -21,9 +21,17 @@ class AssetEntryPage(BasePage):
 
     def click_add_asset(self):
         """Opens standard Add Asset manual creation modal."""
-        self.page.locator(self.ADD_ASSET_BTN).wait_for(state="visible", timeout=10000)
-        self.click(self.ADD_ASSET_BTN)
-        self.page.locator("[role='dialog'][aria-modal='true']").wait_for(state="visible", timeout=10000)
+        logger.info("Clicking 'Add Asset' / 'Add New Asset' button...")
+        btn = self.page.get_by_role("button", name=re.compile(r"Add\s*(New)?\s*Asset", re.I)).first
+        if not btn.is_visible(timeout=2000):
+            btn = self.page.locator("button").filter(has_text=re.compile(r"Add\s*(New)?\s*Asset", re.I)).first
+        if not btn.is_visible(timeout=2000):
+            btn = self.page.locator(self.ADD_ASSET_BTN)
+
+        btn.wait_for(state="visible", timeout=10000)
+        btn.click()
+        self.page.locator("[role='dialog'][aria-modal='true'], .chakra-modal__content").wait_for(state="visible", timeout=10000)
+        logger.info("Verified 'Add New Asset' form/modal is visible.")
 
     def click_generate_assets_button(self):
         """Clicks the 'Generate Assets' button and waits for drawer/modal with header 'Generate Assets' to open."""

@@ -21,7 +21,7 @@ class AssetReturnPage(BasePage):
         except Exception:
             pass
 
-    def return_asset(self, asset_code_or_name: str, condition: str = "Good", return_date: str = "2026-08-18", remarks: str = "Asset returned in good condition."):
+    def return_asset(self, asset_code_or_name: str = None, asset_code: str = None, condition: str = "Good", return_date: str = "2026-08-18", remarks: str = "Asset returned in good condition."):
         """
         Admin/IT side Single Asset Return fulfillment according to exact UI steps:
         1. Click 'Assigned Assets' tab
@@ -29,6 +29,7 @@ class AssetReturnPage(BasePage):
         3. Filter row by asset code and click row 'Return' button
         4. In 'Return Asset' dialog: Fill return date, check condition radio (Good), fill remarks textarea & click Return Asset confirmation.
         """
+        asset_code_or_name = asset_code or asset_code_or_name
         logger.info(f"Returning asset: '{asset_code_or_name}' with Condition: '{condition}'")
         
         # 1. Click 'Assigned Assets' tab

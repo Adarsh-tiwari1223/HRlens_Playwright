@@ -1,0 +1,145 @@
+[
+  {
+    "id": 10599,
+    "name": "Ritesh yadav",
+    "email": "ritesh.y@tekinspirations.com",
+    "empCode": "2238",
+    "branch": "Agra",
+    "department_Id": 11,
+    "department": "IT",
+    "designation": "Desktop Support Engineer",
+    "status": "Active"
+  },
+  {
+    "id": 10565,
+    "name": "Amit kumar Pal",
+    "email": "amit.pal@codecrewzs.com",
+    "empCode": "2228",
+    "branch": "Lucknow",
+    "department_Id": 11,
+    "department": "IT",
+    "designation": "IT Support Executive",
+    "status": "Active"
+  },
+  {
+    "id": 10440,
+    "name": "Shubham Kumar",
+    "email": "shubham@technovion.com",
+    "empCode": "2119",
+    "branch": "Greater Noida",
+    "department_Id": 11,
+    "department": "IT",
+    "designation": "IT Admin",
+    "status": "Active"
+  },
+  {
+    "id": 10353,
+    "name": "Raunak Rai",
+    "email": "raunak.rai@tekinspirations.com",
+    "empCode": "2046",
+    "branch": "Varanasi",
+    "department_Id": 11,
+    "department": "IT",
+    "designation": "IT Support Executive",
+    "status": "Active"
+  },
+  {
+    "id": 10272,
+    "name": "Ashu Sain",
+    "email": "ashu.sain@corehuntinc.com",
+    "empCode": "1947",
+    "branch": "Jaipur",
+    "department_Id": 11,
+    "department": "IT",
+    "designation": "IT Admin",
+    "status": "Active"
+  },
+  {
+    "id": 9896,
+    "name": "Aditya Saxena",
+    "email": "aditya.saxena@tekinspirations.com",
+    "empCode": "1762",
+    "branch": "Meerut",
+    "department_Id": 11,
+    "department": "IT",
+    "designation": "Network Engineer",
+    "status": "Active"
+  },
+  {
+    "id": 9864,
+    "name": "Puneet Kumar Prasad",
+    "email": "pprasad@vyzeinc.com",
+    "empCode": "1659",
+    "branch": "Noida",
+    "department_Id": 11,
+    "department": "IT",
+    "designation": "Desktop Support Engineer",
+    "status": "Active"
+  },
+  {
+    "id": 9833,
+    "name": "AMARJEET KUMAR",
+    "email": "amarjeet.kumar@vyzeinc.com",
+    "empCode": "1615",
+    "branch": "Noida",
+    "department_Id": 11,
+    "department": "IT",
+    "designation": "Desktop Support Engineer",
+    "status": "Active"
+  },
+  {
+    "id": 9547,
+    "name": "Ashutosh Kumar",
+    "email": "ashutosh.kumar@jobvritta.com",
+    "empCode": "1380",
+    "branch": "Varanasi",
+    "department_Id": 11,
+    "department": "IT",
+    "designation": "Desktop Support Engineer",
+    "status": "Active"
+  },
+  {
+    "id": 9450,
+    "name": "Abhishek Kumar",
+    "email": "abhishek.kumar@vyzeinc.com",
+    "empCode": "1295",
+    "branch": "Noida",
+    "department_Id": 11,
+    "department": "IT",
+    "designation": "Desktop Support Engineer",
+    "status": "Active"
+  },
+  {
+    "id": 9179,
+    "name": "Sandeep Singh",
+    "email": "sandeep.singh@tekinspirations.com",
+    "empCode": "1054",
+    "branch": "Agra",
+    "department_Id": 11,
+    "department": "IT",
+    "designation": "IT Support Executive",
+    "status": "Active"
+  },
+  {
+    "id": 2591,
+    "name": "Chandan",
+    "email": "chandan@tekinspirations.com",
+    "empCode": "699",
+    "branch": "Noida",
+    "department_Id": 11,
+    "department": "IT",
+    "designation": "IT Manager",
+    "status": "Active"
+  },
+  {
+    "id": 2278,
+    "name": "Tejasav Jaiswal",
+    "email": "tejasav.jaiswal@tekinspirations.com",
+    "empCode": "648",
+    "branch": "Varanasi",
+    "department_Id": 11,
+    "department": "IT",
+    "designation": "IT Support Executive",
+    "status": "Active"
+  }
+]

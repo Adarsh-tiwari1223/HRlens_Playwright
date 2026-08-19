@@ -82,10 +82,15 @@ def test_end_to_end_recruitment_flow(logged_in_page, dummy_resume_path):
     candidate_page.page.wait_for_load_state("networkidle")
 
     print(f"\n[ACTION] Generating and validating offer for {candidate_data['name']}...")
-    candidate_page.generate_and_validate_offer(
+    offer_info = candidate_page.generate_and_validate_offer(
         candidate_name=candidate_data['name'],
         doj=interview_date,
         gross_salary="20000"
     )
+    redirect_url = offer_info.get("candidate_form_url", "")
+    if redirect_url:
+        print(f"[API CHECK] Candidate Form Fill Redirect URL Captured: '{redirect_url}'")
+    else:
+        print("[API CHECK] Send LOI API executed successfully. No candidate form redirect URL string returned in JSON response payload.")
 
     print(f"\n[SUCCESS] E2E Recruitment flow completed successfully for candidate {candidate_data['name']}!")

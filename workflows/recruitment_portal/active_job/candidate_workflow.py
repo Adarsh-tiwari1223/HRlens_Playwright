@@ -53,7 +53,7 @@ class CandidateWorkflow:
         )
         logger.info(f"[WORKFLOW] Interview scheduled successfully for '{candidate_name}'")
 
-    def generate_and_send_offer_workflow(self, candidate_name: str, doj: str = None, gross_salary: str = "20000"):
+    def generate_and_send_offer_workflow(self, candidate_name: str, doj: str = None, gross_salary: str = "20000") -> dict:
         """Validates salary and generates/sends the offer letter (LOI) to the candidate."""
         now = datetime.now()
         date_of_joining = doj or now.strftime("%Y-%m-%d")
@@ -61,12 +61,13 @@ class CandidateWorkflow:
         logger.info(f"[WORKFLOW] Generating offer letter (LOI) for candidate '{candidate_name}' with salary {gross_salary}")
         self.page.reload()
         self.page.wait_for_load_state("networkidle")
-        self.candidate_page.generate_and_validate_offer(
+        res = self.candidate_page.generate_and_validate_offer(
             candidate_name=candidate_name,
             doj=date_of_joining,
             gross_salary=gross_salary
         )
         logger.info(f"[WORKFLOW] Offer letter (LOI) successfully sent to '{candidate_name}'")
+        return res
 
     def end_to_end_candidate_onboarding_workflow(self, candidate_data: dict, resume_path: str, job_id: str = None):
         """

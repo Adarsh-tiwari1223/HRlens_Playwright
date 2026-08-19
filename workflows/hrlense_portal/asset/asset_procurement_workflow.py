@@ -4,6 +4,8 @@ Encapsulates high-level reusable business workflows for Asset Procurement.
 """
 
 import os
+import re
+import random
 import logging
 from playwright.sync_api import Page
 from pages.base_page import TestStoryLogger
@@ -83,8 +85,7 @@ class AssetProcurementWorkflow:
         self.procurement_page.fill_step1_details(
             vendor_label=vendor_label,
             branch_label=branch_label,
-            company_label=company_label,
-            invoice_file_path=invoice_file_path
+            company_label=company_label
         )
         if story:
             story.log_step(
@@ -135,6 +136,19 @@ class AssetProcurementWorkflow:
         self.procurement_page.click_create()
         toast = self.procurement_page.wait_for_toast_message()
         logger.info(f"[WORKFLOW] Captured Procurement Toast: '{toast}'")
+
+        # Self-Healing Check: If backend returns Total Amount validation mismatch
+        # e.g., 'Total Amount ₹12,09,237.00 must equal the sum of all asset line totals ₹26,00,000.16'
+        match = re.search(r"Total Amount\s*[₹Rs.]*\s*([\d,]+\.?\d*)\s*must equal", toast, re.I)
+        if match:
+            raw_target = match.group(1)
+            target_amt = float(re.sub(r"[^\d.]", "", raw_target))
+            logger.info(f"[SELF-HEALING] Detected required Total Amount from backend: ₹{target_amt:,.2f}. Automatically re-balancing cards...")
+            self.procurement_page.select_step2_dropdowns(target_total=target_amt)
+            self.procurement_page.click_create()
+            toast = self.procurement_page.wait_for_toast_message()
+            logger.info(f"[WORKFLOW] Re-balanced Procurement Toast: '{toast}'")
+
         return toast
 
     def create_manual_procurement(

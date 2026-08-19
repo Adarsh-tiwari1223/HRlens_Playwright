@@ -374,8 +374,47 @@ class CandidatePage(BasePage):
             logger.warning(f"Offer letter may have missing values: {missing} (continuing anyway)")
         logger.info("Offer letter validation passed")
 
-        # Send LOI
-        logger.info("Sending LOI")
+        # Extract candidate form fill URL from Offer Modal DOM (<a href="...">Click here to fill your details</a>)
+        candidate_redirect_url = ""
+        try:
+            form_fill_link = self.page.locator("a:has-text('Click here to fill your details'), a[href*='otp-verification']").first
+            if form_fill_link.is_visible(timeout=1000):
+                candidate_redirect_url = form_fill_link.get_attribute("href") or ""
+                logger.info(f"[UI CAPTURED] Found Candidate Form Fill Link in Offer Modal: '{candidate_redirect_url}'")
+        except Exception as ex:
+            logger.warning(f"UI link check note: {ex}")
+
+        # Send LOI & Intercept API response to check for Candidate Form Fill Redirect URL
+        logger.info("Sending LOI and checking API response for candidate form fill URL...")
+
+        def handle_response(response):
+            nonlocal candidate_redirect_url
+            try:
+                if any(kw in response.url.lower() for kw in ["loi", "offer", "candidate", "mail", "send"]):
+                    if response.status in [200, 201]:
+                        try:
+                            body = response.json()
+                            logger.info(f"[API INTERCEPT] Send LOI API URL: {response.url} | Body: {body}")
+                            if isinstance(body, dict):
+                                for key in ["url", "link", "redirect_url", "candidate_url", "form_url", "form_link", "loi_url", "loi_link", "offer_link"]:
+                                    if key in body and body[key]:
+                                        candidate_redirect_url = str(body[key])
+                                        logger.info(f"[API SUCCESS] Found Candidate Form Redirect URL in API response ('{key}'): '{candidate_redirect_url}'")
+                                        break
+                                if not candidate_redirect_url and "data" in body and isinstance(body["data"], dict):
+                                    data_obj = body["data"]
+                                    for key in ["url", "link", "redirect_url", "candidate_url", "form_url", "form_link", "loi_url", "loi_link"]:
+                                        if key in data_obj and data_obj[key]:
+                                            candidate_redirect_url = str(data_obj[key])
+                                            logger.info(f"[API SUCCESS] Found Candidate Form Redirect URL in nested data ('{key}'): '{candidate_redirect_url}'")
+                                            break
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+        self.page.on("response", handle_response)
+
         self.page.get_by_role("button", name="Send").click()
         self.page.wait_for_timeout(1000)
         
@@ -404,6 +443,11 @@ class CandidatePage(BasePage):
             raise AssertionError(f"LOI send failed: {toast_msg}")
 
         self.page.wait_for_load_state("networkidle")
+        components["candidate_form_url"] = candidate_redirect_url
+        if candidate_redirect_url:
+            logger.info(f"[VERIFIED] Candidate Form Fill Redirect URL Captured: '{candidate_redirect_url}'")
+        else:
+            logger.info("[NOTE] Send LOI API executed successfully. No direct redirect URL string returned in JSON body.")
         return components
 
     def get_all_candidate_count(self) -> int:

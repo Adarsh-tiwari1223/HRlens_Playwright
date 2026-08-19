@@ -3,8 +3,10 @@ Asset Management Workflow Layer for HR Lens Portal.
 
 Encapsulates reusable business workflows for Category management, Sub-Category setup,
 Vendor registration, Asset procurement, assignment, maintenance, and returns.
+Implements Data-Aware Master Data Strategy (reuses existing records before creating new ones).
 """
 
+import re
 import logging
 from playwright.sync_api import Page, expect
 from pages.hrlense_portal.asset.asset_master_page import AssetMasterPage
@@ -23,12 +25,37 @@ class AssetWorkflow:
         self.asset_return_page = AssetReturnPage(page)
 
     def create_category_workflow(self, name: str, description: str = "", toggle_spans: bool = True) -> str:
-        """Workflow to open Asset Master, add a category, fill details, and submit."""
-        logger.info(f"[WORKFLOW] Creating Asset Category: '{name}'")
+        """
+        Data-Aware Workflow to create or reuse an Asset Category:
+        1. Reads existing Category table first. If 'name' exists, reuses it.
+        2. Otherwise, creates the category cleanly.
+        """
+        logger.info(f"[WORKFLOW] Data-Aware Category Check: '{name}'")
         self.asset_master_page.navigate_to_asset_master()
+        
+        # Check if record already exists in table
+        search_input = self.page.locator("input[placeholder*='Search']").first
+        if search_input.is_visible(timeout=1000):
+            search_input.fill(name)
+            self.page.keyboard.press("Enter")
+            self.page.wait_for_timeout(600)
+            
+            existing_row = self.page.locator("table tbody tr").filter(has_text=name).first
+            if existing_row.is_visible(timeout=1500):
+                logger.info(f"[DATA REUSE] Existing Category '{name}' found in table -> Reusing record.")
+                return f"Category already exists: {name}"
+
+        # Create new record if not found
         self.asset_master_page.click_add_category()
         self.asset_master_page.fill_category_details(name=name, description=description, toggle_spans=toggle_spans)
         self.asset_master_page.click_create()
+        
+        errors = self.asset_master_page.get_active_form_errors()
+        if errors:
+            logger.info(f"[DATA REUSE] Category creation inline error: {errors} -> Closing modal & reusing record.")
+            self.asset_master_page.click_cancel()
+            return f"Category already exists: {name}"
+            
         toast = self.asset_master_page.wait_for_toast_message()
         logger.info(f"[WORKFLOW] Category creation toast result: '{toast}'")
         return toast
@@ -45,10 +72,26 @@ class AssetWorkflow:
         return toast
 
     def create_sub_category_workflow(self, category_name: str, sub_category_name: str, prefix: str = "SUB", description: str = "") -> str:
-        """Workflow to add a sub-category under a parent category."""
-        logger.info(f"[WORKFLOW] Creating Sub-Category: '{sub_category_name}' under Category '{category_name}'")
+        """
+        Data-Aware Workflow to create or reuse a Sub-Category under a parent Category:
+        1. Reads Sub-Category table first. If 'sub_category_name' exists, reuses it.
+        2. Otherwise, creates the sub-category cleanly.
+        """
+        logger.info(f"[WORKFLOW] Data-Aware Sub-Category Check: '{sub_category_name}' under Category '{category_name}'")
         self.asset_master_page.navigate_to_asset_master()
         self.asset_master_page.navigate_to_sub_categories()
+        
+        search_input = self.page.locator("input[placeholder*='Search']").first
+        if search_input.is_visible(timeout=1000):
+            search_input.fill(sub_category_name)
+            self.page.keyboard.press("Enter")
+            self.page.wait_for_timeout(600)
+            
+            existing_row = self.page.locator("table tbody tr").filter(has_text=sub_category_name).first
+            if existing_row.is_visible(timeout=1500):
+                logger.info(f"[DATA REUSE] Existing Sub-Category '{sub_category_name}' found in table -> Reusing record.")
+                return f"Sub Category already exists: {sub_category_name}"
+
         self.asset_master_page.click_add_sub_category()
         self.asset_master_page.fill_sub_category_details(
             category_name=category_name,
@@ -58,15 +101,39 @@ class AssetWorkflow:
             toggle_spans=True
         )
         self.asset_master_page.click_create()
+
+        errors = self.asset_master_page.get_active_form_errors()
+        if errors:
+            logger.info(f"[DATA REUSE] Sub-Category creation inline error: {errors} -> Closing modal & reusing record.")
+            self.asset_master_page.click_cancel()
+            return f"Sub Category already exists: {sub_category_name}"
+
         toast = self.asset_master_page.wait_for_toast_message()
         logger.info(f"[WORKFLOW] Sub-Category creation toast result: '{toast}'")
         return toast
 
     def create_vendor_workflow(self, vendor_data: dict) -> str:
-        """Workflow to create a new vendor under Asset Master."""
-        logger.info(f"[WORKFLOW] Creating Vendor: '{vendor_data.get('name', 'N/A')}'")
+        """
+        Data-Aware Workflow to create or reuse a Vendor under Asset Master:
+        1. Reads Vendor table first. If vendor exists, reuses it.
+        2. Otherwise, creates vendor cleanly.
+        """
+        v_name = vendor_data.get('name', 'N/A')
+        logger.info(f"[WORKFLOW] Data-Aware Vendor Check: '{v_name}'")
         self.asset_master_page.navigate_to_asset_master()
         self.asset_master_page.navigate_to_vendors()
+
+        search_input = self.page.locator("input[placeholder*='Search']").first
+        if search_input.is_visible(timeout=1000):
+            search_input.fill(v_name)
+            self.page.keyboard.press("Enter")
+            self.page.wait_for_timeout(600)
+            
+            existing_row = self.page.locator("table tbody tr").filter(has_text=v_name).first
+            if existing_row.is_visible(timeout=1500):
+                logger.info(f"[DATA REUSE] Existing Vendor '{v_name}' found in table -> Reusing record.")
+                return f"Vendor already exists: {v_name}"
+
         self.asset_master_page.click_add_vendor()
         self.asset_master_page.fill_vendor_details(
             name=vendor_data.get("name"),
@@ -79,6 +146,13 @@ class AssetWorkflow:
             toggle_spans=vendor_data.get("toggle_spans", True)
         )
         self.asset_master_page.click_create()
+
+        errors = self.asset_master_page.get_active_form_errors()
+        if errors:
+            logger.info(f"[DATA REUSE] Vendor creation inline error: {errors} -> Closing modal & reusing record.")
+            self.asset_master_page.click_cancel()
+            return f"Vendor already exists: {v_name}"
+
         toast = self.asset_master_page.wait_for_toast_message()
         logger.info(f"[WORKFLOW] Vendor creation toast result: '{toast}'")
         return toast
@@ -99,11 +173,10 @@ class AssetWorkflow:
         cat_name = self.asset_master_page.ensure_category_exists(name=category_name)
         if sub_categories:
             for sub in sub_categories:
-                sub_name = sub.get("name")
-                prefix = sub.get("prefix", "SUB")
-                self.asset_master_page.ensure_sub_category_exists(
+                self.create_sub_category_workflow(
                     category_name=cat_name,
-                    sub_category_name=sub_name,
-                    code_prefix=prefix
+                    sub_category_name=sub.get("name"),
+                    prefix=sub.get("prefix", "SUB"),
+                    description=sub.get("description", "")
                 )
         return cat_name

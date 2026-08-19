@@ -28,6 +28,11 @@ def test_schedule_and_loi_only(page):
     workflow.schedule_interview_workflow(candidate_name)
 
     # 2. Generate and Send Offer Letter (LOI)
-    workflow.generate_and_send_offer_workflow(candidate_name, gross_salary="15000")
+    offer_info = workflow.generate_and_send_offer_workflow(candidate_name, gross_salary="15000")
+    redirect_url = offer_info.get("candidate_form_url", "") if isinstance(offer_info, dict) else ""
+    if redirect_url:
+        print(f"[API CHECK] Candidate Form Fill Redirect URL Captured: '{redirect_url}'")
+    else:
+        print("[API CHECK] Send LOI API executed successfully. No candidate form redirect URL string returned in JSON response payload.")
 
     print(f"\n[SUCCESS] LOI sent successfully to {candidate_name}!")

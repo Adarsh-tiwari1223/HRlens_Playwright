@@ -1036,6 +1036,7 @@ def test_asset_masters_e2e_testing(admin_page):
 
     story.finish(status="PASS")
 
+<<<<<<< HEAD
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PHASE 5 · COMPREHENSIVE SEEDING (ALL CATEGORIES, RELEVANT SUB-CATEGORIES, VENDORS)
@@ -1200,5 +1201,3 @@ def test_feed_all_master_categories_subcategories_and_vendors(admin_page):
             )
 
     story.finish(status="PASS")
-
-

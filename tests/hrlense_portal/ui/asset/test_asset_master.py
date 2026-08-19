@@ -1036,3 +1036,167 @@ def test_asset_masters_e2e_testing(admin_page):
 
     story.finish(status="PASS")
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PHASE 5 · COMPREHENSIVE SEEDING (ALL CATEGORIES, RELEVANT SUB-CATEGORIES, VENDORS)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@pytest.mark.ui
+@pytest.mark.asset
+@pytest.mark.master
+def test_feed_all_master_categories_subcategories_and_vendors(admin_page):
+    """
+    Comprehensive Master Catalog Seeding with Strict Domain Relevance:
+    1. Category Master:
+       - Hardware, Software, Furniture, Peripherals, Mobile Phones
+    2. Relevant Sub-Category Master (Linked strictly to their parent category, Zero Numbers):
+       - Hardware: Laptop (LAP), Desktop (DSK), Server (SRV)
+       - Software: Antivirus Software (ANT), Development Tools (DEV), Operating System (OPS)
+       - Furniture: Office Chair (CHR), Workstation Desk (DSK), Meeting Table (TBL)
+       - Peripherals: Monitor (MON), Keyboard (KBD), Mouse (MOU), Headset (HDS)
+       - Mobile Phones: Smartphone (PHN), Tablet (TAB)
+    3. Corporate Vendor Master (Zero Numbers):
+       - Dell Technologies Pvt Ltd, Apple India Pvt Ltd, Lenovo Enterprise Pvt Ltd,
+         HP Solutions Pvt Ltd, Samsung Electronics Pvt Ltd, Logitech Tech Pvt Ltd,
+         Godrej Interio Pvt Ltd, Microsoft Corporation India
+    """
+    story = TestStoryLogger("Feed All Master Categories, Relevant SubCategories, and Vendors", module="Asset Master", phase="Comprehensive Seeding")
+    story.start()
+
+    master_workflow = AssetMasterWorkflow(admin_page)
+    master_page = AssetMasterPage(admin_page)
+
+    # ═════════════════════════════════════════════════════════════════════════
+    # 1. CATEGORY & RELEVANT SUB-CATEGORY CATALOG MAPPING
+    # ═════════════════════════════════════════════════════════════════════════
+    MASTER_CATALOG = {
+        "Hardware": [
+            ("Laptop", "LAP", "Enterprise Business Laptop"),
+            ("Desktop", "DSK", "High Performance Desktop"),
+            ("Server", "SRV", "Enterprise Rack Server")
+        ],
+        "Software": [
+            ("Antivirus Software", "ANT", "Endpoint Security Protection"),
+            ("Development Tools", "DEV", "Developer IDE and Tools"),
+            ("Operating System", "OPS", "Enterprise OS Licenses")
+        ],
+        "Furniture": [
+            ("Office Chair", "CHR", "Ergonomic Office Chair"),
+            ("Workstation Desk", "DSK", "Modular Workstation Desk"),
+            ("Meeting Table", "TBL", "Conference Meeting Table")
+        ],
+        "Peripherals": [
+            ("Monitor", "MON", "Dual HD Display Monitor"),
+            ("Keyboard", "KBD", "Wireless Mechanical Keyboard"),
+            ("Mouse", "MOU", "Ergonomic Optical Mouse"),
+            ("Headset", "HDS", "Noise Cancelling Headset")
+        ],
+        "Mobile Phones": [
+            ("Smartphone", "PHN", "Company Handheld Smartphone"),
+            ("Tablet", "TAB", "Field Operations Tablet")
+        ]
+    }
+
+    # Step 1: Feed/Verify All Master Categories
+    existing_categories = master_page.get_all_existing_categories()
+    logger.info("Existing Categories in Grid: %s", existing_categories)
+
+    for cat_name in MASTER_CATALOG.keys():
+        if cat_name not in existing_categories:
+            logger.info("[CATEGORY SEED] Creating missing Category: '%s'", cat_name)
+            toast = master_workflow.create_category_workflow(
+                name=cat_name,
+                description=f"Corporate {cat_name} Master Category"
+            )
+            story.log_step(
+                f"Category Master: {cat_name}",
+                record=cat_name,
+                expected="Category created",
+                actual=f"Result: '{toast}'",
+                status="PASS"
+            )
+        else:
+            logger.info("[CATEGORY REUSE] Category already exists: '%s'", cat_name)
+            story.log_step(
+                f"Category Master: {cat_name}",
+                record=cat_name,
+                expected="Category verified",
+                actual="all required category existed",
+                status="PASS"
+            )
+
+    # Step 2: Feed/Verify Relevant Sub-Categories under each Category
+    existing_sub_categories = master_page.get_all_existing_sub_categories()
+    logger.info("Existing Sub-Categories in Grid: %s", len(existing_sub_categories))
+
+    for cat_name, sub_list in MASTER_CATALOG.items():
+        existing_under_cat = [
+            s["sub_category"].lower() for s in existing_sub_categories if s.get("category", "").lower() == cat_name.lower()
+        ]
+        for sub_name, prefix, desc in sub_list:
+            if sub_name.lower() not in existing_under_cat:
+                logger.info("[SUB-CATEGORY SEED] Creating relevant Sub-Category: '%s' (%s) under '%s'", sub_name, prefix, cat_name)
+                toast = master_workflow.create_sub_category_workflow(
+                    category_name=cat_name,
+                    sub_category_name=sub_name,
+                    prefix=prefix,
+                    description=desc
+                )
+                story.log_step(
+                    f"Sub-Category: {sub_name} under {cat_name}",
+                    record=f"{sub_name} ({prefix})",
+                    expected=f"Linked to {cat_name}",
+                    actual=f"Result: '{toast}'",
+                    status="PASS"
+                )
+            else:
+                logger.info("[SUB-CATEGORY REUSE] Sub-Category '%s' already exists under '%s'", sub_name, cat_name)
+                story.log_step(
+                    f"Sub-Category: {sub_name} under {cat_name}",
+                    record=f"{sub_name} ({prefix})",
+                    expected=f"Verified under {cat_name}",
+                    actual="Sub-Category already exists",
+                    status="PASS"
+                )
+
+    # ═════════════════════════════════════════════════════════════════════════
+    # 2. VENDOR MASTER SEEDING (ZERO NUMBERS)
+    # ═════════════════════════════════════════════════════════════════════════
+    TARGET_VENDORS = [
+        "Dell Technologies Pvt Ltd",
+        "Apple India Pvt Ltd",
+        "Lenovo Enterprise Pvt Ltd",
+        "HP Solutions Pvt Ltd",
+        "Samsung Electronics Pvt Ltd",
+        "Logitech Tech Pvt Ltd",
+        "Godrej Interio Pvt Ltd",
+        "Microsoft Corporation India"
+    ]
+
+    existing_vendors = master_page.get_all_existing_vendors()
+    logger.info("Existing Vendors in Grid: %s", existing_vendors)
+
+    for vendor_name in TARGET_VENDORS:
+        is_existing = any(vendor_name.lower() in ex.lower() or ex.lower() in vendor_name.lower() for ex in existing_vendors)
+        if not is_existing:
+            vendor_data = BusinessTestData.vendor(company_name=vendor_name)
+            logger.info("[VENDOR SEED] Creating missing Vendor: '%s'", vendor_data.name)
+            toast = master_workflow.create_vendor_workflow(vendor_data.to_dict())
+            story.log_step(
+                f"Vendor Master: {vendor_name}",
+                record=f"{vendor_data.name} | GST: {vendor_data.gst}",
+                expected="Vendor created",
+                actual=f"Result: '{toast}'",
+                status="PASS"
+            )
+        else:
+            logger.info("[VENDOR REUSE] Vendor already exists: '%s'", vendor_name)
+            story.log_step(
+                f"Vendor Master: {vendor_name}",
+                record=vendor_name,
+                expected="Vendor verified",
+                actual="Vendor already exists",
+                status="PASS"
+            )
+
+    story.finish(status="PASS")

@@ -169,7 +169,7 @@ class TestAssetMasterDataRulesSpec:
         admin_page, _ = logged_in_page("admin")
         master_page = AssetMasterPage(admin_page)
         master_page.navigate_to_asset_master()
-        master_page.navigate_to_vendors_tab()
+        master_page.navigate_to_vendors()
 
         # Pick existing vendor or clean non-numeric vendor
         vendor = get_clean_vendor_details()
@@ -186,7 +186,7 @@ class TestAssetMasterDataRulesSpec:
         # Duplicate Validation
         master_page.click_add_vendor()
         master_page.fill_vendor_details(
-            vendor_name=vendor["name"],
+            name=vendor["name"],
             contact_person=vendor["contact"],
             phone=vendor["phone"],
             email=vendor["email"],
@@ -212,7 +212,7 @@ class TestAssetMasterDataRulesSpec:
         admin_page, _ = logged_in_page("admin")
         master_page = AssetMasterPage(admin_page)
         master_page.navigate_to_asset_master()
-        master_page.navigate_to_vendors_tab()
+        master_page.navigate_to_vendors()
 
         rows = admin_page.locator("table tbody tr").all()
         assert len(rows) > 0, "No existing Vendor rows found in master table grid for edit testing."

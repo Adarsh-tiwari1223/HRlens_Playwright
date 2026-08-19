@@ -169,11 +169,7 @@ class TestAssetMasterDataRulesSpec:
         admin_page, _ = logged_in_page("admin")
         master_page = AssetMasterPage(admin_page)
         master_page.navigate_to_asset_master()
-<<<<<<< HEAD
         master_page.navigate_to_vendors()
-=======
-        master_page.navigate_to_vendors_tab()
->>>>>>> 68de248287eb2c54f721da64c883baf3985be09d
 
         # Pick existing vendor or clean non-numeric vendor
         vendor = get_clean_vendor_details()
@@ -190,11 +186,7 @@ class TestAssetMasterDataRulesSpec:
         # Duplicate Validation
         master_page.click_add_vendor()
         master_page.fill_vendor_details(
-<<<<<<< HEAD
             name=vendor["name"],
-=======
-            vendor_name=vendor["name"],
->>>>>>> 68de248287eb2c54f721da64c883baf3985be09d
             contact_person=vendor["contact"],
             phone=vendor["phone"],
             email=vendor["email"],

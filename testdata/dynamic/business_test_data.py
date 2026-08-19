@@ -379,19 +379,68 @@ class BusinessTestData:
             f"Monitor-{s}-{b}"
         ]
 
-    @classmethod
-    def category_name(cls, base_name: str = None) -> str:
-        """Generates a clean single enterprise asset category name (e.g. 'Hardware', 'Software')."""
-        if base_name:
-            return base_name
-        return random.choice(["Hardware", "Software", "Peripherals", "Office Equipment"])
+    CATEGORY_SUBCATEGORY_MAP = {
+        "Hardware": [
+            {"name": "Laptop", "prefix": "LAP", "description": "Enterprise Workstation Laptop"},
+            {"name": "Desktop", "prefix": "DSK", "description": "Enterprise Office Desktop"},
+            {"name": "Server", "prefix": "SRV", "description": "Enterprise Rack Server"}
+        ],
+        "Software": [
+            {"name": "Antivirus Software", "prefix": "ANT", "description": "Endpoint Security Software"},
+            {"name": "Development Tools", "prefix": "DEV", "description": "Software Development Tools"},
+            {"name": "Operating System", "prefix": "OPS", "description": "Enterprise Operating System Licenses"}
+        ],
+        "Furniture": [
+            {"name": "Office Chair", "prefix": "CHR", "description": "Ergonomic Office Chair"},
+            {"name": "Workstation Desk", "prefix": "DSK", "description": "Modular Workstation Desk"},
+            {"name": "Meeting Table", "prefix": "TBL", "description": "Conference Meeting Table"}
+        ],
+        "Peripherals": [
+            {"name": "Monitor", "prefix": "MON", "description": "Dual Display Monitor"},
+            {"name": "Keyboard", "prefix": "KBD", "description": "Wireless Mechanical Keyboard"},
+            {"name": "Mouse", "prefix": "MOU", "description": "Optical Computer Mouse"},
+            {"name": "Headset", "prefix": "HDS", "description": "Noise Cancelling Headset"}
+        ],
+        "Mobile Phones": [
+            {"name": "Smartphone", "prefix": "PHN", "description": "Corporate Handheld Smartphone"},
+            {"name": "Tablet", "prefix": "TAB", "description": "Enterprise Field Operations Tablet"}
+        ]
+    }
 
     @classmethod
-    def sub_category_name(cls, base_name: str = None) -> str:
-        """Generates a clean single enterprise asset sub-category name (e.g. 'Laptop', 'Desktop')."""
+    def category_name(cls, base_name: str = None) -> str:
+        """Generates a clean single enterprise asset category name from target business categories."""
         if base_name:
             return base_name
-        return random.choice(["Laptop", "Desktop", "Monitor", "Printer", "Scanner"])
+        return random.choice(list(cls.CATEGORY_SUBCATEGORY_MAP.keys()))
+
+    @classmethod
+    def sub_category_details(cls, category: str = None, sub_category_name: str = None) -> dict:
+        """
+        Returns relevant sub-category dictionary {'name', 'prefix', 'description'} based on parent category.
+        Ensures strict domain relevance (e.g. Hardware -> Laptop/Desktop, Furniture -> Office Chair/Desk).
+        """
+        cat_key = category if category in cls.CATEGORY_SUBCATEGORY_MAP else "Hardware"
+        available_subs = cls.CATEGORY_SUBCATEGORY_MAP.get(cat_key, cls.CATEGORY_SUBCATEGORY_MAP["Hardware"])
+        
+        if sub_category_name:
+            for s in available_subs:
+                if s["name"].lower() == sub_category_name.lower():
+                    return s
+            prefix = re.sub(r"[^A-Z]", "", sub_category_name.upper())[:3] or "SUB"
+            return {"name": sub_category_name, "prefix": prefix, "description": f"Corporate {sub_category_name}"}
+
+        return random.choice(available_subs)
+
+    @classmethod
+    def sub_category_name(cls, category: str = None, base_name: str = None) -> str:
+        """Returns relevant sub-category name strictly matching the parent category."""
+        return cls.sub_category_details(category=category, sub_category_name=base_name)["name"]
+
+    @classmethod
+    def sub_category_prefix(cls, category: str = None, sub_category_name: str = None) -> str:
+        """Returns relevant code prefix for the given sub-category."""
+        return cls.sub_category_details(category=category, sub_category_name=sub_category_name)["prefix"]
 
     @classmethod
     def branch_group_name(cls, base_name: str = None) -> str:

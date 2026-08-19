@@ -15,18 +15,30 @@ class AssetRequestPage(BasePage):
         self.page.goto(f"{settings.BASE_URL}/asset-request")
         self.page.wait_for_load_state("domcontentloaded")
 
-    def accept_asset(self, asset_code_or_name: str) -> bool:
-        logger.info(f"Accepting asset: {asset_code_or_name}")
+    def accept_asset(self, asset_code_or_name: str = None) -> bool:
+        logger.info(f"Accepting asset: {asset_code_or_name or 'First Pending Asset'}")
         self.page.wait_for_timeout(1000)
-        card_locator = self.page.locator(".css-prwjms, .chakra-card, div.chakra-stack, table tbody tr, div[role='row']").filter(has_text=asset_code_or_name).first
-        accept_btn = card_locator.get_by_role("button", name=re.compile(r"Accept Asset|Accept", re.I)).first
-        if not accept_btn.is_visible(timeout=2000):
+        accept_btn = None
+        if asset_code_or_name:
+            card_locator = self.page.locator(".css-prwjms, .chakra-card, div.chakra-stack, table tbody tr, div[role='row']").filter(has_text=asset_code_or_name).first
+            accept_btn = card_locator.get_by_role("button", name=re.compile(r"Accept Asset|Accept", re.I)).first
+        
+        if not accept_btn or not accept_btn.is_visible(timeout=2000):
             accept_btn = self.page.get_by_role("button", name=re.compile(r"Accept Asset|Accept", re.I)).first
+
         if accept_btn.is_visible(timeout=3000):
             accept_btn.click()
             self.page.wait_for_timeout(500)
+
+            # Check if confirmation modal dialog opens
+            dialog = self.page.locator("[role='dialog'][aria-modal='true'], .chakra-modal__content").first
+            if dialog.is_visible(timeout=2000):
+                confirm_btn = dialog.get_by_role("button", name=re.compile(r"(Accept|Confirm|Yes|Proceed)", re.I)).first
+                if confirm_btn.is_visible(timeout=1000):
+                    confirm_btn.click()
+                    self.page.wait_for_timeout(500)
             return True
-        logger.warning(f"Accept Asset button not visible for asset: {asset_code_or_name}")
+        logger.warning(f"Accept Asset button not visible for asset: {asset_code_or_name or 'any asset'}")
         return False
 
     def create_new_request(self, reason: str, remarks: str = None) -> bool:

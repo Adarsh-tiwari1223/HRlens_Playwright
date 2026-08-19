@@ -1,0 +1,72 @@
+[
+  {
+    "id": 1,
+    "name": "Sanidhy Tiwari",
+    "email": "sanidhy.tiwari@tekinspirations.com",
+    "user_key": "sanidhy",
+    "department": "Engineering"
+  },
+  {
+    "id": 2,
+    "name": "Kumar Piyush",
+    "email": "kumar.piyush@tekinspirations.com",
+    "user_key": "kumar_piyush",
+    "department": "Software Development"
+  },
+  {
+    "id": 3,
+    "name": "Ritesh Singh",
+    "email": "ritesh.singh@tekinspirations.com",
+    "user_key": "ritesh_singh",
+    "department": "Quality Assurance"
+  },
+  {
+    "id": 4,
+    "name": "Adarsh Tiwari",
+    "email": "adarsh.tiwari@tekinspirations.com",
+    "user_key": "adarsh_tiwari",
+    "department": "IT Support"
+  },
+  {
+    "id": 5,
+    "name": "Uttam Kumar",
+    "email": "uttam.kumar@tekinspirations.com",
+    "user_key": "uttam_kumar",
+    "department": "Operations"
+  },
+  {
+    "id": 6,
+    "name": "Abhishek Singh",
+    "email": "abhisheksingh@tekinspirations.com",
+    "user_key": "abhishek_singh",
+    "department": "Product Management"
+  },
+  {
+    "id": 7,
+    "name": "Tejaswini Rishivanshi",
+    "email": "tejaswini.rishivanshi@tekinspirations.com",
+    "user_key": "tejaswini",
+    "department": "Human Resources"
+  },
+  {
+    "id": 8,
+    "name": "Shiva Singh",
+    "email": "shiva.singh@tekinspirations.com",
+    "user_key": "shiva",
+    "department": "Human Resources"
+  },
+  {
+    "id": 9,
+    "name": "Vivek Singh",
+    "email": "vivek@tekinspirations.com",
+    "user_key": "vivek",
+    "department": "Management"
+  },
+  {
+    "id": 10,
+    "name": "Tejasav Jaiswal",
+    "email": "tejasav.jaiswal@tekinspirations.com",
+    "user_key": "it_tejasav",
+    "department": "IT Infrastructure"
+  }
+]

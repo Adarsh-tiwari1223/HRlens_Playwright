@@ -23,19 +23,19 @@ def _missing_blockers(e: dict) -> list[str]:
     missing = []
 
     # 1. Payroll Company
-    if not r.get("payrollCompanyId"):
+    if not (r.get("payrollCompanyId") or d.get("payrollCompanyId") or d.get("payroll_Company_Id")):
         missing.append("Payroll Company (payrollCompanyId is null/0)")
 
     # 2. Company
-    if not r.get("companyId"):
+    if not (r.get("companyId") or d.get("companyId") or d.get("company_Id")):
         missing.append("Company (companyId is null/0)")
 
     # 3. Branch
-    if not r.get("branchId"):
+    if not (r.get("branchId") or d.get("branchId") or d.get("branch_Id")):
         missing.append("Branch (branchId is null/0)")
 
     # 4. Department
-    if not r.get("departmentId"):
+    if not (r.get("departmentId") or d.get("departmentId") or d.get("department_Id")):
         missing.append("Department (departmentId is null/0)")
 
     # 5. Shift
@@ -113,11 +113,16 @@ try:
                 print(f"  Error fetching payroll list: {e}")
                 continue
                 
-            # Gather details
+            # Gather details (Active Employees Only: employeeStatus == 2)
             pending_data = []
             for emp in records:
+                # Filter for Active employees only (employeeStatus == 2)
+                emp_status_code = emp.get("employeeStatus")
+                if emp_status_code is not None and emp_status_code != 2:
+                    continue
+                    
                 emp_id = emp["employeeId"]
-                print(f"  - Gathering details for employee '{emp.get('employeeName')}' (ID: {emp_id})...")
+                print(f"  - Gathering details for active employee '{emp.get('employeeName')}' (ID: {emp_id})...")
                 try:
                     detail = get_employee_detail(emp_id)
                 except Exception:

@@ -29,19 +29,19 @@ def _missing_blockers(e: dict) -> list[str]:
     missing = []
 
     # 1. Payroll Company
-    if not r.get("payrollCompanyId"):
+    if not (r.get("payrollCompanyId") or d.get("payrollCompanyId") or d.get("payroll_Company_Id")):
         missing.append("Payroll Company (payrollCompanyId is null/0)")
 
     # 2. Company
-    if not r.get("companyId"):
+    if not (r.get("companyId") or d.get("companyId") or d.get("company_Id")):
         missing.append("Company (companyId is null/0)")
 
     # 3. Branch
-    if not r.get("branchId"):
+    if not (r.get("branchId") or d.get("branchId") or d.get("branch_Id")):
         missing.append("Branch (branchId is null/0)")
 
     # 4. Department
-    if not r.get("departmentId"):
+    if not (r.get("departmentId") or d.get("departmentId") or d.get("department_Id")):
         missing.append("Department (departmentId is null/0)")
 
     # 5. Shift
@@ -127,11 +127,16 @@ def scan_and_generate_text_report(target_branches=None) -> tuple[str, list]:
             total_records += len(records)
             print(f"\n[{pending_branches_count}] Branch '{branch_name}' ({company_name}) has {len(records)} EMPLOYEES!")
             
-            # Gather details
+            # Gather details (Active Employees Only: employeeStatus == 2)
             pending_data = []
             for emp in records:
+                # Filter for Active employees only (employeeStatus == 2)
+                emp_status_code = emp.get("employeeStatus")
+                if emp_status_code is not None and emp_status_code != 2:
+                    continue
+                    
                 emp_id = emp["employeeId"]
-                print(f"  - Gathering details for employee '{emp.get('employeeName')}' (ID: {emp_id})...")
+                print(f"  - Gathering details for active employee '{emp.get('employeeName')}' (ID: {emp_id})...")
                 try:
                     detail = get_employee_detail(emp_id)
                 except Exception:
@@ -211,7 +216,8 @@ def scan_and_generate_text_report(target_branches=None) -> tuple[str, list]:
     if all_reports:
         consolidated_report = "\n\n".join(all_reports)
         os.makedirs("reports/payroll data report", exist_ok=True)
-        report_path = f"reports/payroll data report/payroll_release_{datetime.today().strftime('%Y-%m-%d')}_all_branches.txt"
+        branch_suffix = "_".join(target_branches) if target_branches else "all_branches"
+        report_path = f"reports/payroll data report/payroll_release_{datetime.today().strftime('%Y-%m-%d')}_{branch_suffix}.txt"
         with open(report_path, "w", encoding="utf-8") as f:
             f.write(consolidated_report)
             
@@ -221,7 +227,7 @@ def scan_and_generate_text_report(target_branches=None) -> tuple[str, list]:
         return report_path, branches_data
     else:
         print("\n==================================================")
-        print("NO RECORD DETECTED FOR ANY SYSTEM BRANCH!")
+        print("NO RECORD DETECTED FOR SPECIFIED BRANCH(ES)!")
         print("==================================================")
         return "", []
 
@@ -546,13 +552,9 @@ def find_latest_text_report() -> str:
     return ""
 
 def main():
-    # Support filtering by branches, e.g. --branches="Bhubaneswar,Noida,Greater Noida"
-    target_branches = None
-    for arg in sys.argv:
-        if arg.startswith("--branches="):
-            target_branches = [b.strip().lower() for b in arg.split("=")[1].split(",")]
-
-    # If passed '--convert-existing', run the Excel converter using the latest existing text report
+    target_branches = []
+    
+    # 1. If passed '--convert-existing', run the Excel converter using the latest existing text report
     if len(sys.argv) > 1 and sys.argv[1] == "--convert-existing":
         latest_txt = find_latest_text_report()
         if not latest_txt:
@@ -560,6 +562,22 @@ def main():
             sys.exit(1)
         convert_text_to_excel_reports(latest_txt)
         sys.exit(0)
+
+    # 2. Support filtering by branches via flags (--branches=Noida) or positional args (python generate_all_blockers.py Noida)
+    for arg in sys.argv[1:]:
+        if arg.startswith("--branches="):
+            branches_str = arg.split("=", 1)[1]
+            for b in branches_str.split(","):
+                b_clean = b.strip().lower()
+                if b_clean:
+                    target_branches.append(b_clean)
+        elif not arg.startswith("--"):
+            for b in arg.split(","):
+                b_clean = b.strip().lower()
+                if b_clean:
+                    target_branches.append(b_clean)
+
+    target_branches = target_branches if target_branches else None
         
     # Default sequential execution:
     # 1. Run the blocker scanner to generate the text report and gather all branch data

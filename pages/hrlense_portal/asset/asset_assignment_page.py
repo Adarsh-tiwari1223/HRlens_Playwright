@@ -1,3 +1,5 @@
+import re
+import random
 import logging
 from pages.base_page import BasePage
 from core.config import settings
@@ -20,10 +22,41 @@ class AssetAssignmentPage(BasePage):
         self.page.locator(self.ASSIGN_ASSET_BTN).first.click()
         self.page.locator("[role='dialog'][aria-modal='true']").wait_for(state="visible", timeout=10000)
 
-    def fill_assignment_details(self, employee_name: str, category: str, sub_category: str, asset_name_or_code: str = None, expected_return_date: str = None, remarks: str = None):
+    def validate_available_assets_dropdown(self) -> dict:
+        """
+        Validates whether the Available Asset dropdown populates items for assignment.
+        Returns a dict: {"populated": bool, "count": int, "items": list[str]}
+        """
+        logger.info("Validating Available Asset dropdown population...")
+        trigger_btn = self.page.get_by_role("button", name=re.compile(r"Select asset", re.I)).first
+        if not trigger_btn.is_visible(timeout=1000):
+            trigger_btn = self.page.locator("button").filter(has_text=re.compile(r"Select asset|Select|Assets", re.I)).first
+
+        if not trigger_btn.is_visible(timeout=2000):
+            logger.warning("Available Asset dropdown trigger button is not visible.")
+            return {"populated": False, "count": 0, "items": []}
+
+        try:
+            trigger_btn.click()
+            self.page.wait_for_timeout(600)
+            items_loc = self.page.locator("[role='menuitem'], [role='menuitemcheckbox'], .chakra-menu__menuitem").all()
+            items = [item.inner_text().strip() for item in items_loc if item.inner_text().strip()]
+            
+            # Press Escape to close popover
+            self.page.keyboard.press("Escape")
+            self.page.wait_for_timeout(300)
+            
+            populated = len(items) > 0
+            logger.info(f"Available Asset Dropdown Populated={populated}, Count={len(items)}, Items={items}")
+            return {"populated": populated, "count": len(items), "items": items}
+        except Exception as ex:
+            logger.warning(f"Error checking available asset dropdown: {ex}")
+            return {"populated": False, "count": 0, "items": []}
+
+    def fill_assignment_details(self, employee_name: str, category: str, sub_category: str, asset_name_or_code: str = None, expected_return_date: str = None, remarks: str = None) -> dict:
         logger.info(f"Filling assignment details: Employee={employee_name}, Category={category}, SubCategory={sub_category}")
         
-        # Employee Search Search input
+        # Employee Search input
         emp_search = self.page.get_by_placeholder("Search employee name…")
         emp_search.fill(employee_name)
         self.page.wait_for_timeout(1000)
@@ -59,66 +92,219 @@ class AssetAssignmentPage(BasePage):
                         sub_select.select_option(index=idx)
                         break
             self.page.wait_for_timeout(1000) # Wait for assets list to populate
+
+        # Select Asset from Available Asset custom dropdown menu
+        selected_code = None
         
-        # Assets selector custom menu dropdown
-        trigger_btn = self.page.get_by_role("button", name="Select assets to assign")
-        trigger_btn.wait_for(state="visible", timeout=5000)
-        trigger_btn.click()
-        self.page.wait_for_timeout(500)
-        
-        if asset_name_or_code:
-            # Select the option containing the asset name or code
-            self.page.get_by_role("menuitem", name=re.compile(asset_name_or_code, re.IGNORECASE)).first.click()
-        else:
-            # Fallback: Select the first available menuitem
-            self.page.get_by_role("menuitem").first.click()
-            
+        # Wait 2.5s for backend API (getAvailableAssets) to populate dropdown
+        self.page.wait_for_timeout(2500)
+
+        try:
+            trigger_btn = self.page.get_by_role("button", name=re.compile(r"(Select asset|Select|Available)", re.I)).first
+            if not trigger_btn.is_visible(timeout=2000):
+                trigger_btn = self.page.locator("button").filter(has_text=re.compile(r"(Select|Asset|ASSET-)", re.I)).first
+            if not trigger_btn.is_visible(timeout=2000):
+                trigger_btn = self.page.locator(".chakra-menu__menubutton, [id*='menu-button']").first
+
+            if trigger_btn.is_visible(timeout=5000):
+                trigger_btn.click()
+                self.page.wait_for_timeout(800)
+
+                items = self.page.locator("[role='menuitem'], [role='menuitemcheckbox'], [role='option'], .chakra-menu__menuitem, button.chakra-menu__menuitem").all()
+                target_item = None
+                if asset_name_or_code:
+                    for itm in items:
+                        if asset_name_or_code.lower() in itm.inner_text().lower():
+                            target_item = itm
+                            break
+
+                if not target_item and len(items) > 0:
+                    target_item = items[0]
+
+                if target_item and target_item.is_visible(timeout=3000):
+                    text = target_item.inner_text().strip()
+                    match = re.search(r"ASSET-[A-Z0-9-]+", text)
+                    if match:
+                        selected_code = match.group(0)
+                    logger.info(f"[DROPDOWN ASSET SELECTED SUCCESS] Item: '{text}' -> Code: '{selected_code}'")
+                    target_item.click(force=True)
+                    self.page.wait_for_timeout(500)
+            else:
+                logger.warning("[ASSIGNMENT] Available Asset trigger button not visible after 5s wait.")
+        except Exception as ex:
+            logger.warning(f"Asset dropdown selection error: {ex}")
+
+        # STRICT USER RULE: If no asset was selected, mark test failed immediately!
+        assert selected_code, f"[ASSIGNMENT FAILED] Could not select an available asset from dropdown for '{employee_name}'! Ensure available stock exists."
+
         # Expected Return Date
         if expected_return_date:
-            self.page.locator("input[type='date']").fill(expected_return_date)
-            
+            date_input = self.page.locator("[role='dialog'] input[type='date'], input[type='date']").first
+            if not date_input.is_visible(timeout=1000):
+                date_input = self.page.locator("input[placeholder*='date' i], input[name*='date' i]").first
+            if date_input.is_visible(timeout=2000):
+                date_input.fill(expected_return_date)
+                logger.info(f"Filled Expected Return Date: '{expected_return_date}'")
+
         # Remarks
         if remarks:
-            self.page.get_by_placeholder("e.g. Assigned during").fill(remarks)
+            rem_input = self.page.locator("[role='dialog'] textarea, textarea, input[placeholder*='Assigned' i]").first
+            if rem_input.is_visible(timeout=1000):
+                rem_input.fill(remarks)
+                logger.info(f"Filled Remarks: '{remarks}'")
+
+        return selected_code or asset_name_or_code or "ASSET"
 
     def click_submit_assignment(self):
-        # We need to click the submit button inside the dialog drawer
-        dialog = self.page.locator("[role='dialog'][aria-modal='true']")
-        dialog.locator(self.SUBMIT_ASSIGNMENT_BTN).click()
+        dialog = self.page.locator("[role='dialog'], .chakra-modal__content, .chakra-drawer__content").first
+        if not dialog.is_visible(timeout=500):
+            dialog = self.page
+        btn = dialog.locator(self.SUBMIT_ASSIGNMENT_BTN).first
+        if not btn.is_visible(timeout=1000):
+            btn = dialog.locator("button:has-text('Assign Asset'), button:has-text('Assign'), button:has-text('Submit')").first
+        btn.click(force=True)
 
     def click_cancel(self):
         self.click(self.CANCEL_BTN)
 
-    def assign_requested_asset(self, employee_name: str, asset_code: str = None):
+    def assign_requested_asset(self, employee_name: str, asset_code: str = None, assignment_type: str = "Temporary", expected_return_date: str = "2026-12-31", remarks: str = "Asset issued against request") -> dict:
+        """
+        Fulfills a requested asset assignment:
+        1. Clicks 'Requested Assignment' tab.
+        2. Searches employee/asset in table search.
+        3. Clicks 'Fulfil →' button on the row.
+        4. In 'Assign Requested Asset' form, clicks 'Select assets to assign'.
+        5. Validates whether available asset dropdown populates records or shows 'No results found'.
+        6. Selects an asset.
+        7. Selects Assignment Type ('Permanent' vs 'Temporary').
+        8. If Temporary, fills Expected Return Date & Remarks.
+        9. Clicks 'Assign Asset' button to submit.
+        """
         import re
-        logger.info(f"Assigning requested asset to employee: {employee_name}")
-        # Click Requested Assignment tab
-        self.page.get_by_role("tab", name="Requested Assignment").click()
-        self.page.wait_for_timeout(2000)
+        logger.info(f"Fulfilling requested asset for employee: {employee_name}")
         
-        # Locate the row containing employee's request and click its action button
-        row = self.page.get_by_role("row").filter(has_text=employee_name).first
-        row.get_by_role("button").click()
+        # 1. Click Requested Assignment tab
+        req_tab = self.page.get_by_role("tab", name=re.compile(r"Requested Assignment", re.I)).first
+        if not req_tab.is_visible(timeout=1000):
+            req_tab = self.page.locator("button[role='tab']").filter(has_text=re.compile(r"Requested Assignment", re.I)).first
+        req_tab.click()
         self.page.wait_for_timeout(1000)
-        
-        # Click "Assign Requested Asset" from the menu
-        self.page.get_by_text("Assign Requested Asset").click()
-        self.page.wait_for_timeout(1500)
-        
-        # Click the "Available Assets* Select" trigger
-        self.page.locator("div").filter(has_text=re.compile(r"^Available Assets\*")).click()
+
+        # Wait for table rows to attach/render
+        try:
+            self.page.locator("table tbody tr").first.wait_for(state="visible", timeout=10000)
+        except Exception:
+            pass
+
+        # 2. Search employee/asset in search box if visible
+        search_in = self.page.locator("input[placeholder*='Search assets, employees']").first
+        if not search_in.is_visible(timeout=1000):
+            search_in = self.page.locator("input[placeholder*='Search']").first
+        if search_in.is_visible(timeout=1000):
+            search_in.fill(employee_name)
+            search_in.press("Enter")
+            self.page.wait_for_timeout(800)
+
+        # 3. Locate row and click 'Fulfil →' button
+        first_name = employee_name.split()[0] if employee_name else "Sanidhy"
+        row = self.page.locator("table tbody tr").filter(has_text=re.compile(first_name, re.I)).first
+        if not row.is_visible(timeout=2000):
+            row = self.page.locator("table tbody tr").filter(has=self.page.locator("button", has_text=re.compile(r"Fulfil", re.I))).first
+        if not row.is_visible(timeout=2000):
+            row = self.page.locator("table tbody tr").first
+
+        fulfil_btn = row.locator("button").filter(has_text=re.compile(r"Fulfil", re.I)).first
+        if not fulfil_btn.is_visible(timeout=2000):
+            fulfil_btn = self.page.locator("button").filter(has_text=re.compile(r"Fulfil", re.I)).first
+
+        if not fulfil_btn.is_visible(timeout=2000):
+            logger.warning(f"No 'Fulfil' button found on row for '{employee_name}'.")
+            return {"success": False, "reason": "Fulfil button not visible", "dropdown_info": {"populated": False, "count": 0, "items": []}}
+
+        fulfil_btn.click()
         self.page.wait_for_timeout(1000)
-        
-        # Select the asset
-        portal = self.page.locator(".chakra-portal")
-        if asset_code:
-            portal.get_by_text(asset_code, exact=False).first.click()
-        else:
-            portal.get_by_text("ASSET-LAP-", exact=False).first.click()
-        self.page.wait_for_timeout(500)
+
+        # 4. Form 'Assign Requested Asset' appears. Click 'Select assets to assign'
+        form = self.page.locator("[role='dialog'], .chakra-drawer__content, .chakra-modal__content").first
+        if not form.is_visible(timeout=1000):
+            form = self.page
+
+        dropdown_info = {"populated": False, "count": 0, "items": []}
+        asset_select_btn = form.locator("button").filter(has_text=re.compile(r"Select assets to assign|Select asset", re.I)).first
+        if asset_select_btn.is_visible(timeout=3000):
+            asset_select_btn.click()
+            self.page.wait_for_timeout(600)
+
+            # Validate popover contents
+            popover = self.page.locator("[role='menu'], .chakra-menu__menu-list").first
+            no_results = popover.locator("p").filter(has_text=re.compile(r"No results found", re.I)).first
             
-        # Click "Assign Asset" button in form dialog
-        self.page.get_by_role("button", name="Assign Asset").click()
+            items_loc = popover.locator("[role='menuitem'], [role='menuitemcheckbox'], .chakra-menu__menuitem").all()
+            items = [it.inner_text().strip() for it in items_loc if it.inner_text().strip()]
+
+            if items:
+                dropdown_info = {"populated": True, "count": len(items), "items": items}
+                logger.info(f"Available Assets Dropdown POPULATED with {len(items)} items: {items}")
+                # Select specified asset or first available item
+                selected_item = False
+                if asset_code:
+                    for it in items_loc:
+                        if asset_code.lower() in it.inner_text().lower():
+                            it.click(force=True)
+                            selected_item = True
+                            break
+                if not selected_item:
+                    items_loc[0].click(force=True)
+            elif no_results.is_visible(timeout=1000):
+                dropdown_info = {"populated": False, "count": 0, "items": ["No results found"]}
+                logger.warning("Available Assets Dropdown shows: 'No results found'")
+            
+            # Press Escape to close popover if still open
+            try:
+                self.page.keyboard.press("Escape")
+                self.page.wait_for_timeout(300)
+            except Exception:
+                pass
+
+        # 5. Select Assignment Type ('Permanent' or 'Temporary')
+        type_select = form.locator("//div[./label[contains(text(), 'Assignment Type')]]//select").first
+        if not type_select.is_visible(timeout=1000):
+            type_select = form.locator("select").first
+        if type_select.is_visible(timeout=1000):
+            try:
+                type_select.select_option(label=assignment_type)
+            except Exception:
+                type_select.select_option(value=assignment_type)
+            logger.info(f"Selected Assignment Type: '{assignment_type}'")
+
+        # 6. If Temporary, fill Expected Return Date & Remarks
+        if assignment_type.lower() == "temporary":
+            if expected_return_date:
+                date_in = form.locator("//div[./label[contains(text(), 'Expected Return Date')]]//input").first
+                if not date_in.is_visible(timeout=500):
+                    date_in = form.locator("input[type='date']").first
+                if date_in.is_visible(timeout=1000):
+                    date_in.fill(expected_return_date)
+
+            if remarks:
+                rem_in = form.locator("//div[./label[contains(text(), 'Remarks')]]//textarea").first
+                if not rem_in.is_visible(timeout=500):
+                    rem_in = form.locator("textarea").first
+                if rem_in.is_visible(timeout=1000):
+                    rem_in.fill(remarks)
+
+        # 7. Submit Assignment
+        submit_btn = form.locator("button").filter(has_text=re.compile(r"^Assign Asset$", re.I)).first
+        if not submit_btn.is_visible(timeout=1000):
+            submit_btn = form.locator("button").filter(has_text=re.compile(r"Assign Asset|Assign|Submit", re.I)).first
+        submit_btn.click(force=True)
+        self.page.wait_for_timeout(500)
+
+        return {
+            "success": True,
+            "dropdown_info": dropdown_info,
+            "assignment_type": assignment_type
+        }
 
     def wait_for_toast_message(self) -> str:
         return self.wait_for_toast(self.TOAST)

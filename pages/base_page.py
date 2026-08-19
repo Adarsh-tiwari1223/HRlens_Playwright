@@ -1,6 +1,7 @@
 import logging
 import re
 from playwright.sync_api import Page
+from core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -330,26 +331,34 @@ class BasePage:
         except Exception:
             pass
 
-        # Step 2: Click user profile menu button
-        profile_btn = self.page.locator("button[id^='menu-button']:has(.chakra-avatar), button.chakra-menu__menu-button:has(.chakra-avatar), button:has(.chakra-avatar)").first
-        if not profile_btn.is_visible(timeout=1500):
-            profile_btn = self.page.get_by_role("button").filter(has=self.page.locator(".chakra-avatar, h1")).first
+        # Step 2: Click user profile menu button or fallback to direct routing
+        try:
+            profile_btn = self.page.locator("button[id^='menu-button']:has(.chakra-avatar), button.chakra-menu__menu-button:has(.chakra-avatar), button:has(.chakra-avatar)").first
+            if not profile_btn.is_visible(timeout=1500):
+                profile_btn = self.page.get_by_role("button").filter(has=self.page.locator(".chakra-avatar, h1")).first
 
-        profile_btn.click()
+            profile_btn.click(timeout=3000)
 
-        # Step 3: Click Master menuitem
-        master_item = self.page.locator("[role='menuitem']:has-text('Master'), a:has-text('Master')").first
-        if not master_item.is_visible(timeout=1000):
-            profile_btn.click(force=True)
+            # Step 3: Click Master menuitem
+            master_item = self.page.locator("[role='menuitem']:has-text('Master'), a:has-text('Master')").first
+            if not master_item.is_visible(timeout=1000):
+                profile_btn.click(force=True)
 
-        master_item.wait_for(state="visible", timeout=4000)
-        master_item.click()
+            master_item.wait_for(state="visible", timeout=3000)
+            master_item.click()
 
-        # Step 4: Click target sub-link if provided
-        if target_link_name:
-            sub_link = self.page.locator(f"a[href*='{target_link_name.lower().replace(' ', '-')}'], a:has-text('{target_link_name}')").first
-            sub_link.wait_for(state="visible", timeout=4000)
-            sub_link.click(force=True)
+            # Step 4: Click target sub-link if provided
+            if target_link_name:
+                sub_link = self.page.locator(f"a[href*='{target_link_name.lower().replace(' ', '-')}'], a:has-text('{target_link_name}')").first
+                sub_link.wait_for(state="visible", timeout=3000)
+                sub_link.click(force=True)
+        except Exception as nav_err:
+            logger.debug(f"Menu click navigation encountered: {nav_err}. Falling back to direct URL route...")
+            if target_link_name:
+                slug = target_link_name.lower().replace(' ', '-')
+                self.page.goto(f"{settings.BASE_URL}/{slug}", timeout=30000)
+            else:
+                self.page.goto(f"{settings.BASE_URL}/asset-master", timeout=30000)
 
     # ══════════════════════════════════════════════════════════════════════════════
     # FIELD-LEVEL FORM VALIDATION HELPERS (FRAMEWORK-WIDE)

@@ -21,9 +21,17 @@ class AssetEntryPage(BasePage):
 
     def click_add_asset(self):
         """Opens standard Add Asset manual creation modal."""
-        self.page.locator(self.ADD_ASSET_BTN).wait_for(state="visible", timeout=10000)
-        self.click(self.ADD_ASSET_BTN)
-        self.page.locator("[role='dialog'][aria-modal='true']").wait_for(state="visible", timeout=10000)
+        logger.info("Clicking 'Add Asset' / 'Add New Asset' button...")
+        btn = self.page.get_by_role("button", name=re.compile(r"Add\s*(New)?\s*Asset", re.I)).first
+        if not btn.is_visible(timeout=2000):
+            btn = self.page.locator("button").filter(has_text=re.compile(r"Add\s*(New)?\s*Asset", re.I)).first
+        if not btn.is_visible(timeout=2000):
+            btn = self.page.locator(self.ADD_ASSET_BTN)
+
+        btn.wait_for(state="visible", timeout=10000)
+        btn.click()
+        self.page.locator("[role='dialog'][aria-modal='true'], .chakra-modal__content").wait_for(state="visible", timeout=10000)
+        logger.info("Verified 'Add New Asset' form/modal is visible.")
 
     def click_generate_assets_button(self):
         """Clicks the 'Generate Assets' button and waits for drawer/modal with header 'Generate Assets' to open."""
@@ -184,17 +192,24 @@ class AssetEntryPage(BasePage):
         brand: str = None,
         model: str = None,
         serial_no: str = None,
-        warranty: str = "Warranty",
-        expiry_date: str = "2027-12-31",
-        insured: str = "Yes",
+        warranty: str = None,
+        expiry_date: str = None,
+        insured: str = "No",
         insurance_provider: str = "ICICI Lombard",
-        policy_number: str = None,
-        premium_amount: str = "5000",
-        premium_frequency: str = "Annually",
-        insurance_start_date: str = "2026-08-12",
-        insurance_expiry_date: str = "2027-08-12",
-        notes: str = None
+        policy_number: str = "POL-883920",
+        premium_amount: str = "1200",
+        premium_frequency: str = "Yearly",
+        insurance_start_date: str = "2025-01-01",
+        insurance_expiry_date: str = "2026-12-31",
+        notes: str = None,
+        category_label: str = None,
+        sub_category_label: str = None,
+        **kwargs
     ) -> dict:
+        category = category or category_label
+        sub_category = sub_category or sub_category_label
+        policy_number = policy_number or f"POL-{random.randint(100000, 999999)}"
+        insurance_provider = insurance_provider or "ICICI Lombard"
         """
         Populates all fields on the 'Add New Asset' modal:
         1. Asset Name *

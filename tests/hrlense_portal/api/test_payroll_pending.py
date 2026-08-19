@@ -55,6 +55,11 @@ def pending_employees(branch_id):
 def pending_employee_data(pending_employees: Any):
     result = []
     for emp in pending_employees:
+        # Filter for Active employees only (employeeStatus == 2)
+        emp_status_code = emp.get("employeeStatus")
+        if emp_status_code is not None and emp_status_code != 2:
+            continue
+            
         result.append({
             "employeeId":   emp["employeeId"],
             "employeeName": emp["employeeName"].strip(),
@@ -77,20 +82,20 @@ def _missing_blockers(e: dict) -> list[str]:
 
     missing = []
 
-    # 1. Payroll Company — from payroll record
-    if not r.get("payrollCompanyId"):
+    # 1. Payroll Company
+    if not (r.get("payrollCompanyId") or d.get("payrollCompanyId") or d.get("payroll_Company_Id")):
         missing.append("Payroll Company (payrollCompanyId is null/0)")
 
-    # 2. Company — from payroll record
-    if not r.get("companyId"):
+    # 2. Company
+    if not (r.get("companyId") or d.get("companyId") or d.get("company_Id")):
         missing.append("Company (companyId is null/0)")
 
-    # 3. Branch — from payroll record
-    if not r.get("branchId"):
+    # 3. Branch
+    if not (r.get("branchId") or d.get("branchId") or d.get("branch_Id")):
         missing.append("Branch (branchId is null/0)")
 
-    # 4. Department — from payroll record
-    if not r.get("departmentId"):
+    # 4. Department
+    if not (r.get("departmentId") or d.get("departmentId") or d.get("department_Id")):
         missing.append("Department (departmentId is null/0)")
 
     # 5. Shift — from employee detail (shift is an int ID, 0 means not set)

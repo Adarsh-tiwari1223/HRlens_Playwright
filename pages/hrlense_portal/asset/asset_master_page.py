@@ -49,18 +49,21 @@ class AssetMasterPage(BasePage):
 
 
 
+    def navigate_to_category_tab(self):
+        """Navigates to Category / Categories tab."""
+        logger.debug("Navigating to Category tab...")
+        try:
+            tab = self.page.locator("[role='tab']").filter(has_text=re.compile(r"^Categor(y|ies)$", re.I)).first
+            if not tab.is_visible(timeout=1000):
+                tab = self.page.get_by_role("tab", name=re.compile(r"^Categor", re.I)).first
+            if tab.is_visible(timeout=1000):
+                tab.click(force=True)
+                self.page.wait_for_timeout(300)
+        except Exception:
+            pass
+
     def navigate_to_sub_categories(self):
         logger.debug("Navigating to Sub Categories tab...")
-        try:
-            tab = self.page.locator("[role='tab']").filter(has_text=re.compile(r"^Sub Categor(y|ies)$", re.I)).first
-            if not tab.is_visible(timeout=1000):
-                tab = self.page.get_by_role("tab", name=re.compile(r"Sub Categor", re.I)).first
-            if not tab.is_visible(timeout=1000):
-                tab = self.page.locator(self.SUB_CATEGORIES_TAB).first
-            tab.click(force=True)
-            self.page.wait_for_timeout(400)
-        except Exception:
-            self.click(self.SUB_CATEGORIES_TAB)
         try:
             tab = self.page.locator("[role='tab']").filter(has_text=re.compile(r"^Sub Categor(y|ies)$", re.I)).first
             if not tab.is_visible(timeout=1000):
@@ -74,7 +77,124 @@ class AssetMasterPage(BasePage):
 
     def navigate_to_vendors(self):
         logger.debug("Navigating to Vendors tab")
-        self.click(self.VENDORS_TAB)
+        try:
+            tab = self.page.locator("[role='tab']").filter(has_text=re.compile(r"^Vendor(s)?$", re.I)).first
+            if not tab.is_visible(timeout=1000):
+                tab = self.page.get_by_role("tab", name=re.compile(r"Vendor", re.I)).first
+            if tab.is_visible(timeout=1000):
+                tab.click(force=True)
+                self.page.wait_for_timeout(300)
+        except Exception:
+            self.click(self.VENDORS_TAB)
+
+    def read_first_existing_category(self) -> str:
+        """Navigates to Categories tab and extracts the first existing Category Name from the table."""
+        self.navigate_to_asset_master()
+        self.navigate_to_category_tab()
+        try:
+            self.page.locator("tbody tr").first.wait_for(state="visible", timeout=5000)
+            rows = self.page.locator("tbody tr").all()
+            for r in rows:
+                txt = r.locator("td").nth(0).inner_text().strip()
+                if txt and txt != "" and not txt.startswith("No "):
+                    logger.info(f"Read existing Category from grid: '{txt}'")
+                    return txt
+        except Exception as ex:
+            logger.warning(f"Could not read existing Category: {ex}")
+        return "Hardware"
+
+    def read_first_existing_sub_category(self) -> tuple[str, str]:
+        """
+        Navigates to Sub Category tab and extracts (parent_category, sub_category_name)
+        from the first existing Sub-Category record in the table.
+        """
+        self.navigate_to_asset_master()
+        self.navigate_to_sub_categories()
+        try:
+            self.page.locator("tbody tr").first.wait_for(state="visible", timeout=5000)
+            rows = self.page.locator("tbody tr").all()
+            for r in rows:
+                cells = r.locator("td").all()
+                if len(cells) >= 2:
+                    cat_txt = cells[0].inner_text().strip()
+                    sub_txt = cells[1].inner_text().strip()
+                    if cat_txt and sub_txt and not cat_txt.startswith("No "):
+                        logger.info(f"Read existing Sub-Category from grid: Category='{cat_txt}', SubCategory='{sub_txt}'")
+                        return cat_txt, sub_txt
+        except Exception as ex:
+            logger.warning(f"Could not read existing Sub-Category: {ex}")
+        return "Hardware", "Laptop"
+
+    def read_first_existing_vendor(self) -> str:
+        """Navigates to Vendors tab and extracts the first existing Vendor Name from the table."""
+        self.navigate_to_asset_master()
+        self.navigate_to_vendors()
+        try:
+            self.page.locator("tbody tr, table tr").first.wait_for(state="visible", timeout=4000)
+            rows = self.page.locator("tbody tr, table tr").all()
+            for r in rows:
+                cells = r.locator("td").all()
+                if cells:
+                    txt = cells[0].inner_text().strip()
+                    if txt and txt != "" and not txt.startswith("No "):
+                        logger.info(f"Read existing Vendor from grid: '{txt}'")
+                        return txt
+        except Exception as ex:
+            logger.warning(f"Could not read existing Vendor: {ex}")
+    def get_all_existing_categories(self) -> list[str]:
+        """Returns list of all category names currently present in the Category table."""
+        if "asset-master" not in self.page.url:
+            self.navigate_to_asset_master()
+        self.navigate_to_category_tab()
+        cats = []
+        try:
+            self.page.locator("tbody tr").first.wait_for(state="visible", timeout=4000)
+            for r in self.page.locator("tbody tr").all():
+                cells = r.locator("td").all()
+                if cells:
+                    txt = cells[0].inner_text().strip()
+                    if txt and not txt.startswith("No ") and txt not in cats:
+                        cats.append(txt)
+        except Exception:
+            pass
+        return cats
+
+    def get_all_existing_sub_categories(self) -> list[dict]:
+        """Returns list of all sub-categories [{'category': ..., 'sub_category': ...}] currently in table."""
+        if "asset-master" not in self.page.url:
+            self.navigate_to_asset_master()
+        self.navigate_to_sub_categories()
+        subs = []
+        try:
+            self.page.locator("tbody tr").first.wait_for(state="visible", timeout=4000)
+            for r in self.page.locator("tbody tr").all():
+                cells = r.locator("td").all()
+                if len(cells) >= 2:
+                    cat = cells[0].inner_text().strip()
+                    sub = cells[1].inner_text().strip()
+                    if cat and sub and not cat.startswith("No "):
+                        subs.append({"category": cat, "sub_category": sub})
+        except Exception:
+            pass
+        return subs
+
+    def get_all_existing_vendors(self) -> list[str]:
+        """Returns list of all vendor names currently in the Vendors table."""
+        if "asset-master" not in self.page.url:
+            self.navigate_to_asset_master()
+        self.navigate_to_vendors()
+        vendors = []
+        try:
+            self.page.locator("tbody tr, table tr").first.wait_for(state="visible", timeout=4000)
+            for r in self.page.locator("tbody tr, table tr").all():
+                cells = r.locator("td").all()
+                if cells:
+                    txt = cells[0].inner_text().strip()
+                    if txt and not txt.startswith("No ") and txt not in vendors:
+                        vendors.append(txt)
+        except Exception:
+            pass
+        return vendors
 
     def _ensure_modal_closed(self):
         dialog = self.page.locator("[role='dialog']").first
@@ -241,6 +361,17 @@ class AssetMasterPage(BasePage):
         if errors:
             logger.error(f"[CATEGORY FORM VALIDATION INLINE ERRORS] {errors}")
 
+    def click_cancel(self):
+        """Closes any open Chakra UI modal dialog by clicking Cancel or Close / pressing Escape."""
+        dialog = self.page.locator("[role='dialog']").first
+        if dialog.is_visible(timeout=1000):
+            cancel_btn = dialog.get_by_role("button", name=re.compile(r"(Cancel|Close)", re.I)).first
+            if cancel_btn.is_visible(timeout=1000):
+                cancel_btn.click(force=True)
+            else:
+                self.page.keyboard.press("Escape")
+            self.page.wait_for_timeout(400)
+
     def click_update(self):
         btn = self.page.get_by_role("button", name="Update", exact=True).first
         if not btn.is_visible(timeout=1000):
@@ -357,12 +488,32 @@ class AssetMasterPage(BasePage):
         """Discovers and returns all field-level validation error messages displayed in the current form/dialog."""
         return self.get_all_validation_messages()
 
-    def get_field_validation_message(self, field_label_or_locator: str) -> str:
-        """Returns the specific field-level validation error text displayed below a form control."""
-        return self.get_field_validation(field_label_or_locator)
+    def get_submission_feedback(self) -> str:
+        """
+        Dynamically captures submission response using Playwright's native visibility locators:
+        1. Checks for toast alert (Success / Error).
+        2. Checks for inline form validation error (.chakra-form__error-message).
+        3. Returns the captured feedback immediately without hardcoded sleep/timeouts.
+        """
+        feedback_loc = self.page.locator(
+            "#chakra-toast-manager-top-right .chakra-toast, .chakra-toast, "
+            ".chakra-form__error-message, [role='alert'], [role='status'], [id$='-feedback']"
+        ).first
 
-    def wait_for_toast_message(self) -> str:
+        if feedback_loc.is_visible():
+            text = feedback_loc.inner_text().strip()
+            if text:
+                logger.debug(f"[SUBMISSION FEEDBACK] Captured: '{text}'")
+                return text
+
+        inline_errs = self.get_active_form_errors()
+        if inline_errs:
+            return f"Validation: {', '.join(inline_errs)}"
+
         return self.wait_for_toast(self.TOAST)
+
+    def wait_for_toast_message(self, timeout: int = 5000) -> str:
+        return self.wait_for_toast(self.TOAST, timeout=timeout)
 
     def set_category_inactive(self, category_name: str):
         """Edit a category and toggle its Active status to Inactive."""

@@ -266,6 +266,7 @@ def find_payroll_company_id(name_fragment: str, user: str = "admin") -> int:
 def get_branches(user: str = "admin") -> list:
     """GET /Hrlense_Branch — fetch all branches."""
     resp = get("Hrlense_Branch", user=user, params={
+        "rows": 1000,
         "lazyParams": _LAZY,
         "search": ""
     })
@@ -404,21 +405,44 @@ def get_balance_leave(employee_id: int, user: str = "admin") -> dict:
     global _balance_leaves_cache
     if _balance_leaves_cache is None:
         try:
-            # Fetch all records at once (up to 10000)
-            res = get("Hrlense_BalanceLeave", user=user, params={
-                "lazyParams": json.dumps({"first": 0, "rows": 10000, "page": 0, "sortField": "", "sortOrder": 1}),
-                "filter": json.dumps({}),
-                "search": ""
-            })
-            records = res.get("balanceLeaves") or res.get("totalBalanceLeave") or []
-            # Group records by employeeId
             cache = {}
-            for r in records:
-                eid = r.get("employeeId")
-                if eid:
-                    cache.setdefault(eid, []).append(r)
+            page = 0
+            rows_per_page = 100
+            total_records_in_db = None
+            
+            while True:
+                lazy = json.dumps({"first": page * rows_per_page, "rows": rows_per_page, "page": page, "sortField": "", "sortOrder": 1})
+                res = get("Hrlense_BalanceLeave", user=user, params={
+                    "lazyParams": lazy,
+                    "filter": json.dumps({}),
+                    "search": ""
+                })
+                
+                if not isinstance(res, dict):
+                    break
+                    
+                records = res.get("balanceLeaves") or res.get("totalBalanceLeave") or res.get("data") or []
+                if not records:
+                    break
+                    
+                for r in records:
+                    eid = r.get("employeeId")
+                    if eid:
+                        cache.setdefault(eid, []).append(r)
+                
+                total_records_in_db = res.get("totalRecords")
+                
+                # Stop if page has fewer records than requested or if all records fetched
+                if len(records) < rows_per_page:
+                    break
+                if total_records_in_db and sum(len(v) for v in cache.values()) >= total_records_in_db:
+                    break
+                    
+                page += 1
+                
             _balance_leaves_cache = cache
-            logger.info("Successfully fetched and cached %d leave balance records.", len(records))
+            total_fetched = sum(len(v) for v in cache.values())
+            logger.info("Successfully fetched and cached %d leave balance records for %d employees.", total_fetched, len(cache))
         except Exception as e:
             logger.error("Failed to fetch all balance leaves: %s", e)
             _balance_leaves_cache = {}

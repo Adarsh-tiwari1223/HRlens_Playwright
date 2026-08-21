@@ -51,6 +51,7 @@ def test_create_category_validation(admin_page):
 
 @pytest.mark.ui
 @pytest.mark.asset
+@pytest.mark.dependency(name="create_category")
 def test_create_category_success(admin_page):
     workflow = AssetMasterWorkflow(admin_page)
     # Clean non-numeric Category name
@@ -61,6 +62,7 @@ def test_create_category_success(admin_page):
 
 @pytest.mark.ui
 @pytest.mark.asset
+@pytest.mark.dependency(depends=["create_category"])
 def test_update_category_success(admin_page):
     """Edit Testing Rule: Pick existing category row from grid and edit in-place without creating redundant records."""
     asset_page = AssetMasterPage(admin_page)
@@ -290,6 +292,7 @@ def test_create_sub_category_validation(admin_page):
 
 @pytest.mark.ui
 @pytest.mark.asset
+@pytest.mark.dependency(name="create_subcategory", depends=["create_category"])
 def test_create_sub_category_success(admin_page):
     asset_page = AssetMasterPage(admin_page)
     asset_page.navigate_to_asset_master()
@@ -319,6 +322,7 @@ def test_create_sub_category_success(admin_page):
 
 @pytest.mark.ui
 @pytest.mark.asset
+@pytest.mark.dependency(depends=["create_subcategory"])
 def test_update_sub_category_success(admin_page):
     """Edit Testing Rule: Pick existing Sub Category row from grid and edit in-place without creating redundant records."""
     asset_page = AssetMasterPage(admin_page)
@@ -695,6 +699,7 @@ def test_create_vendor_validation(admin_page):
 
 @pytest.mark.ui
 @pytest.mark.asset
+@pytest.mark.dependency(name="create_vendor")
 def test_create_vendor_success(admin_page):
     asset_page = AssetMasterPage(admin_page)
     asset_page.navigate_to_asset_master()
@@ -719,6 +724,7 @@ def test_create_vendor_success(admin_page):
 
 @pytest.mark.ui
 @pytest.mark.asset
+@pytest.mark.dependency(depends=["create_vendor"])
 def test_update_vendor_success(admin_page):
     """Edit Testing Rule: Pick existing Vendor row from grid and edit in-place without creating redundant records."""
     story = TestStoryLogger("Update Vendor")

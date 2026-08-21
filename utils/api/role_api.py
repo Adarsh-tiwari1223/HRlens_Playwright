@@ -242,6 +242,42 @@ def get_user_by_email_or_username(identifier: str, user: str = "admin") -> dict:
     return {}
 
 
+def fetch_user_role_and_branch(global_filter: str, user: str = "admin") -> dict:
+    """
+    GET /api/user?first=0&rows=20&globalFilter={global_filter}
+    Retrieves user profile, assigned branch/branch group, and role permissions directly from backend API.
+    """
+    import urllib.parse
+    encoded_filter = urllib.parse.quote(global_filter.strip())
+    endpoint = f"user?first=0&rows=20&globalFilter={encoded_filter}"
+    response = _http_get_json(endpoint, user=user)
+
+    users_list = []
+    if isinstance(response, list):
+        users_list = response
+    elif isinstance(response, dict):
+        users_list = response.get("users", response.get("data", response.get("result", [])))
+
+    if not users_list:
+        logger.warning(f"No user found via /api/user for filter: '{global_filter}'")
+        return {}
+
+    first_match = users_list[0]
+    result = {
+        "user_id": first_match.get("id") or first_match.get("login_ID") or first_match.get("userId"),
+        "name": first_match.get("name") or first_match.get("userName") or first_match.get("employeeName"),
+        "email": first_match.get("email") or first_match.get("login_Email"),
+        "role": first_match.get("role") or first_match.get("roleName") or first_match.get("title"),
+        "role_id": first_match.get("roleId") or first_match.get("role_ID"),
+        "branch": first_match.get("branch") or first_match.get("branchName") or first_match.get("branch_Name"),
+        "branch_id": first_match.get("branchId") or first_match.get("branchID") or first_match.get("branch_ID"),
+        "company": first_match.get("company") or first_match.get("companyName") or first_match.get("payrollCompany"),
+        "raw_record": first_match
+    }
+    logger.info(f"[API USER DISCOVERY] Name='{result['name']}', Role='{result['role']}', Branch='{result['branch']}', Company='{result['company']}'")
+    return result
+
+
 def map_env_employee_role_and_permissions(
     user_key: str,
     role_name: str = "IT",

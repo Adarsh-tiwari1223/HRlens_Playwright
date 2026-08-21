@@ -97,7 +97,7 @@ def leave_page(employee_context):
 # ─── Happy Path ───────────────────────────────────────────────────────────────
 
 @pytest.mark.smoke
-@pytest.mark.smoke
+@pytest.mark.e2e
 @pytest.mark.regression
 def test_full_leave_apply_and_approve_workflow(logged_in_page, employee_context):
     """

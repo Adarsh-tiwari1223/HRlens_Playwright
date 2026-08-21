@@ -44,7 +44,6 @@ class CompanyWorkflow:
             phone=director_data.get("phone")
         )
         self.company_page.click_add_company()
-        self.page.wait_for_timeout(1000)
         return self.company_page.wait_for_toast_message()
 
     def edit_company_add_manual_director_only(self, company_name: str, director_data: dict) -> str:
@@ -63,5 +62,4 @@ class CompanyWorkflow:
             phone=director_data.get("phone")
         )
         self.company_page.click_update_company()
-        self.page.wait_for_timeout(1000)
         return self.company_page.wait_for_toast_message()

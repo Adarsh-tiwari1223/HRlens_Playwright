@@ -392,7 +392,7 @@ class BusinessTestData:
         ],
         "Furniture": [
             {"name": "Office Chair", "prefix": "CHR", "description": "Ergonomic Office Chair"},
-            {"name": "Workstation Desk", "prefix": "DSK", "description": "Modular Workstation Desk"},
+            {"name": "Workstation Desk", "prefix": "WDS", "description": "Modular Workstation Desk"},
             {"name": "Meeting Table", "prefix": "TBL", "description": "Conference Meeting Table"}
         ],
         "Peripherals": [

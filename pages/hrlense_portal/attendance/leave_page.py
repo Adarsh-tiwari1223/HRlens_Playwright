@@ -29,7 +29,7 @@ class LeavePage(BasePage):
         try:
             self.page.get_by_text("MyLeaves", exact=True).click(timeout=3000)
         except Exception:
-            self.click(self.MY_LEAVES_LINK)
+            self.page.locator(self.MY_LEAVES_LINK).click()
 
     def click_leave_apply(self):
         try:
@@ -66,7 +66,7 @@ class LeavePage(BasePage):
             try:
                 self.page.locator("//a[@href='/leave-request'] | //a[contains(text(),'Leaves Request')]").first.click(timeout=3000)
             except Exception:
-                self.click(self.LEAVES_REQUEST_LINK)
+                self.page.locator(self.LEAVES_REQUEST_LINK).click()
 
         if employee_name:
             search_field = self.page.get_by_placeholder("Search Employee by name", exact=False)
@@ -95,7 +95,7 @@ class LeavePage(BasePage):
 
     def _select_date_from_calendar(self, trigger_locator: str, target_date: date):
         logger.info(f"Selecting date: {target_date}")
-        self.click(trigger_locator)
+        self.page.locator(trigger_locator).click()
         calendar = self.page.locator(".react-calendar:visible").first
         calendar.wait_for(state="visible")
 
@@ -121,11 +121,11 @@ class LeavePage(BasePage):
 
 
     def select_leave_type(self, leave_type: str):
-        self.click(self.LEAVE_TYPE)
-        self.select_option(self.LEAVE_TYPE, leave_type)
+        self.page.locator(self.LEAVE_TYPE).click()
+        self.page.locator(self.LEAVE_TYPE).select_option(leave_type)
 
     def enter_subject(self, subject: str):
-        self.fill("input[placeholder*='Leave Application']", subject)
+        self.page.locator("input[placeholder*='Leave Application']").fill(subject)
 
     def fill_mail_body(self, body: str):
         logger.info(f"Filling mail body: {body}")
@@ -139,10 +139,10 @@ class LeavePage(BasePage):
             self.page.keyboard.type(body, delay=10)
 
     def click_submit(self):
-        self.click(self.SUBMIT_BTN)
+        self.page.locator(self.SUBMIT_BTN).click()
 
     def click_confirm(self):
-        self.click(self.CONFIRM_BTN)
+        self.page.locator(self.CONFIRM_BTN).click()
 
     def wait_for_apply_spinner_and_toast(self) -> str:
         """

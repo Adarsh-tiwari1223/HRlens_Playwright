@@ -60,7 +60,7 @@ class CandidateWorkflow:
 
         logger.info(f"[WORKFLOW] Generating offer letter (LOI) for candidate '{candidate_name}' with salary {gross_salary}")
         self.page.reload()
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state("domcontentloaded")
         res = self.candidate_page.generate_and_validate_offer(
             candidate_name=candidate_name,
             doj=date_of_joining,

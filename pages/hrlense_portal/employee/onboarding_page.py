@@ -10,7 +10,7 @@ class OnboardingPage:
         print("[ACTION] Navigating to Offers & Onboarding...")
         # Note: 'Onbording' is misspelled in the UI based on the codegen trace
         self.page.get_by_role("link", name=re.compile(r"Offers & Onbording|Offers & Onboarding", re.IGNORECASE)).click()
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state("domcontentloaded")
 
     def open_verification_modal(self, candidate_name: str):
         """
@@ -84,4 +84,4 @@ class OnboardingPage:
             raise AssertionError(f"Backend rejected verification: {toast_msg}")
             
         print("[PASS] Verification successful!")
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state("domcontentloaded")

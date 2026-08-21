@@ -26,14 +26,14 @@ class PayrollPage(BasePage):
 
     def navigate_to_payroll(self):
         self.page.goto(f"{settings.BASE_URL}/payroll")
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state("domcontentloaded")
 
     def apply_branch_filter(self, branch: str = "Varanasi - Inf"):
         self.page.get_by_role("img", name="Filter").click()
         self.page.get_by_text("Branch", exact=True).click()
         self.page.locator("label").filter(has_text=branch).locator("span").first.click()
         self.page.get_by_role("button", name="Apply").click()
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state("domcontentloaded")
 
     def run_payroll(self):
         """Click Run-Payroll → Confirm, then poll Reload → Confirm until table loads."""

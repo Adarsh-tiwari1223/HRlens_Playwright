@@ -27,4 +27,4 @@ class IncrementSummaryPage(BasePage):
 
     def open_assessment_form(self):
         logger.info("Opening assessment form...")
-        self.click(self.ASSESSMENT_FORM_BTN)
+        self.page.locator(self.ASSESSMENT_FORM_BTN).click()

@@ -1,16 +1,39 @@
+"""
+Pytest configuration, CLI options, hooks, and core fixture composition for HRlens Playwright tests.
+"""
+
+import os
+import re
+import logging
 import pytest
 from playwright.sync_api import sync_playwright
-from pages.login_page import LoginPage
+
 from core.config import settings
+from core.browser.browser_manager import get_context_options, launch_browser, create_browser_context
+from core.reporting.trace_manager import start_tracing, stop_tracing
+from core.auth.auth_manager import authenticate_user
 from testdata.static.companies import COMPANIES
 
+logger = logging.getLogger(__name__)
+
+# Preserved for backward compatibility
+CONTEXT_OPTIONS = get_context_options()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PYTEST CLI OPTIONS & PARAMETRIZATION HOOKS
+# ══════════════════════════════════════════════════════════════════════════════
+
 def pytest_addoption(parser):
+    """Adds CLI options for customizing test runs."""
     parser.addoption(
-        "--company", action="store", default="Code Crewzs Private Limited", 
+        "--company", action="store", default="Code Crewzs Private Limited",
         help="Specify company to test against, or 'all' to run against all companies"
     )
 
+
 def pytest_generate_tests(metafunc):
+    """Dynamically parametrizes tests requesting the 'template_company' fixture."""
     if "template_company" in metafunc.fixturenames:
         company_opt = metafunc.config.getoption("--company")
         if company_opt.lower() == "all":
@@ -18,12 +41,9 @@ def pytest_generate_tests(metafunc):
         else:
             metafunc.parametrize("template_company", [company_opt])
 
-import logging
-
-logger = logging.getLogger(__name__)
 
 def pytest_configure(config):
-    """Log active configuration at start of test session."""
+    """Logs active configuration at start of test session."""
     logger.info("==================================================")
     logger.info("HRlens Playwright - Active Configuration")
     logger.info("==================================================")
@@ -33,7 +53,7 @@ def pytest_configure(config):
 
 
 def pytest_collection_modifyitems(items):
-    """Reorder test collection so that authentication and login tests always run FIRST."""
+    """Reorders test collection so authentication/login tests always execute first."""
     login_items = []
     other_items = []
     for item in items:
@@ -47,11 +67,10 @@ def pytest_collection_modifyitems(items):
 def pytest_xdist_auto_num_workers(config):
     """
     Parallel Worker Allocation:
-    - Assign 1 worker when --headed flag is passed or HEADLESS is False (for step-by-step visual execution).
-    - Assign 1 worker when executing a single test file.
-    - Scale to max 4 workers only when running multiple test files in headless mode.
+    - Assigns 1 worker when --headed flag is passed or HEADLESS is False.
+    - Assigns 1 worker when executing a single test file.
+    - Scales up to max 4 workers when running multiple test files in headless mode.
     """
-    import os
     is_headed = getattr(config.option, "headed", False) or not settings.HEADLESS
     if is_headed:
         return 1
@@ -59,190 +78,182 @@ def pytest_xdist_auto_num_workers(config):
     file_args = [arg for arg in config.args if arg.endswith('.py')]
     if len(file_args) == 1:
         return 1
+
     cpu_cores = os.cpu_count() or 4
     return min(cpu_cores, 4)
 
 
-CONTEXT_OPTIONS = {
-    "permissions": ["clipboard-read", "clipboard-write"]
-}
-
-if settings.HEADLESS:
-    CONTEXT_OPTIONS["viewport"] = {"width": 1920, "height": 1080}
-else:
-    CONTEXT_OPTIONS["no_viewport"] = True
-
-
-import os
-
-CHROME_USER_DATA_DIR = os.path.expanduser(r"~\AppData\Local\Google\Chrome\User Data")
-
-@pytest.fixture(scope="session")
-def browser(pytestconfig):
-    is_headed = getattr(pytestconfig.option, "headed", False) or not settings.HEADLESS
-    with sync_playwright() as p:
-        browser_instance = p.chromium.launch(headless=not is_headed, args=["--start-maximized"])
-        yield browser_instance
-        browser_instance.close()
-
-
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_makereport(item, call):
-    """Hook to attach test call status to item for conditional failure actions."""
+    """Attaches test outcome report to item for conditional failure actions."""
     outcome = yield
     rep = outcome.get_result()
     setattr(item, f"rep_{rep.when}", rep)
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# DEDICATED PER-TEST LOGGING HOOK (hrlense_portal & recruitment_portal)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture(autouse=True)
+def per_test_logger(request):
+    """
+    Creates a dedicated log file for each test case organized into portal subfolders:
+    - tests/hrlense_portal/...     -> logs/hrlense_portal/{test_name}.log
+    - tests/recruitment_portal/... -> logs/recruitment_portal/{test_name}.log
+    """
+    test_path = str(request.node.fspath).replace("\\", "/")
+
+    if "hrlense_portal" in test_path:
+        subfolder = "hrlense_portal"
+    elif "recruitment_portal" in test_path:
+        subfolder = "recruitment_portal"
+    else:
+        subfolder = "general"
+
+    logs_dir = os.path.join(os.getcwd(), "logs", subfolder)
+    os.makedirs(logs_dir, exist_ok=True)
+
+    test_name = request.node.name
+    safe_name = re.sub(r'[^\w\-_.]', '_', test_name)
+    log_file_path = os.path.join(logs_dir, f"{safe_name}.log")
+
+    file_handler = logging.FileHandler(log_file_path, mode="w", encoding="utf-8")
+    formatter = logging.Formatter(
+        fmt="%(asctime)s  %(levelname)-8s  %(name)s  →  %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(logging.INFO)
+
+    root_logger = logging.getLogger()
+    root_logger.addHandler(file_handler)
+
+    logger.info("================================================================================")
+    logger.info(f"[TEST START] {test_name}")
+    logger.info("================================================================================")
+
+    yield
+
+    rep_call = getattr(request.node, "rep_call", None)
+    status = "PASSED" if (rep_call and rep_call.passed) else ("FAILED" if (rep_call and rep_call.failed) else "COMPLETED")
+
+    logger.info("================================================================================")
+    logger.info(f"[TEST END] {test_name} → {status}")
+    logger.info("================================================================================")
+
+    root_logger.removeHandler(file_handler)
+    file_handler.close()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CORE BROWSER & PAGE FIXTURES
+# ══════════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture(scope="session")
+def browser(pytestconfig):
+    """
+    Session-scoped Chromium browser instance.
+    Configured with start-maximized and proper headed/headless mode.
+    """
+    is_headed = getattr(pytestconfig.option, "headed", False) or not settings.HEADLESS
+    with sync_playwright() as p:
+        browser_instance = launch_browser(p, is_headed=is_headed)
+        yield browser_instance
+        browser_instance.close()
+
+
 @pytest.fixture(scope="function")
 def page(browser, request):
-    if hasattr(browser, "new_context"):
-        context = browser.new_context(**CONTEXT_OPTIONS)
-        should_close_context = True
-    elif hasattr(browser, "browser") and browser.browser:
-        context = browser.browser.new_context(**CONTEXT_OPTIONS)
-        should_close_context = True
-    else:
-        context = browser
-        should_close_context = False
+    """
+    Function-scoped isolated browser context and page.
+    Enables Playwright tracing and saves trace artifacts only on test failure.
+    """
+    context = create_browser_context(browser)
+    start_tracing(context)
+    page_instance = context.new_page()
 
-    context.set_default_timeout(settings.DEFAULT_TIMEOUT)
-    try:
-        context.tracing.start(screenshots=True, snapshots=True, sources=True)
-    except Exception:
-        pass
-    page = context.new_page()
-    
-    yield page
-    
-    # Save trace ONLY if the test failed!
+    yield page_instance
+
     failed = hasattr(request.node, "rep_call") and request.node.rep_call.failed
     if failed:
-        try:
-            context.tracing.stop(path=f"reports/trace_{request.node.name}.zip")
-        except Exception:
-            pass
+        stop_tracing(context, output_path=f"reports/trace_{request.node.name}.zip")
     else:
-        try:
-            context.tracing.stop()
-        except Exception:
-            pass
+        stop_tracing(context)
 
-    # Close test page tab so tab bar does not accumulate open tabs
     try:
-        page.close()
+        page_instance.close()
     except Exception:
         pass
 
-    if should_close_context:
+    if hasattr(browser, "new_context") or (hasattr(browser, "browser") and browser.browser):
         try:
             context.close()
         except Exception:
             pass
 
 
-@pytest.fixture(scope="module")
-def logged_in_page(browser):
+@pytest.fixture(scope="function")
+def logged_in_page(browser, request):
+    """
+    Function-scoped login factory fixture.
+    Supports user_key selection (defaults to settings.EMPLOYEE_USER).
+    Returns (page, context) tuple and automatically closes all pages/contexts on test completion.
+    """
     contexts = []
 
     def _login(user_key: str = settings.EMPLOYEE_USER):
-        user_info = settings.USERS.get(user_key)
-        assert user_info and user_info.get("username") and user_info.get("password"), \
-            f"User '{user_key}' missing valid credentials in environment settings."
+        context = create_browser_context(browser)
+        start_tracing(context)
+        page_instance = context.new_page()
 
-        if hasattr(browser, "new_context"):
-            context = browser.new_context(**CONTEXT_OPTIONS)
-        elif hasattr(browser, "browser") and browser.browser:
-            context = browser.browser.new_context(**CONTEXT_OPTIONS)
-        else:
-            context = browser
-
-        context.set_default_timeout(settings.DEFAULT_TIMEOUT)
-        try:
-            context.tracing.start(screenshots=True, snapshots=True, sources=True)
-        except Exception:
-            pass
-        page = context.new_page()
-        page.goto(settings.BASE_URL, timeout=60000)
-        try:
-            page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="visible", timeout=30000)
-        except Exception:
-            pass
-
-        LoginPage(page).login(
-            user_info["username"],
-            user_info["password"]
-        )
-        try:
-            page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="hidden", timeout=15000)
-        except Exception:
-            # Safeguard: Re-click Login if network latency or toast overlay delayed initial submission
-            if page.get_by_text("Please enter your Login Details", exact=True).is_visible():
-                page.get_by_role("button", name="Login").click()
-                page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="hidden", timeout=20000)
+        authenticate_user(page_instance, user_key=user_key)
         contexts.append((context, user_key))
-        return page, context
-
+        return page_instance, context
 
     yield _login
 
+    failed = hasattr(request.node, "rep_call") and request.node.rep_call.failed
     for context, user_key in contexts:
-        try:
-            context.tracing.stop(path=f"reports/trace_{user_key}.zip")
-        except Exception:
-            pass
+        if failed:
+            stop_tracing(context, output_path=f"reports/trace_{request.node.name}_{user_key}.zip")
+        else:
+            stop_tracing(context)
         try:
             for p in context.pages:
                 try:
                     p.close()
                 except Exception:
                     pass
-            if hasattr(browser, "new_context") or (hasattr(browser, "browser") and browser.browser):
-                context.close()
+            context.close()
         except Exception:
             pass
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def admin_page(browser, request):
-    if hasattr(browser, "new_context"):
-        context = browser.new_context(**CONTEXT_OPTIONS)
-    elif hasattr(browser, "browser") and browser.browser:
-        context = browser.browser.new_context(**CONTEXT_OPTIONS)
+    """
+    Function-scoped pre-authenticated Admin page fixture.
+    Automatically closes context on test completion.
+    """
+    context = create_browser_context(browser)
+    start_tracing(context)
+    page_instance = context.new_page()
+
+    authenticate_user(page_instance, user_key="admin")
+
+    yield page_instance
+
+    failed = hasattr(request.node, "rep_call") and request.node.rep_call.failed
+    if failed:
+        stop_tracing(context, output_path=f"reports/trace_{request.node.name}.zip")
     else:
-        context = browser
-    context.set_default_timeout(settings.DEFAULT_TIMEOUT)
-    context.tracing.start(screenshots=True, snapshots=True, sources=True)
-    page = context.new_page()
-    page.goto(settings.BASE_URL, timeout=60000)
+        stop_tracing(context)
     try:
-        page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="visible", timeout=10000)
-    except Exception:
-        pass
-    login_page = LoginPage(page)
-    creds = settings.USERS["admin"]
-    login_page.login(creds["username"], creds["password"])
-    try:
-        page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="hidden", timeout=15000)
-    except Exception:
-        try:
-            if page.get_by_text("Please enter your Login Details", exact=True).is_visible(timeout=2000):
-                page.get_by_role("button", name="Login").click()
-                page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="hidden", timeout=15000)
-        except Exception:
-            pass
-    try:
-        page.wait_for_load_state("domcontentloaded", timeout=5000)
-    except Exception:
-        pass
-    yield page
-    try:
-        context.tracing.stop(path=f"reports/trace_{request.node.name}.zip")
+        page_instance.close()
     except Exception:
         pass
     try:
-        page.close()
-    except Exception:
-        pass
-    if hasattr(browser, "new_context") or (hasattr(browser, "browser") and browser.browser):
         context.close()
+    except Exception:
+        pass

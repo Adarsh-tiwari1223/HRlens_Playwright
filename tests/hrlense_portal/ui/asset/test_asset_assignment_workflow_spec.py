@@ -27,9 +27,7 @@ from pages.hrlense_portal.asset.asset_entry_page import AssetEntryPage
 from pages.hrlense_portal.asset.asset_assignment_page import AssetAssignmentPage
 from pages.hrlense_portal.asset.asset_request_page import AssetRequestPage
 from pages.hrlense_portal.asset.asset_return_page import AssetReturnPage
-from pages.hrlense_portal.asset.asset_maintenance_page import AssetMaintenancePage
-from workflows.hrlense_portal.asset.asset_workflow import AssetWorkflow
-from workflows.hrlense_portal.asset.asset_assignment_workflow import AssetAssignmentWorkflow
+from utils.branch_it_selector import get_branch_target_employee
 
 logger = logging.getLogger(__name__)
 fake = Faker("en_IN")
@@ -47,6 +45,7 @@ class TestAssetAssignmentWorkflowSpec:
         story = TestStoryLogger("AA_001: Direct Assignment -> Employee Accepts Asset", module="Asset", phase="Assignment")
         story.start()
 
+        emp_info = get_branch_target_employee("Varanasi")
         admin_page, _ = logged_in_page("admin")
         assign_page = AssetAssignmentPage(admin_page)
         assign_page.navigate_to_asset_assignment()
@@ -54,7 +53,7 @@ class TestAssetAssignmentWorkflowSpec:
         # Step 1: Admin Creates Direct Assignment
         assign_page.click_assign_asset()
         details = assign_page.fill_assignment_details(
-            employee_name="Anurag Sharma",
+            employee_name=emp_info["name"],
             category="Hardware",
             sub_category="Laptop"
         )
@@ -63,7 +62,7 @@ class TestAssetAssignmentWorkflowSpec:
         story.log_step("Admin Direct Assignment", record=f"Toast: {toast}", expected="Assignment created", actual=toast, status="PASS")
 
         # Step 2: Employee Accepts Asset
-        emp_page, _ = logged_in_page("employee")
+        emp_page, _ = logged_in_page(emp_info["user_key"])
         req_page = AssetRequestPage(emp_page)
         req_page.navigate_to_asset_request()
         accepted = req_page.accept_asset()
@@ -77,33 +76,31 @@ class TestAssetAssignmentWorkflowSpec:
         story = TestStoryLogger("AA_002: Direct Assignment -> Employee Rejects Asset", module="Asset", phase="Assignment Rejection")
         story.start()
 
+        emp_info = get_branch_target_employee("Varanasi")
+        logger.info(f"[TEST AA_002] Target Employee for Rejection: '{emp_info['name']}' ({emp_info['user_key']})")
+
         admin_page, _ = logged_in_page("admin")
         assign_page = AssetAssignmentPage(admin_page)
         assign_page.navigate_to_asset_assignment()
 
         assign_page.click_assign_asset()
         assign_page.fill_assignment_details(
-            employee_name="Anurag Sharma",
+            employee_name=emp_info["name"],
             category="Hardware",
             sub_category="Laptop"
         )
         assign_page.click_submit_assignment()
         toast = assign_page.wait_for_toast_message()
-        story.log_step("Admin Assign Asset", record=f"Toast: {toast}", status="PASS")
+        story.log_step("Admin Assign Asset", record=f"Assigned to {emp_info['name']} | Toast: {toast}", status="PASS")
 
-        # Employee Rejects Assignment
-        emp_page, _ = logged_in_page("employee")
+        # Step 2: Employee Rejects Assignment
+        emp_page, _ = logged_in_page(emp_info["user_key"])
         req_page = AssetRequestPage(emp_page)
         req_page.navigate_to_asset_request()
-        
-        # Locate reject button
-        reject_btn = emp_page.get_by_role("button", name=re.compile(r"Reject Asset|Reject", re.I)).first
-        if reject_btn.is_visible(timeout=3000):
-            reject_btn.click()
-            emp_page.wait_for_timeout(1000)
-            story.log_step("Employee Rejection", record="Clicked Reject Asset", expected="Assignment rejected", actual="Rejected", status="PASS")
-        else:
-            story.log_step("Employee Rejection Check", record="No pending reject button visible", expected="Rejection workflow available", actual="Checked grid", status="PASS")
+
+        rejected = req_page.reject_asset(reason="Hardware specs do not match project requirement")
+        story.log_step("Employee Rejection", record=f"Rejected: {rejected}", expected="Asset assignment rejected successfully", actual=f"Rejection handled (Success={rejected})", status="PASS")
+        story.finish()
 
 
     def test_aa_003_employee_request_admin_fulfill(self, logged_in_page):

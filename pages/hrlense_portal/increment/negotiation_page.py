@@ -11,19 +11,19 @@ class NegotiationPage(BasePage):
     SUCCESS_TOAST = "text=Negotiation Submitted"
 
     def navigate_to_negotiation(self):
-        self.click(self.NEGOTIATION_TAB)
+        self.page.locator(self.NEGOTIATION_TAB).click()
 
     def accept_offer(self):
-        self.click(self.ACCEPT_BTN)
+        self.page.locator(self.ACCEPT_BTN).click()
 
     def reject_offer(self):
-        self.click(self.REJECT_BTN)
+        self.page.locator(self.REJECT_BTN).click()
 
     def enter_counter_offer(self, amount: str):
-        self.fill(self.COUNTER_OFFER_INPUT, amount)
+        self.page.locator(self.COUNTER_OFFER_INPUT).fill(amount)
 
     def submit(self):
-        self.click(self.SUBMIT_BTN)
+        self.page.locator(self.SUBMIT_BTN).click()
 
     def is_success_visible(self) -> bool:
-        return self.is_visible(self.SUCCESS_TOAST)
+        return self.page.locator(self.SUCCESS_TOAST).is_visible()

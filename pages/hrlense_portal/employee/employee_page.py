@@ -118,69 +118,69 @@ class EmployeePage(BasePage):
         return date_str
 
     def click_employee_module(self):
-        self.scroll_into_view(self.EMPLOYEE_NAV)
-        self.click(self.EMPLOYEE_NAV)
+        self.page.locator(self.EMPLOYEE_NAV).scroll_into_view_if_needed()
+        self.page.locator(self.EMPLOYEE_NAV).click()
 
     def click_add_new_employee(self):
-        self.click(self.ADD_NEW_EMP_BTN)
+        self.page.locator(self.ADD_NEW_EMP_BTN).click()
 
     def _save_and_next(self):
-        self.click(self.SAVE_NEXT_BTN)
+        self.page.locator(self.SAVE_NEXT_BTN).click()
         self.wait_for_toast(self.TOAST)
 
     def _select_role(self, roles: list[str]):
-        self.click(self.ROLE_BTN)
+        self.page.locator(self.ROLE_BTN).click()
         for role in roles:
             # Use exact text match via filter to avoid XSS risk with f-string in locator
             self.page.locator("span").filter(has_text=re.compile(f"^{re.escape(role)}$")).click()
-        self.click(self.ROLE_BTN)
+        self.page.locator(self.ROLE_BTN).click()
 
     def _fill_autocomplete(self, locator: str, value: str):
-        self.fill(locator, value)
+        self.page.locator(locator).fill(value)
         self.page.locator(locator).press("Tab")
 
     # -------------------------------------------------------------------------
 
     def fill_basic_details(self, data: dict[str, Any]):
-        self.fill(self.FIRST_NAME, data["full_name"])
-        self.fill(self.OFFICIAL_EMAIL, data["official_email"])
-        self.fill(self.PERSONAL_EMAIL, data.get("personal_email", ""))
-        self.fill(self.US_PHONE, data.get("us_phone", ""))
-        self.fill(self.PHONE_NUMBER, data["phone_number"])
-        self.fill(self.DATE_OF_BIRTH, self._format_date(data.get("date_of_birth")))
-        self.fill(self.DATE_OF_JOINING, self._format_date(data["date_of_joining"]))
-        self.fill(self.CURRENT_ADDRESS, data.get("current_address", ""))
-        self.fill(self.PERMANENT_ADDRESS, data.get("permanent_address", ""))
+        self.page.locator(self.FIRST_NAME).fill(data["full_name"])
+        self.page.locator(self.OFFICIAL_EMAIL).fill(data["official_email"])
+        self.page.locator(self.PERSONAL_EMAIL).fill(data.get("personal_email", ""))
+        self.page.locator(self.US_PHONE).fill(data.get("us_phone", ""))
+        self.page.locator(self.PHONE_NUMBER).fill(data["phone_number"])
+        self.page.locator(self.DATE_OF_BIRTH).fill(self._format_date(data.get("date_of_birth")))
+        self.page.locator(self.DATE_OF_JOINING).fill(self._format_date(data["date_of_joining"]))
+        self.page.locator(self.CURRENT_ADDRESS).fill(data.get("current_address", ""))
+        self.page.locator(self.PERMANENT_ADDRESS).fill(data.get("permanent_address", ""))
 
-        self.select_option(self.GENDER, data["gender"])
-        self.select_option(self.US_COMPANY, data.get("us_company", ""))
-        self.select_option(self.BRANCH_DROPDOWN, data["branch"])
-        self.select_option(self.DEPARTMENT, data["department"])
-        self.select_option(self.DESIGNATION, data["designation"])
-        self.select_option(self.SHIFT, data["shift"])
+        self.page.locator(self.GENDER).select_option(data["gender"])
+        self.page.locator(self.US_COMPANY).select_option(data.get("us_company", ""))
+        self.page.locator(self.BRANCH_DROPDOWN).select_option(data["branch"])
+        self.page.locator(self.DEPARTMENT).select_option(data["department"])
+        self.page.locator(self.DESIGNATION).select_option(data["designation"])
+        self.page.locator(self.SHIFT).select_option(data["shift"])
 
         if data.get("role"):
             roles = [data["role"]] if isinstance(data["role"], str) else data["role"]
             self._select_role(roles)
 
         if data.get("blood_group"):
-            self.select_option(self.BLOOD_GROUP, data["blood_group"])
+            self.page.locator(self.BLOOD_GROUP).select_option(data["blood_group"])
         if data.get("emergency_contact_name"):
-            self.fill(self.EMERGENCY_CONTACT_NAME, data["emergency_contact_name"])
+            self.page.locator(self.EMERGENCY_CONTACT_NAME).fill(data["emergency_contact_name"])
         if data.get("emergency_contact_number"):
-            self.fill(self.EMERGENCY_CONTACT_NUMBER, data["emergency_contact_number"])
+            self.page.locator(self.EMERGENCY_CONTACT_NUMBER).fill(data["emergency_contact_number"])
 
     def fill_employment_experience(self, data: dict[str, Any]):
         if data.get("payroll_company"):
-            self.select_option(self.PAYROLL_COMPANY, data["payroll_company"])
+            self.page.locator(self.PAYROLL_COMPANY).select_option(data["payroll_company"])
         if data.get("business_process"):
-            self.select_option(self.BUSINESS_PROCESS, data["business_process"])
+            self.page.locator(self.BUSINESS_PROCESS).select_option(data["business_process"])
         if data.get("reference"):
-            self.select_option(self.REFERENCE, data["reference"])
+            self.page.locator(self.REFERENCE).select_option(data["reference"])
 
         experience = self.page.locator(self.EXPERIENCE).input_value()
         if experience != "0" and data.get("last_organization"):
-            self.fill(self.LAST_ORGANIZATION, data["last_organization"])
+            self.page.locator(self.LAST_ORGANIZATION).fill(data["last_organization"])
 
         if data.get("team_leader"):
             self._fill_autocomplete(self.TEAM_LEADER, data["team_leader"])
@@ -191,62 +191,62 @@ class EmployeePage(BasePage):
         if not data:
             return
         if data.get("education_category"):
-            self.select_option(self.EDUCATION_CATEGORY, data["education_category"])
+            self.page.locator(self.EDUCATION_CATEGORY).select_option(data["education_category"])
         if data.get("education_degree"):
-            self.select_option(self.EDUCATION_DEGREE, data["education_degree"])
+            self.page.locator(self.EDUCATION_DEGREE).select_option(data["education_degree"])
         if data.get("course_stream"):
-            self.fill(self.COURSE_STREAM, data["course_stream"])
+            self.page.locator(self.COURSE_STREAM).fill(data["course_stream"])
         if data.get("institute_name"):
-            self.fill(self.INSTITUTE_NAME, data["institute_name"])
+            self.page.locator(self.INSTITUTE_NAME).fill(data["institute_name"])
         if data.get("percentage_cgpa"):
-            self.fill(self.PERCENTAGE_CGPA, data["percentage_cgpa"])
+            self.page.locator(self.PERCENTAGE_CGPA).fill(data["percentage_cgpa"])
         if data.get("passing_year"):
-            self.fill(self.PASSING_YEAR, data["passing_year"])
+            self.page.locator(self.PASSING_YEAR).fill(data["passing_year"])
         if data.get("certificate_file"):
-            self.upload_file(self.UPLOAD_CERTIFICATE, _safe_upload_path(data["certificate_file"]))
+            self.page.locator(self.UPLOAD_CERTIFICATE).set_input_files(_safe_upload_path(data["certificate_file"]))
 
     def fill_family_detail(self, family_data: list[dict[str, Any]]):
         for i, member in enumerate(family_data):
-            self.select_option(self.FAMILY_RELATION, member["relation"])
-            self.fill(self.FAMILY_FULL_NAME, member["full_name"])
-            self.fill(self.FAMILY_GENDER, member.get("gender", ""))
-            self.fill(self.FAMILY_DOB, self._format_date(member.get("dob")))
+            self.page.locator(self.FAMILY_RELATION).select_option(member["relation"])
+            self.page.locator(self.FAMILY_FULL_NAME).fill(member["full_name"])
+            self.page.locator(self.FAMILY_GENDER).fill(member.get("gender", ""))
+            self.page.locator(self.FAMILY_DOB).fill(self._format_date(member.get("dob")))
             if i < len(family_data) - 1:
-                self.click(self.ADD_MORE_FAMILY_BTN)
+                self.page.locator(self.ADD_MORE_FAMILY_BTN).click()
 
     def fill_salary_compensation(self, data: dict[str, Any]):
-        self.fill(self.GROSS_SALARY, str(data["gross_salary"]))
+        self.page.locator(self.GROSS_SALARY).fill(str(data["gross_salary"]))
 
     def fill_identity_bank(self, data: dict[str, Any]):
-        self.fill(self.AADHAR_NUMBER, data.get("aadhar_number", ""))
-        self.fill(self.PAN_NUMBER, data.get("pan_number", ""))
-        self.fill(self.UAN_NUMBER, data.get("uan_number", ""))
-        self.fill(self.ACCOUNT_NUMBER, data.get("account_number", ""))
-        self.fill(self.IFSC_CODE, data.get("ifsc_code", ""))
-        self.fill(self.BRANCH_BANK, data.get("branch", ""))
+        self.page.locator(self.AADHAR_NUMBER).fill(data.get("aadhar_number", ""))
+        self.page.locator(self.PAN_NUMBER).fill(data.get("pan_number", ""))
+        self.page.locator(self.UAN_NUMBER).fill(data.get("uan_number", ""))
+        self.page.locator(self.ACCOUNT_NUMBER).fill(data.get("account_number", ""))
+        self.page.locator(self.IFSC_CODE).fill(data.get("ifsc_code", ""))
+        self.page.locator(self.BRANCH_BANK).fill(data.get("branch", ""))
         if data.get("bank_name"):
-            self.select_option(self.BANK_NAME, data["bank_name"])
+            self.page.locator(self.BANK_NAME).select_option(data["bank_name"])
 
     def upload_documents(self, data: dict[str, Any]):
         if data.get("document_type_1"):
-            self.select_option(self.DOC_TYPE_1, data["document_type_1"])
+            self.page.locator(self.DOC_TYPE_1).select_option(data["document_type_1"])
         if data.get("document_name_1"):
-            self.select_option(self.DOC_NAME_1, data["document_name_1"])
+            self.page.locator(self.DOC_NAME_1).select_option(data["document_name_1"])
         if data.get("document_number_1"):
-            self.fill(self.DOC_NUMBER_1, data["document_number_1"])
+            self.page.locator(self.DOC_NUMBER_1).fill(data["document_number_1"])
         if data.get("document_file_1"):
-            self.upload_file(self.DOC_UPLOAD_1, _safe_upload_path(data["document_file_1"]))
+            self.page.locator(self.DOC_UPLOAD_1).set_input_files(_safe_upload_path(data["document_file_1"]))
 
         if data.get("document_type_2"):
-            self.select_option(self.DOC_TYPE_2, data["document_type_2"])
+            self.page.locator(self.DOC_TYPE_2).select_option(data["document_type_2"])
         if data.get("document_name_2"):
-            self.select_option(self.DOC_NAME_2, data["document_name_2"])
+            self.page.locator(self.DOC_NAME_2).select_option(data["document_name_2"])
         if data.get("document_number_2"):
-            self.fill(self.DOC_NUMBER_2, data["document_number_2"])
+            self.page.locator(self.DOC_NUMBER_2).fill(data["document_number_2"])
         if data.get("expiry_date_2"):
-            self.fill(self.DOC_EXPIRY_2, self._format_date(data["expiry_date_2"]))
+            self.page.locator(self.DOC_EXPIRY_2).fill(self._format_date(data["expiry_date_2"]))
         if data.get("document_file_2"):
-            self.upload_file(self.DOC_UPLOAD_2, _safe_upload_path(data["document_file_2"]))
+            self.page.locator(self.DOC_UPLOAD_2).set_input_files(_safe_upload_path(data["document_file_2"]))
 
     # -------------------------------------------------------------------------
 
@@ -270,7 +270,7 @@ class EmployeePage(BasePage):
         self._save_and_next()
 
         self.upload_documents(employee_data.get("document_upload", {}))
-        self.click(self.SUBMIT_BTN)
+        self.page.locator(self.SUBMIT_BTN).click()
 
         toast = self.wait_for_toast(self.TOAST)
         assert "successfully" in toast.lower(), f"Employee creation failed. Toast: {toast}"

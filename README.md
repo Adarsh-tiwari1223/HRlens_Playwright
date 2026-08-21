@@ -1,6 +1,6 @@
-# HRlens Playwright Automation Suite
+# HRlens Playwright Automation Framework
 
-End-to-end test automation, parallel execution engine, and API validation framework for the **HRlens** platform — powered by **Playwright**, **pytest**, **pytest-xdist**, **Docker**, and a structured **Page Object Model (POM)** pattern.
+Enterprise-grade end-to-end test automation, parallel execution engine, and API validation framework for the **HRlens** and **Recruitment** platforms — powered by **Playwright**, **pytest**, **pytest-xdist**, **Docker**, and a structured **3-Tier Architecture (Page Object Model $\rightarrow$ Workflow Layer $\rightarrow$ Test Suites)**.
 
 ![Python Version](https://img.shields.io/badge/Python-3.12+-blue?style=for-the-badge&logo=python)
 ![Playwright Version](https://img.shields.io/badge/Playwright-1.49+-green?style=for-the-badge&logo=playwright)
@@ -11,25 +11,26 @@ End-to-end test automation, parallel execution engine, and API validation framew
 
 ## 🏗️ Architecture & Core Capabilities
 
-* **Browser Automation**: [Playwright](https://playwright.dev/python/) for fast, reliable, and modern web testing across Chromium, Firefox, and WebKit.
-* **Parallel Execution Engine (`pytest-xdist`)**: Smart multi-worker allocation engine that auto-scales test workers (`-n auto`) to execute test suites in parallel, reducing smoke suite execution time from **63s $\rightarrow$ ~22s**.
-* **Prioritized Execution Engine**: Native `pytest_collection_modifyitems` hook dynamically prioritizes authentication and login tests (`test_login`) to run **FIRST** before feature tests across all suites.
-* **Production-Grade Docker Containerization**: Zero-dependency execution using `mcr.microsoft.com/playwright/python:v1.49.0-jammy` with Docker Compose orchestration.
-* **Strict Environment Scoping Policy**: Whitelisted environment enforcement (`ALLOWED_ENVS = {"stg", "prod"}`). Defaults to **Stage (`stg`)**; requires explicit user opt-in (`-e ENV=prod`) for Production runs.
-* **Dual Marker Composition**: Flexible test suite composition blending **Execution Markers** (`smoke`, `sanity`, `regression`) with **Functional Domain Markers** (`ui`, `api`, `payroll`, `recruitment`, `attendance`).
-* **CI/CD Automation & Early Warning System**: Container-optimized GitHub Actions pipelines with concurrency cancellation, trace artifact retention, and `$GITHUB_STEP_SUMMARY` execution dashboards.
+* **3-Tier Architecture**:
+  1. **Page Object Model (`pages/`)**: Encapsulates raw DOM locators, actionability checks, and UI interactions with zero hardcoded sleeps.
+  2. **Workflow Layer (`workflows/`)**: Orchestrates complex multi-step business logic (e.g. Job Creation, Candidate Pipeline, Interview Scheduling, Salary Calculations).
+  3. **Test Suite Layer (`tests/`)**: Houses clean, declarative pytest test cases separated into `hrlense_portal/` and `recruitment_portal/`.
+* **Portal-Specific Per-Test Logging Engine**:
+  - Automatically isolates logs per test case into dedicated files:
+    - `logs/hrlense_portal/{test_name}.log`
+    - `logs/recruitment_portal/{test_name}.log`
+  - High-visibility semantic tagging (`[UI]`, `[STEP]`, `[ACTION]`, `[VERIFY]`, `[PASS]`, `[LOGIN API SUCCESS]`).
+  - Thread-safe for parallel execution with `pytest-xdist`.
+* **Default Run Exclusion & Selective Triggering**:
+  - Standard `pytest` execution automatically excludes external invite / long-running suites (`meeting`, `interview`, `increment`, `appraisal`, `payroll`, `calendar`).
+  - Can be triggered on-demand via dedicated terminal markers or file paths.
+* **Resilient Draft & Form Lifecycle Handling**:
+  - Unsaved changes modal auto-handling (`Save as Draft`, `Discard Changes`, `Keep Editing`).
+  - Unique `DRAFT-N` invariant anchoring for draft title rules and updates.
+  - Automatic conversion to **Paid Intern** modal validation when Gross Salary $< ₹15,000$.
+* **Parallel Execution Engine (`pytest-xdist`)**: Smart multi-worker allocation engine (`-n auto`) dynamically scaling across CPU cores.
+* **Strict Environment Scoping Policy**: Whitelisted environment enforcement (`ALLOWED_ENVS = {"stg", "prod"}`). Defaults to **Stage (`stg`)**; requires explicit user opt-in (`-e ENV=prod`) for Production.
 * **Visual Playwright Tracing & Reports**: Automatic step-by-step DOM visual tracing (`reports/trace_*.zip`), Allure Reporting, and self-contained HTML reports (`reports/report.html`).
-
----
-
-## 💎 CI-Enabled Page Object Model (POM)
-
-The framework implements a high-performance, resilient, and **CI-Ready Page Object Model (POM)**:
-
-* **CI-Ready Viewport Optimization**: On **Local Runs (Headed)**, browser windows maximize to match host screen resolution. On **CI/Docker Runs (Headless)**, viewports default to a high-res `1920x1080` desktop layout to keep sidebars and navigation drawers fully expanded.
-* **Native Auto-Waiting Engine**: Wrapper actions in [BasePage](file:///c:/Users/User/Desktop/Tekinspirations/HRlens_Playwright/pages/base_page.py) utilize Playwright's native Actionability Checks (waiting for stable, visible, and enabled states), replacing fragile hardcoded sleep loops.
-* **Auto-Recovery & Sign-In Fallback**: If a test loses session context during navigation, the engine auto-recovers by re-authenticating and navigating back to the target page without aborting the test runner.
-* **Sanitized Credentials Parser**: `_get_env()` automatically strips accidental whitespace from environment secrets, preventing authentication timeouts.
 
 ---
 
@@ -38,128 +39,134 @@ The framework implements a high-performance, resilient, and **CI-Ready Page Obje
 ```
 HRlens_Playwright/
 ├── docker/                           # Production Containerization Layer
-│   ├── Dockerfile                    # Optimized Playwright Python base image with layer caching
-│   └── compose.yaml                  # Docker Compose orchestration with bind-mounts and env policy
-├── .dockerignore                     # Root build context ignore rules
-├── .github/
-│   └── workflows/
-│       ├── playwright.yml             # Container-optimized CI workflow (Runs on push & PR)
-│       └── nightly_regression.yml     # Containerized Nightly Regression workflow (12:00 AM UTC)
-├── core/
-│   ├── config/settings.py            # Environment whitelist, sanitized USERS dict & API URLs
-│   └── base_api.py                   # REST API client with payload redaction & truncation
-├── pages/                            # Page Object Model (POM) Layer
-│   ├── base_page.py                  # Base class with safe action wrappers & auto-waiting
+│   ├── Dockerfile                    # Optimized Playwright Python base image
+│   └── compose.yaml                  # Docker Compose orchestration
+├── core/                             # Framework Infrastructure & Config
+│   ├── auth/auth_manager.py          # Session authentication & token management
+│   ├── browser/browser_manager.py    # Playwright browser lifecycle & context
+│   ├── config/settings.py            # Environment settings & user credentials
+│   └── reporting/trace_manager.py    # Playwright visual trace capture
+├── pages/                            # Layer 1: Page Object Model (POM)
+│   ├── base_page.py                  # Base class with safe auto-waiting wrappers
 │   ├── login_page.py                 # Authentication page object
-│   ├── hrlense_portal/
-│   │   ├── admin_control/            # Hierarchy & management interactions
-│   │   ├── attendance/               # Leave application & attendance sheets
-│   │   ├── director/                 # Director document sharing page objects
-│   │   ├── master/                   # Company master page objects
-│   │   └── payroll/                  # Salary & payroll settings
-│   └── recruitment_portal/
-│       └── active_job/               # Job opening & candidate management page objects
-├── workflows/                        # Reusable Business Process Workflows
-│   ├── hrlense_portal/               # Leave, attendance, and increment workflows
-│   └── recruitment_portal/           # End-to-end job creation & candidate onboarding workflows
-├── testdata/
-│   ├── dynamic/candidate_data.py     # Dynamic Faker data generator
-│   └── static/                       # Static company templates & leave configs
-├── tests/                            # Pytest Test Suites
-│   ├── conftest.py                   # Auth prioritization, smart xdist allocation & tracing
-│   ├── hrlense_portal/               # UI, API & E2E tests for HRlens portal
-│   └── recruitment_portal/           # UI & E2E tests for Recruitment portal
-├── .env                              # Local environment secrets (Git ignored)
-├── commands.md                       # Comprehensive Docker & Pytest CLI runbook
-├── pytest.ini                        # Execution & functional marker registry
-├── requirements.txt                  # Locked Python dependencies (includes pytest-xdist)
-└── setup.bat                         # Automated local environment setup script for Windows
+│   ├── hrlense_portal/               # HRlens Portal page objects
+│   │   ├── admin_control/            # Hierarchy & settings
+│   │   ├── attendance/               # Leave & attendance tracking
+│   │   ├── employee/                 # Salary settings, onboarding & profile
+│   │   ├── master/                   # Company master configurations
+│   │   └── payroll/                  # Salary & payroll configuration
+│   └── recruitment_portal/           # Recruitment Portal page objects
+│       └── active_job/               # Job opening, drafts & candidate pages
+├── workflows/                        # Layer 2: Business Process Workflows
+│   ├── hrlense_portal/               # Multi-role attendance & leave workflows
+│   └── recruitment_portal/           # End-to-end recruitment & job workflows
+├── tests/                            # Layer 3: Test Suites
+│   ├── conftest.py                   # Hooks, per-test logging & fixtures
+│   ├── hrlense_portal/               # HRlens Portal Test Suites
+│   │   ├── ui/                       # Employee, attendance, master, auth tests
+│   │   ├── api/                      # REST API contract & absence validation tests
+│   │   └── test_payroll_comparison.py# Dynamic Excel vs API payroll reconciliation
+│   └── recruitment_portal/           # Recruitment Portal Test Suites
+│       └── ui/active_job/            # Drafts, creation, candidate & offer validation
+├── logs/                             # Automatic Per-Test Execution Logs
+│   ├── hrlense_portal/               # Dedicated logs for HRlens portal tests
+│   └── recruitment_portal/           # Dedicated logs for Recruitment portal tests
+├── testdata/                         # Static templates & dynamic Faker generators
+├── pytest.ini                        # Marker registry & default exclusion options
+└── requirements.txt                  # Locked Python dependencies
 ```
 
 ---
 
-## 🐳 Docker Execution (Recommended)
+## ⚡ Quick Start & Test Execution
 
-Run the entire automation suite inside containerized environments using Docker Desktop or Docker Engine without needing local Python or Playwright browser setups.
-
-### Quick Start: Quiet Parallel Execution
+### 1. Run Complete Portals or Specific Test Suites
 
 ```powershell
-# Run Smoke Suite in parallel with clean output (RECOMMENDED)
-docker compose --progress quiet -f docker/compose.yaml run --rm tests pytest -m smoke -n auto
+# Run Recruitment Portal Draft Tests (8 tests)
+$env:HEADLESS="false"; venv\Scripts\pytest.exe tests/recruitment_portal/ui/active_job/test_job_opening_drafts.py -v -s
 
-# Run Sanity Suite in parallel
-docker compose --progress quiet -f docker/compose.yaml run --rm tests pytest -m sanity -n auto
+# Run Job Opening Creation Tests (Manual & AI JD Generation)
+$env:HEADLESS="false"; venv\Scripts\pytest.exe tests/recruitment_portal/ui/active_job/test_job_opening_creation.py -v -s
 
-# Run Full Regression Suite in parallel
-docker compose --progress quiet -f docker/compose.yaml run --rm tests pytest -m regression -n auto
+# Run Full End-to-End Recruitment Flow (Job -> Candidate -> Interview -> LOI)
+$env:HEADLESS="false"; venv\Scripts\pytest.exe tests/recruitment_portal/ui/active_job/test_recruitment_flow.py -v -s -m "recruitment_flow"
 
-# Force rebuild container image before test run
-docker compose --progress quiet -f docker/compose.yaml run --rm --build tests pytest -m smoke -n auto
-```
-
-### Docker Execution Features:
-* **`--progress quiet`**: Hides noisy Docker build output and container creation logs for crystal-clear terminal output.
-* **`-n auto`**: Uses `pytest-xdist` to run tests across parallel CPU workers.
-* **Smart Worker Allocation**: Automatically caps worker processes to optimize RAM & CPU startup.
-* **Persisted Reports**: HTML reports (`reports/report.html`), logs (`logs/`), and Playwright trace zips (`reports/trace_*.zip`) are automatically bind-mounted to your host machine.
-
----
-
-## 🛡️ Environment Execution Policy
-
-The framework enforces strict environment scoping to protect target systems:
-
-* **Default Target**: Always executes against **Stage (`ENV=stg`)** (`https://stg-hrlense.jobvritta.com`).
-* **Development (`dev`)**: Strictly prohibited in Docker and CI/CD pipelines. Unallowed environments fall back to `stg` with a warning log.
-* **Production (`prod`) Opt-in**: Requires explicit CLI user opt-in (`-e ENV=prod`):
-
-```powershell
-# Explicit Production Execution (Opt-in ONLY)
-docker compose --progress quiet -f docker/compose.yaml run --rm -e ENV=prod tests pytest -m smoke
+# Run Candidate & Offer/LOI Validation Suites
+$env:HEADLESS="false"; venv\Scripts\pytest.exe tests/recruitment_portal/ui/active_job/test_offer_loi_validation.py -v -s
+$env:HEADLESS="false"; venv\Scripts\pytest.exe tests/recruitment_portal/ui/active_job/test_candidate_form_validation.py -v -s
 ```
 
 ---
 
-## ⚡ Local Setup & Execution
+### 2. Run Excluded / Dedicated Suites via Terminal
 
-### 1. Installation
+The following suites are excluded from default runs and can be executed explicitly:
 
 ```powershell
-# Windows automated setup
-.\setup.bat
+# Meeting & Calendar Suite
+venv\Scripts\pytest.exe tests/hrlense_portal/ui/meeting/ -v -s
+# or via marker:
+venv\Scripts\pytest.exe -m "meeting or calendar" -v -s
 
-# Manual Setup (macOS / Linux)
-python3.12 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-playwright install chromium
+# Increments & Appraisals Suite
+venv\Scripts\pytest.exe tests/hrlense_portal/ui/increment/ -v -s
+# or via marker:
+venv\Scripts\pytest.exe -m "increment or appraisal" -v -s
+
+# Payroll & Reconciliation Suite
+venv\Scripts\pytest.exe tests/hrlense_portal/test_payroll_comparison.py -v -s
+# or via marker:
+venv\Scripts\pytest.exe -m "payroll" -v -s
 ```
 
-### 2. Flexible Test Commands
+---
+
+### 3. Parallel Execution (`pytest-xdist`)
 
 ```powershell
-# Run smoke tests in parallel
-pytest -m "smoke" -n auto --disable-warnings
+# Run tests across parallel workers (Headless)
+pytest tests/recruitment_portal/ -n auto
 
-# Combine functional & execution markers
-pytest -m "recruitment and regression"
-pytest -m "ui and sanity"
-pytest -m "api and not regression"
+# Run specific functional markers in parallel
+pytest -m "regression" -n auto
+```
 
-# Open Playwright Trace Viewer for failed runs
+---
+
+## 📊 Logs & Reporting
+
+### 1. Isolated Test Logs
+Logs are automatically written to `logs/hrlense_portal/{test_name}.log` and `logs/recruitment_portal/{test_name}.log`. Each file contains clean execution timestamps, component tags, and status outcomes.
+
+### 2. Visual Playwright Tracing
+On any test failure, a full visual trace is saved to `reports/trace_<test_name>.zip`. To inspect DOM snapshots, network calls, and action timelines:
+
+```powershell
 playwright show-trace reports/trace_<test_name>.zip
 ```
 
----
-
-## 📊 Generating Reports
+### 3. HTML & Allure Reports
 
 ```powershell
-# Generate self-contained HTML report
-pytest -m smoke --html=reports/report.html --self-contained-html
+# Generate self-contained HTML Report
+pytest --html=reports/report.html --self-contained-html
 
-# Serve Allure Dashboard
+# Generate and view Allure Dashboard
 pytest --alluredir=reports/allure
 allure serve reports/allure
+```
+
+---
+
+## 🐳 Docker Execution
+
+Run the entire automation suite inside containerized environments using Docker Desktop or Docker Engine:
+
+```powershell
+# Run regression suite inside Docker container
+docker compose --progress quiet -f docker/compose.yaml run --rm tests pytest -m regression -n auto
+
+# Rebuild image and run smoke suite
+docker compose --progress quiet -f docker/compose.yaml run --rm --build tests pytest -m smoke
 ```

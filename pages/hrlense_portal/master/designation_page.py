@@ -24,7 +24,7 @@ class DesignationPage(BasePage):
         # Directly navigate to /master/designation or click side menu
         try:
             self.page.goto(f"{self.page.url.split('/')[0]}//${self.page.url.split('/')[2]}/master/designation", timeout=30000)
-            self.page.wait_for_load_state("networkidle")
+            self.page.wait_for_load_state("domcontentloaded")
         except Exception:
             pass
 
@@ -33,7 +33,7 @@ class DesignationPage(BasePage):
                 self.page.locator(self.MASTER_MENU).first.click()
                 self.page.wait_for_timeout(500)
             self.page.locator(self.DESIGNATION_SUBMENU).first.click()
-            self.page.wait_for_load_state("networkidle")
+            self.page.wait_for_load_state("domcontentloaded")
 
     def open_add_designation_modal(self):
         """Opens Add Designation Modal."""

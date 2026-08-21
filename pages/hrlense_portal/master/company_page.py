@@ -14,7 +14,7 @@ class CompanyPage(BasePage):
     def navigate_to_company_master(self):
         logger.info("Navigating to Company Master page")
         self.page.goto(f"{settings.BASE_URL}/master/company")
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state("domcontentloaded")
 
     def click_add_new_company(self):
         """Clicks Add New Company button."""

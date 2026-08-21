@@ -41,6 +41,36 @@ class AssetRequestPage(BasePage):
         logger.warning(f"Accept Asset button not visible for asset: {asset_code_or_name or 'any asset'}")
         return False
 
+    def reject_asset(self, asset_code_or_name: str = None, reason: str = "Asset not matching requirements") -> bool:
+        """Rejects an assigned asset with optional rejection reason."""
+        logger.info(f"Rejecting asset: {asset_code_or_name or 'First Pending Asset'}")
+        self.page.wait_for_timeout(1000)
+        reject_btn = None
+        if asset_code_or_name:
+            card_locator = self.page.locator(".css-prwjms, .chakra-card, div.chakra-stack, table tbody tr, div[role='row']").filter(has_text=asset_code_or_name).first
+            reject_btn = card_locator.get_by_role("button", name=re.compile(r"Reject Asset|Reject|Decline", re.I)).first
+        
+        if not reject_btn or not reject_btn.is_visible(timeout=2000):
+            reject_btn = self.page.get_by_role("button", name=re.compile(r"Reject Asset|Reject|Decline", re.I)).first
+
+        if reject_btn.is_visible(timeout=3000):
+            reject_btn.click()
+            self.page.wait_for_timeout(500)
+
+            # Check if rejection reason modal dialog opens
+            dialog = self.page.locator("[role='dialog'][aria-modal='true'], .chakra-modal__content").first
+            if dialog.is_visible(timeout=2000):
+                reason_input = dialog.locator("textarea, input[placeholder*='reason' i], input[placeholder*='remarks' i]").first
+                if reason_input.is_visible(timeout=1000):
+                    reason_input.fill(reason)
+                confirm_btn = dialog.get_by_role("button", name=re.compile(r"(Reject|Confirm|Submit|Yes|Proceed)", re.I)).first
+                if confirm_btn.is_visible(timeout=1000):
+                    confirm_btn.click()
+                    self.page.wait_for_timeout(500)
+            return True
+        logger.warning(f"Reject Asset button not visible for asset: {asset_code_or_name or 'any asset'}")
+        return False
+
     def create_new_request(self, reason: str, remarks: str = None) -> bool:
         logger.info("Creating new asset request via form")
         self.page.get_by_role("button", name="New Request").click()

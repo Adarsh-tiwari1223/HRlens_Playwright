@@ -66,6 +66,20 @@ class BranchGroupPage(BasePage):
             search_input.fill(query)
             self.page.wait_for_timeout(400)
 
+    def is_group_in_grid(self, group_name: str, timeout: int = 1500) -> bool:
+        """Returns True if the branch group name appears in the grid table."""
+        row = self.page.locator("tbody tr").filter(has_text=group_name).first
+        try:
+            return row.is_visible(timeout=timeout)
+        except Exception:
+            return False
+
+    def get_group_row_text(self, group_name: str, timeout: int = 5000) -> str:
+        """Finds and returns the inner text of a branch group row in the grid."""
+        row = self.page.locator("tbody tr").filter(has_text=group_name).first
+        row.wait_for(state="visible", timeout=timeout)
+        return row.inner_text().strip()
+
     def navigate_to_branch_group(self):
         logger.info("Navigating to Branch Group page...")
         self.navigate_to_master_menu("Branch Group")
@@ -83,6 +97,27 @@ class BranchGroupPage(BasePage):
         btn.click()
         self.page.locator("[role='dialog']").wait_for(state="visible", timeout=10000)
 
+    def get_all_existing_branch_groups(self) -> list[str]:
+        """Returns all branch group names currently in the Branch Group table."""
+        self.navigate_to_branch_group()
+        groups = set()
+        try:
+            self.page.locator("tbody tr, table tr").first.wait_for(state="visible", timeout=6000)
+            while True:
+                for r in self.page.locator("tbody tr, table tr").all():
+                    for td in r.locator("td").all():
+                        t = td.inner_text().strip()
+                        if t and not t.startswith("No ") and not t.isdigit() and len(t) > 2:
+                            groups.add(t)
+                next_btn = self.page.locator("button[aria-label='Next Page'], button:has-text('Next')").first
+                if next_btn.is_visible() and next_btn.is_enabled():
+                    next_btn.click()
+                    self.page.wait_for_timeout(400)
+                else:
+                    break
+        except Exception:
+            pass
+        return sorted(list(groups))
 
     def get_api_company_branches(self) -> list[str]:
         """Fetch all stored company branches via API call GET /Hrlense_Branch."""
@@ -167,7 +202,7 @@ class BranchGroupPage(BasePage):
         btn.click()
 
     def click_update(self):
-        self.click(self.UPDATE_BTN)
+        self.page.locator(self.UPDATE_BTN).click()
 
     def edit_branch_group(self, group_name: str):
         logger.debug(f"Editing branch group: {group_name}")

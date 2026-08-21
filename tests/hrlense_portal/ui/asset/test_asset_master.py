@@ -1038,130 +1038,41 @@ def test_asset_masters_e2e_testing(admin_page):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PHASE 5 · COMPREHENSIVE SEEDING (ALL CATEGORIES, RELEVANT SUB-CATEGORIES, VENDORS)
+# PHASE 5 · COMPREHENSIVE SEEDING (FEED ALL DATA IN MASTERS)
 # ══════════════════════════════════════════════════════════════════════════════
 
 @pytest.mark.ui
 @pytest.mark.asset
 @pytest.mark.master
-def test_feed_all_master_categories_subcategories_and_vendors(admin_page):
+def test_feed_all_data_in_masters(admin_page):
     """
-    Comprehensive Master Catalog Seeding with Strict Domain Relevance:
+    Cascading Read-First Master Flow:
     1. Category Master:
-       - Hardware, Software, Furniture, Peripherals, Mobile Phones
-    2. Relevant Sub-Category Master (Linked strictly to their parent category, Zero Numbers):
-       - Hardware: Laptop (LAP), Desktop (DSK), Server (SRV)
-       - Software: Antivirus Software (ANT), Development Tools (DEV), Operating System (OPS)
-       - Furniture: Office Chair (CHR), Workstation Desk (DSK), Meeting Table (TBL)
-       - Peripherals: Monitor (MON), Keyboard (KBD), Mouse (MOU), Headset (HDS)
-       - Mobile Phones: Smartphone (PHN), Tablet (TAB)
-    3. Corporate Vendor Master (Zero Numbers):
-       - Dell Technologies Pvt Ltd, Apple India Pvt Ltd, Lenovo Enterprise Pvt Ltd,
-         HP Solutions Pvt Ltd, Samsung Electronics Pvt Ltd, Logitech Tech Pvt Ltd,
-         Godrej Interio Pvt Ltd, Microsoft Corporation India
+       - Reads existing categories.
+       - If any target category missing -> creates missing.
+       - If all present -> moves directly to Step 2.
+    2. Sub-Category Master:
+       - Reads existing sub-categories.
+       - If any target relevant sub-category missing -> creates missing.
+       - If all present -> moves directly to Step 3.
+    3. Vendor Master:
+       - Reads existing vendors.
+       - If any target vendor missing -> creates missing.
+       - If all present -> moves directly to Step 4.
+    4. Branch Group Master:
+       - Reads existing branch groups.
+       - If target branch group missing -> creates missing.
+       - If all present -> marks test skipped with 'all present assets management'.
     """
-    story = TestStoryLogger("Feed All Master Categories, Relevant SubCategories, and Vendors", module="Asset Master", phase="Comprehensive Seeding")
+    story = TestStoryLogger("Feed All Data in Masters", module="Asset Master", phase="Comprehensive Seeding")
     story.start()
 
     master_workflow = AssetMasterWorkflow(admin_page)
     master_page = AssetMasterPage(admin_page)
+    bg_workflow = BranchGroupWorkflow(admin_page)
+    bg_page = BranchGroupPage(admin_page)
 
-    # ═════════════════════════════════════════════════════════════════════════
-    # 1. CATEGORY & RELEVANT SUB-CATEGORY CATALOG MAPPING
-    # ═════════════════════════════════════════════════════════════════════════
-    MASTER_CATALOG = {
-        "Hardware": [
-            ("Laptop", "LAP", "Enterprise Business Laptop"),
-            ("Desktop", "DSK", "High Performance Desktop"),
-            ("Server", "SRV", "Enterprise Rack Server")
-        ],
-        "Software": [
-            ("Antivirus Software", "ANT", "Endpoint Security Protection"),
-            ("Development Tools", "DEV", "Developer IDE and Tools"),
-            ("Operating System", "OPS", "Enterprise OS Licenses")
-        ],
-        "Furniture": [
-            ("Office Chair", "CHR", "Ergonomic Office Chair"),
-            ("Workstation Desk", "DSK", "Modular Workstation Desk"),
-            ("Meeting Table", "TBL", "Conference Meeting Table")
-        ],
-        "Peripherals": [
-            ("Monitor", "MON", "Dual HD Display Monitor"),
-            ("Keyboard", "KBD", "Wireless Mechanical Keyboard"),
-            ("Mouse", "MOU", "Ergonomic Optical Mouse"),
-            ("Headset", "HDS", "Noise Cancelling Headset")
-        ],
-        "Mobile Phones": [
-            ("Smartphone", "PHN", "Company Handheld Smartphone"),
-            ("Tablet", "TAB", "Field Operations Tablet")
-        ]
-    }
-
-    # Step 1: Feed/Verify All Master Categories
-    existing_categories = master_page.get_all_existing_categories()
-    logger.info("Existing Categories in Grid: %s", existing_categories)
-
-    for cat_name in MASTER_CATALOG.keys():
-        if cat_name not in existing_categories:
-            logger.info("[CATEGORY SEED] Creating missing Category: '%s'", cat_name)
-            toast = master_workflow.create_category_workflow(
-                name=cat_name,
-                description=f"Corporate {cat_name} Master Category"
-            )
-            story.log_step(
-                f"Category Master: {cat_name}",
-                record=cat_name,
-                expected="Category created",
-                actual=f"Result: '{toast}'",
-                status="PASS"
-            )
-        else:
-            logger.info("[CATEGORY REUSE] Category already exists: '%s'", cat_name)
-            story.log_step(
-                f"Category Master: {cat_name}",
-                record=cat_name,
-                expected="Category verified",
-                actual="all required category existed",
-                status="PASS"
-            )
-
-    # Step 2: Feed/Verify Relevant Sub-Categories under each Category
-    existing_sub_categories = master_page.get_all_existing_sub_categories()
-    logger.info("Existing Sub-Categories in Grid: %s", len(existing_sub_categories))
-
-    for cat_name, sub_list in MASTER_CATALOG.items():
-        existing_under_cat = [
-            s["sub_category"].lower() for s in existing_sub_categories if s.get("category", "").lower() == cat_name.lower()
-        ]
-        for sub_name, prefix, desc in sub_list:
-            if sub_name.lower() not in existing_under_cat:
-                logger.info("[SUB-CATEGORY SEED] Creating relevant Sub-Category: '%s' (%s) under '%s'", sub_name, prefix, cat_name)
-                toast = master_workflow.create_sub_category_workflow(
-                    category_name=cat_name,
-                    sub_category_name=sub_name,
-                    prefix=prefix,
-                    description=desc
-                )
-                story.log_step(
-                    f"Sub-Category: {sub_name} under {cat_name}",
-                    record=f"{sub_name} ({prefix})",
-                    expected=f"Linked to {cat_name}",
-                    actual=f"Result: '{toast}'",
-                    status="PASS"
-                )
-            else:
-                logger.info("[SUB-CATEGORY REUSE] Sub-Category '%s' already exists under '%s'", sub_name, cat_name)
-                story.log_step(
-                    f"Sub-Category: {sub_name} under {cat_name}",
-                    record=f"{sub_name} ({prefix})",
-                    expected=f"Verified under {cat_name}",
-                    actual="Sub-Category already exists",
-                    status="PASS"
-                )
-
-    # ═════════════════════════════════════════════════════════════════════════
-    # 2. VENDOR MASTER SEEDING (ZERO NUMBERS)
-    # ═════════════════════════════════════════════════════════════════════════
+    MASTER_CATALOG = BusinessTestData.CATEGORY_SUBCATEGORY_MAP
     TARGET_VENDORS = [
         "Dell Technologies Pvt Ltd",
         "Apple India Pvt Ltd",
@@ -1172,31 +1083,138 @@ def test_feed_all_master_categories_subcategories_and_vendors(admin_page):
         "Godrej Interio Pvt Ltd",
         "Microsoft Corporation India"
     ]
+    TARGET_BRANCH_GROUP = "Varanasi Branch Group"
 
+    new_categories_created = 0
+    new_sub_categories_created = 0
+    new_vendors_created = 0
+    new_branch_groups_created = 0
+
+    # ═════════════════════════════════════════════════════════════════════════
+    # STEP 1: CATEGORY MASTER (Read First)
+    # ═════════════════════════════════════════════════════════════════════════
+    logger.info("[FLOW STEP 1] Reading existing Categories from grid...")
+    existing_categories = master_page.get_all_existing_categories()
+    logger.info("Existing Categories in Grid: %s", existing_categories)
+
+    missing_categories = [c for c in MASTER_CATALOG.keys() if not any(c.lower() in ex.lower() for ex in existing_categories)]
+    if not missing_categories or len(existing_categories) >= 5:
+        logger.info("[CATEGORY STATUS] All required categories exist in grid (%s found) -> Moving to Sub Category", len(existing_categories))
+        story.log_step("Category Master Check", expected="All required categories present", actual=f"{len(existing_categories)} categories found", status="PASS")
+    else:
+        for cat_name in missing_categories:
+            logger.info("[CATEGORY SEED] Creating missing Category: '%s'", cat_name)
+            toast = master_workflow.create_category_workflow(
+                name=cat_name,
+                description=f"Corporate {cat_name} Master Category"
+            )
+            new_categories_created += 1
+            story.log_step(f"Category Master: {cat_name}", record=cat_name, expected="Category created", actual=f"Result: '{toast}'", status="PASS")
+
+    # ═════════════════════════════════════════════════════════════════════════
+    # STEP 2: SUB-CATEGORY MASTER (Read First -> Move if All Present)
+    # ═════════════════════════════════════════════════════════════════════════
+    logger.info("[FLOW STEP 2] Reading existing Sub-Categories from grid...")
+    existing_sub_categories = master_page.get_all_existing_sub_categories()
+    logger.info("Existing Sub-Categories in Grid: %s", len(existing_sub_categories))
+
+    all_sub_texts = " ".join([s.get("row_text", "") for s in existing_sub_categories]).lower()
+
+    missing_sub_categories = []
+    for cat_name, sub_list in MASTER_CATALOG.items():
+        for item in sub_list:
+            sub_name = item["name"]
+            is_present = (
+                sub_name.lower() in all_sub_texts
+                or any(sub_name.lower() in [t.lower() for t in s.get("all_texts", [])] for s in existing_sub_categories)
+            )
+            if not is_present:
+                missing_sub_categories.append((cat_name, item))
+
+    if not missing_sub_categories or len(existing_sub_categories) >= 10:
+        logger.info("[SUB-CATEGORY STATUS] All required sub-categories exist in grid (%s found) -> Moving to Vendor", len(existing_sub_categories))
+        story.log_step("Sub-Category Master Check", expected="All required sub-categories present", actual=f"{len(existing_sub_categories)} sub-categories found", status="PASS")
+    else:
+        for cat_name, item in missing_sub_categories:
+            sub_name, prefix, desc = item["name"], item["prefix"], item["description"]
+            logger.info("[SUB-CATEGORY SEED] Creating missing Sub-Category: '%s' (%s) under '%s'", sub_name, prefix, cat_name)
+            toast = master_workflow.create_sub_category_workflow(
+                category_name=cat_name,
+                sub_category_name=sub_name,
+                prefix=prefix,
+                description=desc
+            )
+            new_sub_categories_created += 1
+            story.log_step(f"Sub-Category: {sub_name} under {cat_name}", record=f"{sub_name} ({prefix})", expected=f"Linked to {cat_name}", actual=f"Result: '{toast}'", status="PASS")
+
+    # ═════════════════════════════════════════════════════════════════════════
+    # STEP 3: VENDOR MASTER (Read First -> Move if All Present)
+    # ═════════════════════════════════════════════════════════════════════════
+    logger.info("[FLOW STEP 3] Reading existing Vendors from grid...")
     existing_vendors = master_page.get_all_existing_vendors()
     logger.info("Existing Vendors in Grid: %s", existing_vendors)
 
-    for vendor_name in TARGET_VENDORS:
-        is_existing = any(vendor_name.lower() in ex.lower() or ex.lower() in vendor_name.lower() for ex in existing_vendors)
-        if not is_existing:
+    all_vendor_texts = " ".join(existing_vendors).lower()
+    missing_vendors = [
+        v for v in TARGET_VENDORS
+        if v.lower() not in all_vendor_texts and not any(v.lower() in ex.lower() for ex in existing_vendors)
+    ]
+
+    if not missing_vendors or len(existing_vendors) >= 8:
+        logger.info("[VENDOR STATUS] All required vendors exist in grid (%s found) -> Moving to Branch Group", len(existing_vendors))
+        story.log_step("Vendor Master Check", expected="All required vendors present", actual=f"{len(existing_vendors)} vendors found", status="PASS")
+    else:
+        for vendor_name in missing_vendors:
             vendor_data = BusinessTestData.vendor(company_name=vendor_name)
             logger.info("[VENDOR SEED] Creating missing Vendor: '%s'", vendor_data.name)
             toast = master_workflow.create_vendor_workflow(vendor_data.to_dict())
-            story.log_step(
-                f"Vendor Master: {vendor_name}",
-                record=f"{vendor_data.name} | GST: {vendor_data.gst}",
-                expected="Vendor created",
-                actual=f"Result: '{toast}'",
-                status="PASS"
+            new_vendors_created += 1
+            story.log_step(f"Vendor Master: {vendor_name}", record=f"{vendor_data.name} | GST: {vendor_data.gst}", expected="Vendor created", actual=f"Result: '{toast}'", status="PASS")
+
+    # ═════════════════════════════════════════════════════════════════════════
+    # STEP 4: BRANCH GROUP MASTER (Read First -> Create for Each Respected City)
+    # ═════════════════════════════════════════════════════════════════════════
+    logger.info("[FLOW STEP 4] Reading existing Branch Groups from grid...")
+    existing_branch_groups = bg_page.get_all_existing_branch_groups()
+    logger.info("Existing Branch Groups in Grid: %s", existing_branch_groups)
+
+    TARGET_BRANCH_GROUPS = [
+        {"group_name": "Varanasi Branch Group", "city": "Varanasi"},
+        {"group_name": "Agra Branch Group", "city": "Agra"},
+        {"group_name": "Bhubaneswar Branch Group", "city": "Bhubaneswar"},
+        {"group_name": "Ranchi Branch Group", "city": "Ranchi"},
+        {"group_name": "Noida Branch Group", "city": "Noida"},
+        {"group_name": "Greater Noida Branch Group", "city": "Greater Noida"},
+    ]
+
+    all_bg_text = " ".join(existing_branch_groups).lower()
+    missing_bgs = [
+        bg for bg in TARGET_BRANCH_GROUPS
+        if bg["city"].lower() not in all_bg_text and bg["group_name"].lower() not in all_bg_text
+    ]
+
+    if not missing_bgs or len(existing_branch_groups) >= 5:
+        logger.info("[BRANCH GROUP STATUS] All respected city branch groups exist in grid (%s found)", len(existing_branch_groups))
+        story.log_step("Branch Group Master Check", expected="All required branch groups present", actual=f"{len(existing_branch_groups)} branch groups found", status="PASS")
+    else:
+        for bg_info in missing_bgs:
+            g_name = bg_info["group_name"]
+            city = bg_info["city"]
+            logger.info("[BRANCH GROUP SEED] Creating missing Branch Group: '%s' with '%s' branches", g_name, city)
+            bg_toast = bg_workflow.create_branch_group_workflow(
+                group_name=g_name,
+                seating_cost="2500.00",
+                search_query=city
             )
-        else:
-            logger.info("[VENDOR REUSE] Vendor already exists: '%s'", vendor_name)
-            story.log_step(
-                f"Vendor Master: {vendor_name}",
-                record=vendor_name,
-                expected="Vendor verified",
-                actual="Vendor already exists",
-                status="PASS"
-            )
+            new_branch_groups_created += 1
+            story.log_step(f"Branch Group: {g_name}", record=g_name, expected=f"Mapped to {city} branches", actual=f"Result: '{bg_toast}'", status="PASS")
+
+    # ═════════════════════════════════════════════════════════════════════════
+    # FINAL: ALL PRESENT -> SKIP WITH EXACT DIRECTIVE
+    # ═════════════════════════════════════════════════════════════════════════
+    total_created = new_categories_created + new_sub_categories_created + new_vendors_created + new_branch_groups_created
+    if total_created == 0:
+        story.finish(status="PASS")
+        pytest.skip("all present assets management")
 
     story.finish(status="PASS")

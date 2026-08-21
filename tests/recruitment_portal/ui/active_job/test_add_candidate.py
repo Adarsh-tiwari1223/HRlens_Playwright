@@ -13,7 +13,7 @@ def hr_candidate_workflow(page):
     login_page = LoginPage(page)
     creds = settings.USERS["shiva"]
     login_page.login(creds["username"], creds["password"])
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("domcontentloaded")
     return CandidateWorkflow(page)
 
 @pytest.fixture(scope="session")
@@ -30,6 +30,8 @@ def dummy_resume_path():
 @pytest.mark.recruitment
 @pytest.mark.regression
 @pytest.mark.candidate
+@pytest.mark.meeting
+@pytest.mark.interview
 @pytest.mark.dependency(name="test_add_candidate")
 def test_add_experienced_candidate(hr_candidate_workflow, dummy_resume_path):
     """

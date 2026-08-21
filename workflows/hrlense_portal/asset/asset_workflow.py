@@ -38,7 +38,6 @@ class AssetWorkflow:
         if search_input.is_visible(timeout=1000):
             search_input.fill(name)
             self.page.keyboard.press("Enter")
-            self.page.wait_for_timeout(600)
             
             existing_row = self.page.locator("table tbody tr").filter(has_text=name).first
             if existing_row.is_visible(timeout=1500):
@@ -85,7 +84,6 @@ class AssetWorkflow:
         if search_input.is_visible(timeout=1000):
             search_input.fill(sub_category_name)
             self.page.keyboard.press("Enter")
-            self.page.wait_for_timeout(600)
             
             existing_row = self.page.locator("table tbody tr").filter(has_text=sub_category_name).first
             if existing_row.is_visible(timeout=1500):
@@ -127,7 +125,6 @@ class AssetWorkflow:
         if search_input.is_visible(timeout=1000):
             search_input.fill(v_name)
             self.page.keyboard.press("Enter")
-            self.page.wait_for_timeout(600)
             
             existing_row = self.page.locator("table tbody tr").filter(has_text=v_name).first
             if existing_row.is_visible(timeout=1500):

@@ -5,6 +5,8 @@ from workflows.recruitment_portal.active_job.candidate_workflow import Candidate
 
 @pytest.mark.ui
 @pytest.mark.standalone
+@pytest.mark.meeting
+@pytest.mark.interview
 def test_schedule_and_loi_only(page):
     """
     STANDALONE TEST: Only schedules an interview and sends the LOI using CandidateWorkflow.
@@ -20,7 +22,7 @@ def test_schedule_and_loi_only(page):
     login_page = LoginPage(page)
     creds = settings.USERS["admin"]
     login_page.login(creds["username"], creds["password"])
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("domcontentloaded")
 
     workflow = CandidateWorkflow(page)
 

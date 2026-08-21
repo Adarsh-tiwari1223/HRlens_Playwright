@@ -22,6 +22,8 @@ def dummy_resume_path():
 
 @pytest.mark.ui
 @pytest.mark.recruitment_flow
+@pytest.mark.meeting
+@pytest.mark.interview
 def test_end_to_end_recruitment_flow(logged_in_page, dummy_resume_path):
     """
     End-to-End Recruitment Workflow:
@@ -45,11 +47,10 @@ def test_end_to_end_recruitment_flow(logged_in_page, dummy_resume_path):
 
     # Fill summary
     summary_text = f"Automated E2E Job Posting Description\n\n{fake.paragraph()}"
-    page.locator("div").filter(has_text=re.compile(r"^Enter Job Summary$")).locator("div").first.fill(summary_text)
+    job_page.set_job_summary(summary_text)
 
     # Publish
     job_workflow.publish_with_confirm()
-    page.wait_for_load_state("networkidle")
     job_page.close_drawer_safely()
 
     latest_job_id = job_page.get_latest_job_id()
@@ -79,7 +80,7 @@ def test_end_to_end_recruitment_flow(logged_in_page, dummy_resume_path):
 
     # 5. Validate Salary and Send Offer Letter (LOI)
     candidate_page.page.reload()
-    candidate_page.page.wait_for_load_state("networkidle")
+    candidate_page.page.wait_for_load_state("domcontentloaded")
 
     print(f"\n[ACTION] Generating and validating offer for {candidate_data['name']}...")
     offer_info = candidate_page.generate_and_validate_offer(

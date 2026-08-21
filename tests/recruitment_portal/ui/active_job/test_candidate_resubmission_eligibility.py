@@ -24,7 +24,7 @@ def hr_candidate_workflow(page):
     login_page = LoginPage(page)
     creds = settings.USERS["shiva"]
     login_page.login(creds["username"], creds["password"])
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("domcontentloaded")
     return CandidateWorkflow(page)
 
 
@@ -163,7 +163,7 @@ def test_crs_003_allow_resubmission_after_30_days(page, dummy_resume_path):
     page.goto(f"{settings.BASE_URL}/login", timeout=60000)
     creds_x = settings.USERS["shiva"]
     LoginPage(page).login(creds_x["username"], creds_x["password"])
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("domcontentloaded")
     log.info(f"{'Dashboard Loaded':<20}: PASS")
     log_step_footer()
 
@@ -225,7 +225,7 @@ def test_crs_003_allow_resubmission_after_30_days(page, dummy_resume_path):
         pass
     page.context.clear_cookies()
     page.goto(f"{settings.BASE_URL}/login", timeout=60000)
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("domcontentloaded")
 
     user_y_name = "Tejaswini Sharma"
     user_y_email = "tejaswini.rishivanshi@tekinspirations.com"
@@ -233,7 +233,7 @@ def test_crs_003_allow_resubmission_after_30_days(page, dummy_resume_path):
     log.info(f"{'HR Email':<20}: {user_y_email}\n")
     creds_y = settings.USERS.get("tejaswini") or settings.USERS.get("vivek") or settings.USERS["shiva"]
     LoginPage(page).login(creds_y["username"], creds_y["password"])
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("domcontentloaded")
     log.info(f"{'Dashboard Loaded':<20}: PASS")
     log_step_footer()
 

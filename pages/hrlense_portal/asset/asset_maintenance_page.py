@@ -17,7 +17,7 @@ class AssetMaintenancePage(BasePage):
 
     def click_create_maintenance(self):
         self.page.locator(self.CREATE_MAINTENANCE_BTN).wait_for(state="visible", timeout=10000)
-        self.click(self.CREATE_MAINTENANCE_BTN)
+        self.page.locator(self.CREATE_MAINTENANCE_BTN).click()
         self.page.locator("[role='dialog'][aria-modal='true']").wait_for(state="visible", timeout=10000)
 
     def fill_maintenance_details(self, asset_code_or_name: str, issue_type: str, description: str = None, sent_date: str = None, expected_return: str = None, estimated_cost: str = None, remarks: str = None):

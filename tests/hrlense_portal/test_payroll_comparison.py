@@ -41,6 +41,7 @@ TEST_IDS = [f"{filename}::{sheet}" for filename, sheet in PARAMS]
 
 @pytest.mark.api
 @pytest.mark.regression
+@pytest.mark.payroll
 @pytest.mark.parametrize(
     "excel_filename,sheet_name",
     PARAMS,

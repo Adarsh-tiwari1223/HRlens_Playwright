@@ -12,7 +12,7 @@ class IncrementPage(BasePage):
     RUN_ASSESSMENT_BTN = "button:has-text('Run Assessment')"
 
     def go_to_increment(self):
-        self.click(self.INCREMENT_LINK)
+        self.page.locator(self.INCREMENT_LINK).click()
 
     def select_company(self, value: str):
         self.page.locator("select").nth(0).select_option(label=value)
@@ -24,14 +24,14 @@ class IncrementPage(BasePage):
         self.page.locator("select").nth(2).select_option(label=value)
 
     def select_date_range(self, day: str):
-        self.click(self.DATE_RANGE)
+        self.page.locator(self.DATE_RANGE).click()
         self.page.get_by_role("paragraph").filter(has_text=day).first.click()
 
     def run_assessment(self):
         self.page.locator(self.RUN_ASSESSMENT_BTN).first.click()
 
     def get_assessment_status(self) -> str:
-        return self.get_text(self.ASSESSMENT_STATUS)
+        return self.page.locator(self.ASSESSMENT_STATUS).inner_text()
 
     def is_assessment_open(self) -> bool:
-        return self.is_visible(self.ASSESSMENT_STATUS)
+        return self.page.locator(self.ASSESSMENT_STATUS).is_visible()

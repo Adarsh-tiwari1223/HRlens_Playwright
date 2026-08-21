@@ -24,7 +24,6 @@ class DirectorWorkflow:
         try:
             self.page.reload()
             self.page.wait_for_load_state("domcontentloaded")
-            self.page.wait_for_timeout(300)
         except Exception:
             pass
 
@@ -164,7 +163,6 @@ class DirectorWorkflow:
 
         # Perform search via name (handles multi-page pagination)
         self.director_page.search_director(director_name)
-        self.page.wait_for_timeout(500)
 
         row = self.page.locator("tbody tr").filter(has_text=director_name).first
         is_found = False

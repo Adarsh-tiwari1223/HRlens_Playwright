@@ -12,11 +12,11 @@ class SalarySettingsPage(BasePage):
         """Navigate to employee profile and return company/branch/department."""
         from core.config import settings
         self.page.goto(settings.BASE_URL)
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state("domcontentloaded")
         self.page.get_by_role("link", name="Employees").click()
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state("domcontentloaded")
         self.page.get_by_text(employee_name).first.click()
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state("domcontentloaded")
 
         company    = self.page.locator("//p[normalize-space()='Company']/following-sibling::p[1]").first.inner_text().strip()
         branch     = self.page.locator("//p[normalize-space()='Branch']/following-sibling::p[1]").first.inner_text().strip()
@@ -28,10 +28,10 @@ class SalarySettingsPage(BasePage):
     def navigate_to_salary_calc_settings(self) -> None:
         from core.config import settings
         self.page.goto(settings.BASE_URL)
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state("domcontentloaded")
         self.page.get_by_role("link", name="Admin Control").click()
         self.page.get_by_role("link", name="• Salary Calculation Setting").click()
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state("domcontentloaded")
 
     def read_salary_settings(self, company: str, branch: str, department: str = "") -> dict:
         """Select the matching company+branch+department row and read pf_threshold and percentages."""
@@ -41,7 +41,7 @@ class SalarySettingsPage(BasePage):
         row.scroll_into_view_if_needed()
         row.hover()
         self.page.locator(f"{row_xpath}//p[normalize-space()='Edit']").click()
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state("domcontentloaded")
 
         pf_threshold = int(self.page.get_by_placeholder("Enter Minimum basic for pf").input_value().strip())
         basic_pct    = self.page.get_by_placeholder("Enter Basic Percentage").input_value().strip()
@@ -55,7 +55,7 @@ class SalarySettingsPage(BasePage):
     def read_min_basic_from_slab(self, gross_salary: int) -> int | None:
         """Open Salary Slab Rules tab and find the min_basic for the row matching gross_salary."""
         self.page.get_by_role("tab", name="Salary Slab Rules").click()
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state("domcontentloaded")
         rows = self.page.locator("table tbody tr").all()
         for row in rows:
             cells = row.locator("td").all_inner_texts()
@@ -97,7 +97,7 @@ class SalarySettingsPage(BasePage):
 
     def open_salary_edit(self) -> None:
         self.page.get_by_role("tab", name="Employer Details").click()
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state("domcontentloaded")
         self.page.get_by_text("Salary", exact=True).click()
         edit_btn = self.page.get_by_label("Edit").nth(4)
         edit_btn.wait_for(state="visible")
@@ -118,14 +118,14 @@ class SalarySettingsPage(BasePage):
         """Confirm the popup — only appears when gross salary < min basic."""
         self.page.get_by_role("button", name="Confirm").wait_for(state="visible")
         self.page.get_by_role("button", name="Confirm").click()
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state("domcontentloaded")
 
     def confirm_dialog_if_present(self) -> None:
         """Confirm only if the popup appeared (e.g. salary above min basic — no popup)."""
         confirm = self.page.get_by_role("button", name="Confirm")
         if confirm.is_visible():
             confirm.click()
-            self.page.wait_for_load_state("networkidle")
+            self.page.wait_for_load_state("domcontentloaded")
 
     # ── PF toggle state ───────────────────────────────────────────────────────
 

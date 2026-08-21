@@ -67,7 +67,8 @@ coverage.xml
 secrets.py
 
 # Playwright auth state
-auth/
+.auth/
+!core/auth/
 **/auth.json
 **/storage_state.json
 

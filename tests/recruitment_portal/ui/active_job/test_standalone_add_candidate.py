@@ -21,7 +21,7 @@ def test_create_candidate_only(page, dummy_resume_path):
     login_page = LoginPage(page)
     creds = settings.USERS["admin"]
     login_page.login(creds["username"], creds["password"])
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("domcontentloaded")
 
     workflow = CandidateWorkflow(page)
     data = generate_candidate_data(is_experienced=False)

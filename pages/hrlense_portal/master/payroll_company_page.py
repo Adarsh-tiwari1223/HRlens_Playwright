@@ -48,7 +48,7 @@ class PayrollCompanyPage(BasePage):
         btn = self.page.locator(self.ADD_PAYROLL_COMPANY_BTN).first
         btn.wait_for(state="visible", timeout=5000)
         btn.click()
-        self.page.wait_for_timeout(1000)
+        self.page.locator("[role='dialog'], .chakra-modal__content").first.wait_for(state="visible", timeout=5000)
         self._get_modal()
 
     def edit_payroll_company(self, company_name: str):

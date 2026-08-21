@@ -479,7 +479,7 @@ class AssetEntryPage(BasePage):
         return self.click_save_and_generate_qr()
 
     def click_cancel(self):
-        self.click(self.CANCEL_BTN)
+        self.page.locator(self.CANCEL_BTN).click()
 
     def wait_for_toast_message(self) -> str:
         return self.wait_for_toast(self.TOAST)

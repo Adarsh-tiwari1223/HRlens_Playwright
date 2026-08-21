@@ -82,9 +82,9 @@ class AssetProcurementPage(BasePage):
             return {}
 
         logger.info(f"Uploading invoice file: {file_path}")
-        file_input = self.page.get_by_label("Upload Invoice", exact=False).first
+        file_input = self.page.locator("input[type='file']").first
         if not file_input.is_visible(timeout=1000):
-            file_input = self.page.locator("input[type='file']").first
+            file_input = self.page.get_by_label("Upload Invoice", exact=False).first
 
         upload_api_info = {}
         try:
@@ -887,7 +887,7 @@ class AssetProcurementPage(BasePage):
             logger.info("Brand             : %s", item.get("brand", "<Empty>"))
             logger.info("Model No.         : %s", item.get("model", "<Empty>"))
             logger.info("Quantity          : %s", item.get("quantity", "<Empty>"))
-            logger.info("Unit Price (₹)    : %s", item.get("unit_price", "<Empty>"))
+            logger.info("Unit Price (INR)  : %s", item.get("unit_price", "<Empty>"))
             logger.info("Line Total        : %s", item.get("line_total", "Line Total: N/A"))
         logger.info("=" * 80 + "\n")
         return items_data

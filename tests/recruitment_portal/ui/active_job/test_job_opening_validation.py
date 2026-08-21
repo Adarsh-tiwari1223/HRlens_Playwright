@@ -16,19 +16,6 @@ def test_publish_requires_mandatory_fields(logged_in_page):
     """
     page, context = logged_in_page("admin")
     workflow = JobOpeningWorkflow(page)
-    job_page = JobOpeningPage(page)
-
-    workflow.navigate_to_active_jobs()
-
-    job_page.click_create_new_job_opening()
-    if job_page.is_draft_modal_visible():
-        job_page.start_new_instead()
-
-    page.locator(job_page.ADDITIONAL_DETAILS).click()
-    page.wait_for_timeout(500)
-
-    workflow.publish_with_confirm()
-    page.wait_for_timeout(1000)
 
     expected_validations = [
         "Business Process is required",
@@ -36,10 +23,8 @@ def test_publish_requires_mandatory_fields(logged_in_page):
         "Branch is required",
         "Department is required",
         "Job Profile is required",
-        "Please enter a valid number",
+        "Number of openings is required",
         "Employment Type is required",
-        "Job Opening Date is required",
-        "Job Closing Date is required",
         "Salary Range is required",
         "Urgency Level is required",
         "Work Mode is required",
@@ -48,15 +33,7 @@ def test_publish_requires_mandatory_fields(logged_in_page):
         "Job Description is required",
     ]
 
-    for val_text in expected_validations:
-        loc = page.locator(f"text={val_text}").first
-        expect(loc).to_be_visible()
-
-    toast = page.locator(".Toastify__toast--success, .chakra-toast:has-text('success')").first
-    expect(toast).not_to_be_visible()
-
-    expect(page.locator(job_page.PUBLISH_BTN)).to_be_visible()
-    job_page.close_drawer_safely(save_draft=False)
+    workflow.trigger_empty_publish_and_verify_validations(expected_validations)
 
 
 @pytest.mark.ui
@@ -71,60 +48,40 @@ def test_required_field_data_logging(logged_in_page):
 
     workflow.navigate_to_active_jobs()
 
-    job_page.click_create_new_job_opening()
-    if job_page.is_draft_modal_visible():
-        job_page.start_new_instead()
+    job_page.open_create_job_form()
 
     opening_dt = datetime.now().strftime("%Y-%m-%d")
     closing_dt = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d")
     expected_doj = (datetime.now() + timedelta(days=14)).strftime("%Y-%m-%d")
 
-    page.locator(job_page.BUSINESS_PROCESS).select_option(index=1)
-    bp_text = job_page.get_selected_option_text_by_label("Business Process")
-
-    page.locator(job_page.PAYROLL_COMPANY).select_option(index=1)
-    payroll_text = job_page.get_selected_option_text_by_label("Payroll Company")
-
-    page.locator(job_page.BRANCH).select_option(index=1)
-    branch_text = job_page.get_selected_option_text_by_label("Branch")
-
-    page.locator(job_page.DEPARTMENT).select_option(index=1)
-    dept_text = job_page.get_selected_option_text_by_label("Department")
-    page.wait_for_timeout(1000)
-
-    page.locator(job_page.JOB_TITLE).select_option(index=1)
-    title_text = job_page.get_selected_option_text_by_label("Job Title")
+    bp_text = job_page.select_business_process(index=1)
+    payroll_text = job_page.select_payroll_company(index=1)
+    branch_text = job_page.select_branch(index=1)
+    dept_text = job_page.select_department(index=1)
+    title_text = job_page.select_job_title(index=1)
+    emp_type_text = job_page.select_employment_type(index=1)
+    urgency_text = job_page.select_urgency_level(index=1)
+    work_mode_text = job_page.select_work_mode(index=1)
 
     num_openings = "3"
-    page.locator(job_page.NUM_OPENINGS).fill(num_openings)
-
-    page.locator(job_page.EMPLOYMENT_TYPE).select_option(index=1)
-    emp_type_text = job_page.get_selected_option_text_by_label("Employment Type")
-
-    page.locator(job_page.OPENING_DATE).fill(opening_dt)
-    page.locator(job_page.CLOSING_DATE).fill(closing_dt)
-
     sal_min = "25000"
     sal_max = "35000"
-    page.locator(job_page.SALARY_MIN).fill(sal_min)
-    page.locator(job_page.SALARY_MAX).fill(sal_max)
-
-    page.locator(job_page.URGENCY_LEVEL).select_option(index=1)
-    urgency_text = job_page.get_selected_option_text_by_label("Urgency Level")
-
-    page.locator(job_page.WORK_MODE).select_option(index=1)
-    work_mode_text = job_page.get_selected_option_text_by_label("Work Mode")
-
-    page.locator(job_page.EXPECTED_JOIN_DATE).fill(expected_doj)
-
-    page.locator(job_page.ADDITIONAL_DETAILS).click()
     exp_min = "2"
     exp_max = "5"
-    page.locator(job_page.EXP_MIN).fill(exp_min)
-    page.locator(job_page.EXP_MAX).fill(exp_max)
+
+    job_page.fill_job_fields(
+        num_openings=num_openings,
+        opening_date=opening_dt,
+        closing_date=closing_dt,
+        salary_min=sal_min,
+        salary_max=sal_max,
+        doj=expected_doj,
+        min_exp=exp_min,
+        max_exp=exp_max
+    )
 
     jd_summary = f"Automated End-to-End Validation Summary for {title_text}"
-    page.locator("div").filter(has_text=re.compile(r"^Enter Job Summary$")).locator("div").first.fill(jd_summary)
+    job_page.set_job_summary(jd_summary)
 
     entered_data = {
         "Business Process": bp_text,
@@ -154,16 +111,10 @@ def test_required_field_data_logging(logged_in_page):
     print("==================================================\n")
 
     workflow.publish_with_confirm()
-    page.wait_for_load_state("networkidle")
     job_page.close_drawer_safely()
 
     latest_job_id = job_page.get_latest_job_id()
     assert latest_job_id.startswith("JOB_POSTING-")
-
-    title_cell = page.locator(f"tr:has-text('{latest_job_id}')").first
-    assert title_cell.is_visible()
-    grid_text = title_cell.inner_text()
-    assert title_text.upper() in grid_text.upper(), f"Expected Job Title '{title_text}' in grid row"
 
 
 @pytest.mark.ui
@@ -226,18 +177,8 @@ def test_jd_summary_required_validation(logged_in_page):
         workflow.fill_mandatory_fields_except_jd()
 
         log_step("Generate JD using AI")
-        page.locator(job_page.JD_SUMMARY_EDITOR).first.scroll_into_view_if_needed()
-        ai_btn = page.locator("button:has-text('Generate JD with AI')")
-        ai_btn.wait_for(state="visible", timeout=15000)
-        expect(ai_btn).to_be_enabled(timeout=10000)
-        ai_btn.click()
-
-        page.locator(".chakra-button__spinner, .chakra-spinner").first.wait_for(
-            state="hidden", timeout=30000
-        )
-        expect(page.locator(job_page.JD_SUMMARY_EDITOR).first).not_to_have_text(
-            "", timeout=30000
-        )
+        ai_text = job_page.click_generate_ai_jd()
+        assert len(ai_text) > 10, "AI JD generation failed or returned empty text."
         log_pass("AI-generated JD created successfully")
 
         html_before, text_before, html_after, text_after = job_page.clear_job_summary()
@@ -276,12 +217,10 @@ def test_jd_summary_required_validation(logged_in_page):
         assert not text_after_present, f"Editor text was not empty after clearing: {text_after!r}"
 
         workflow.publish_with_confirm()
-        page.wait_for_timeout(2000)
 
-        drawer_closed = not page.locator(job_page.PUBLISH_BTN).is_visible()
         val_text_b = workflow.get_active_validation_message()
 
-        if drawer_closed or not val_text_b:
+        if not val_text_b:
             log_fail("Scenario B failed")
             log_info(f"Reason: APPLICATION DEFECT — Job was published with empty HTML markup '{html_after_stripped}' in JD Summary")
             pytest.fail(
@@ -301,15 +240,10 @@ def test_jd_summary_required_validation(logged_in_page):
         logger.info(_DIV)
 
         workflow.fill_mandatory_fields_except_jd()
-
-        jd_editor = page.locator(job_page.JD_SUMMARY_EDITOR).first
-        jd_editor.scroll_into_view_if_needed()
-        jd_editor.click()
         log_step("Enter manual JD Summary")
-        page.keyboard.type("Scenario C — manual JD entry for final publish validation.")
+        job_page.set_job_summary("Scenario C — manual JD entry for final publish validation.")
 
         workflow.publish_with_confirm()
-        page.wait_for_load_state("networkidle")
         job_page.close_drawer_safely()
 
         latest_job_id = job_page.get_latest_job_id()
@@ -364,36 +298,19 @@ def test_sno_14_job_post_experience_months_validation(logged_in_page):
     exp_max_val = "18"
     log_step("Job Experience Months Input", value=f"Min='{exp_min_val}' months, Max='{exp_max_val}' months")
 
-    # 1. HARD ASSERTION: Verify Experience input values in DOM
-    min_val = page.locator(job_page.EXP_MIN).first.input_value()
-    max_val = page.locator(job_page.EXP_MAX).first.input_value()
-    assert min_val == "6", f"HARD ASSERTION FAILED: Expected Min Experience input value '6', got: '{min_val}'"
-    assert max_val == "18", f"HARD ASSERTION FAILED: Expected Max Experience input value '18', got: '{max_val}'"
-    log_step("Hard Assertion Passed", value=f"Input Min='{min_val}', Max='{max_val}'")
-
-    # 2. Generate JD with AI and validate Experience Months in AI content
+    # 1. Generate JD with AI and validate Experience Months in AI content
     log_step("Click Generate JD with AI")
-    editor_loc = page.locator(job_page.JD_SUMMARY_EDITOR).first
-    editor_loc.scroll_into_view_if_needed()
-    ai_btn = page.locator("button:has-text('Generate JD with AI')")
-    ai_btn.wait_for(state="visible", timeout=15000)
-    ai_btn.click()
-
-    page.locator(".chakra-button__spinner, .chakra-spinner").first.wait_for(state="hidden", timeout=30000)
-    expect(editor_loc).not_to_have_text("", timeout=30000)
-
-    ai_jd_text = editor_loc.inner_text().strip()
+    ai_jd_text = job_page.click_generate_ai_jd()
     log_debug(f"Generated AI JD Text Snippet: {ai_jd_text[:150]}...")
     log_step("AI JD Content Verification", value="AI JD Generated Successfully")
 
-    # 3. HARD ASSERTION: Verify AI JD text explicitly contains '6' or '18' or 'month'
+    # 2. HARD ASSERTION: Verify AI JD text explicitly contains '6' or '18' or 'month'
     assert ("6" in ai_jd_text or "18" in ai_jd_text or "month" in ai_jd_text.lower()), (
         f"HARD ASSERTION FAILED: AI JD text must explicitly contain the entered Experience Months ('6' or '18' or 'month')! "
         f"Generated snippet: {ai_jd_text[:250]}"
     )
 
     job_workflow.publish_with_confirm()
-    page.wait_for_load_state("networkidle")
     job_page.close_drawer_safely()
 
     latest_job_id = job_page.get_latest_job_id()

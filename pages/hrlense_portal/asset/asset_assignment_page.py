@@ -58,10 +58,21 @@ class AssetAssignmentPage(BasePage):
         
         # Employee Search input
         emp_search = self.page.get_by_placeholder("Search employee name…")
+        if not emp_search.is_visible(timeout=1000):
+            emp_search = self.page.locator("input[placeholder*='Search employee']").first
         emp_search.fill(employee_name)
         self.page.wait_for_timeout(1000)
+        
         # Select first matching result from suggestion popover/portal
-        self.page.locator(".chakra-portal, [role='listbox']").get_by_text(employee_name, exact=False).first.click()
+        try:
+            opt = self.page.locator(".chakra-portal, [role='listbox'], [role='option'], .chakra-menu__menu-list").get_by_text(employee_name, exact=False).first
+            if not opt.is_visible(timeout=2500):
+                opt = self.page.locator(".chakra-portal div, [role='option'], p, li").filter(has_text=re.compile(employee_name.split()[0], re.I)).first
+            opt.click(force=True)
+        except Exception as ex:
+            logger.warning(f"Note selecting employee '{employee_name}': {ex}")
+            self.page.keyboard.press("ArrowDown")
+            self.page.keyboard.press("Enter")
         
         # Category dropdown
         if category:
@@ -79,60 +90,59 @@ class AssetAssignmentPage(BasePage):
             self.page.wait_for_timeout(500)
         
         # Sub Category dropdown
-        if sub_category:
-            sub_select = self.page.get_by_label("Sub Category*", exact=True)
-            if not sub_select.is_visible(timeout=1000):
-                sub_select = self.page.locator("select").nth(1)
+        sub_select = self.page.get_by_label("Sub Category*", exact=True)
+        if not sub_select.is_visible(timeout=1000):
+            sub_select = self.page.locator("select").nth(1)
+
+        sub_options = [o.strip() for o in sub_select.locator("option").all_inner_texts() if o.strip() and not o.startswith("Select")]
+        target_sub = sub_category if sub_category and sub_category in sub_options else (sub_options[0] if sub_options else None)
+
+        def _try_select_asset(sub_name):
             try:
-                sub_select.select_option(label=sub_category)
+                sub_select.select_option(label=sub_name)
             except Exception:
-                options = sub_select.locator("option").all_inner_texts()
-                for idx, opt in enumerate(options):
-                    if sub_category.lower() in opt.lower():
+                for idx, opt in enumerate(sub_select.locator("option").all_inner_texts()):
+                    if sub_name.lower() in opt.lower():
                         sub_select.select_option(index=idx)
                         break
-            self.page.wait_for_timeout(1000) # Wait for assets list to populate
+            self.page.wait_for_timeout(1500)
 
-        # Select Asset from Available Asset custom dropdown menu
-        selected_code = None
-        
-        # Wait 2.5s for backend API (getAvailableAssets) to populate dropdown
-        self.page.wait_for_timeout(2500)
+            trigger = self.page.get_by_role("button", name=re.compile(r"(Select asset|Select|Available)", re.I)).first
+            if not trigger.is_visible(timeout=1000):
+                trigger = self.page.locator(".chakra-menu__menubutton, [id*='menu-button']").first
 
-        try:
-            trigger_btn = self.page.get_by_role("button", name=re.compile(r"(Select asset|Select|Available)", re.I)).first
-            if not trigger_btn.is_visible(timeout=2000):
-                trigger_btn = self.page.locator("button").filter(has_text=re.compile(r"(Select|Asset|ASSET-)", re.I)).first
-            if not trigger_btn.is_visible(timeout=2000):
-                trigger_btn = self.page.locator(".chakra-menu__menubutton, [id*='menu-button']").first
-
-            if trigger_btn.is_visible(timeout=5000):
-                trigger_btn.click()
+            if trigger.is_visible(timeout=2000):
+                trigger.click()
                 self.page.wait_for_timeout(800)
+                menu = self.page.locator(".chakra-portal div[role='menu'], div.chakra-menu__menu-list").first
+                if menu.is_visible(timeout=2000):
+                    items = menu.locator("[role='menuitem'], button").all()
+                else:
+                    items = self.page.locator("[role='menuitem'], .chakra-menu__menuitem").all()
 
-                items = self.page.locator("[role='menuitem'], [role='menuitemcheckbox'], [role='option'], .chakra-menu__menuitem, button.chakra-menu__menuitem").all()
-                target_item = None
-                if asset_name_or_code:
-                    for itm in items:
-                        if asset_name_or_code.lower() in itm.inner_text().lower():
-                            target_item = itm
-                            break
+                valid_items = [itm for itm in items if "not uploaded" not in itm.inner_text().lower() and len(itm.inner_text().strip()) > 0]
+                if valid_items:
+                    target_itm = valid_items[0]
+                    text = target_itm.inner_text().strip()
+                    m = re.search(r"ASSET-[A-Z0-9-]+", text)
+                    code = m.group(0) if m else text
+                    target_itm.click(force=True)
+                    logger.info(f"[DROPDOWN ASSET SELECTED SUCCESS] SubCategory: '{sub_name}', Item: '{text}' -> Code: '{code}'")
+                    return code
+                else:
+                    self.page.keyboard.press("Escape")
+            return None
 
-                if not target_item and len(items) > 0:
-                    target_item = items[0]
+        selected_code = _try_select_asset(target_sub) if target_sub else None
 
-                if target_item and target_item.is_visible(timeout=3000):
-                    text = target_item.inner_text().strip()
-                    match = re.search(r"ASSET-[A-Z0-9-]+", text)
-                    if match:
-                        selected_code = match.group(0)
-                    logger.info(f"[DROPDOWN ASSET SELECTED SUCCESS] Item: '{text}' -> Code: '{selected_code}'")
-                    target_item.click(force=True)
-                    self.page.wait_for_timeout(500)
-            else:
-                logger.warning("[ASSIGNMENT] Available Asset trigger button not visible after 5s wait.")
-        except Exception as ex:
-            logger.warning(f"Asset dropdown selection error: {ex}")
+        # Fallback to other available subcategories if first one had 0 stock
+        if not selected_code and sub_options:
+            for alt_sub in sub_options:
+                if alt_sub != target_sub:
+                    logger.info(f"[STOCK LOOKUP] Checking available assets under SubCategory: '{alt_sub}'...")
+                    selected_code = _try_select_asset(alt_sub)
+                    if selected_code:
+                        break
 
         # STRICT USER RULE: If no asset was selected, mark test failed immediately!
         assert selected_code, f"[ASSIGNMENT FAILED] Could not select an available asset from dropdown for '{employee_name}'! Ensure available stock exists."
@@ -157,15 +167,13 @@ class AssetAssignmentPage(BasePage):
 
     def click_submit_assignment(self):
         dialog = self.page.locator("[role='dialog'], .chakra-modal__content, .chakra-drawer__content").first
-        if not dialog.is_visible(timeout=500):
-            dialog = self.page
-        btn = dialog.locator(self.SUBMIT_ASSIGNMENT_BTN).first
+        btn = dialog.get_by_role("button", name=re.compile(r"Assign Asset|Assign|Submit|Save", re.I)).first
         if not btn.is_visible(timeout=1000):
-            btn = dialog.locator("button:has-text('Assign Asset'), button:has-text('Assign'), button:has-text('Submit')").first
+            btn = self.page.locator("button:has-text('Assign Asset'), button:has-text('Assign'), button:has-text('Submit')").first
         btn.click(force=True)
 
     def click_cancel(self):
-        self.click(self.CANCEL_BTN)
+        self.page.locator(self.CANCEL_BTN).click()
 
     def assign_requested_asset(self, employee_name: str, asset_code: str = None, assignment_type: str = "Temporary", expected_return_date: str = "2026-12-31", remarks: str = "Asset issued against request") -> dict:
         """

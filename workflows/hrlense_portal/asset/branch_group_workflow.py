@@ -24,14 +24,10 @@ class BranchGroupWorkflow:
         self.branch_group_page.navigate_to_branch_group()
         
         # Check existing table first
-        search_input = self.page.get_by_placeholder("Search", exact=False).first
-        if search_input.is_visible(timeout=1000):
-            search_input.fill(target_name)
-            self.page.wait_for_timeout(600)
-            existing_row = self.page.locator("tbody tr").filter(has_text=target_name).first
-            if existing_row.is_visible(timeout=1500):
-                logger.info(f"[DATA REUSE] Existing Branch Group '{target_name}' found in table -> Reusing record.")
-                return f"Branch Group already exists: {target_name}"
+        self.branch_group_page.search_branch_group(target_name)
+        if self.branch_group_page.is_group_in_grid(target_name):
+            logger.info(f"[DATA REUSE] Existing Branch Group '{target_name}' found in table -> Reusing record.")
+            return f"Branch Group already exists: {target_name}"
 
         # If click_new_group is called, ensure modal opens cleanly
         try:
@@ -97,17 +93,12 @@ class BranchGroupWorkflow:
         Validates that the created Branch Group is displayed in the grid table with its mapped branches.
         """
         self.branch_group_page.navigate_to_branch_group()
-        search_input = self.page.get_by_placeholder("Search", exact=False)
-        if search_input.is_visible(timeout=500):
-            search_input.fill(group_name)
+        self.branch_group_page.search_branch_group(group_name)
 
-        row = self.page.locator("tbody tr").filter(has_text=group_name).first
-        try:
-            row.wait_for(state="visible", timeout=5000)
-        except Exception:
+        if not self.branch_group_page.is_group_in_grid(group_name, timeout=5000):
             logger.warning(f"[BRANCH GROUP VALIDATION] Group '{group_name}' not found in grid rows.")
             return False
 
-        row_text = row.inner_text().strip()
+        row_text = self.branch_group_page.get_group_row_text(group_name)
         logger.info(f"[BRANCH GROUP VALIDATION] Found Grid Row: '{row_text}'")
         return group_name.lower() in row_text.lower()

@@ -17,23 +17,23 @@ class CandidatePage(BasePage):
             self.page.get_by_role("link", name="• Active Jobs").click(timeout=5000)
         except Exception:
             self.page.goto(f"{self._base_url()}/recruitment/active-jobs")
-        self.page.wait_for_load_state("networkidle")
-        self.page.wait_for_timeout(1000)
+        self.page.wait_for_load_state("domcontentloaded")
 
     def _base_url(self) -> str:
         from core.config import settings
         return settings.BASE_URL
 
     def select_first_job(self) -> str:
-        """Clicks the first JOB_POSTING button and returns its name."""
-        job_btn = self.page.get_by_role("button", name=re.compile(r"JOB_POSTING")).first
-        job_btn.wait_for(state="visible", timeout=8000)
-        job_name = job_btn.inner_text().strip()
-        logger.info(f"Selecting job: '{job_name}'")
+        """Clicks the first JOB_POSTING link/button and returns its code."""
+        job_btn = self.page.locator("button:has-text('JOB_POSTING'), [role='button']:has-text('JOB_POSTING'), a:has-text('JOB_POSTING')").first
+        job_btn.wait_for(state="visible", timeout=10000)
+        full_text = job_btn.inner_text().strip()
+        m = re.search(r"(JOB_POSTING-\d+)", full_text)
+        job_code = m.group(1) if m else full_text.splitlines()[0].strip()
+        logger.info(f"[JOB] Selected Job Opening: '{job_code}'")
         job_btn.click()
-        self.page.wait_for_load_state("networkidle")
-        self.page.wait_for_timeout(500)
-        return job_name
+        self.page.wait_for_load_state("domcontentloaded")
+        return job_code
 
     def find_job_opening_with_candidates(self, max_attempts: int = 5) -> tuple[str | None, int]:
         """
@@ -60,7 +60,7 @@ class CandidatePage(BasePage):
             job_name = btn.inner_text().strip()
             logger.info(f"Attempt {idx + 1}/{total_to_try}: Clicking Job Code '{job_name}'...")
             btn.click()
-            self.page.wait_for_load_state("networkidle")
+            self.page.wait_for_load_state("domcontentloaded")
             self.page.wait_for_timeout(500)
 
             cand_count = self.get_all_candidate_count()
@@ -92,7 +92,7 @@ class CandidatePage(BasePage):
         job_name = job_btn.inner_text().strip()
         logger.info(f"Selecting job: '{job_name}'")
         job_btn.click()
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state("domcontentloaded")
         self.page.wait_for_timeout(500)
         self.open_add_candidate_form()
         return job_name
@@ -276,7 +276,7 @@ class CandidatePage(BasePage):
 
         self.page.locator("body").click()
         self.page.wait_for_timeout(1000)
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state("domcontentloaded")
 
     def generate_and_validate_offer(self, candidate_name: str, doj: str, gross_salary: str = "15000") -> dict:
         """Open candidate's offer form, then generate and send LOI."""
@@ -297,7 +297,7 @@ class CandidatePage(BasePage):
                 action_btn = row.locator("button[title*='action'], button[title*='menu'], svg").first
                 if action_btn.is_visible():
                     row.click()
-                    self.page.wait_for_load_state("networkidle")
+                    self.page.wait_for_load_state("domcontentloaded")
                     self.page.wait_for_timeout(1000)
                     return
         
@@ -305,7 +305,7 @@ class CandidatePage(BasePage):
         candidate_link = self.page.get_by_text(re.compile(candidate_name, re.IGNORECASE)).first
         if candidate_link.is_visible():
             candidate_link.click()
-            self.page.wait_for_load_state("networkidle")
+            self.page.wait_for_load_state("domcontentloaded")
             self.page.wait_for_timeout(1000)
             return
         
@@ -442,7 +442,7 @@ class CandidatePage(BasePage):
         if "error" in toast_msg.lower() or "fail" in toast_msg.lower():
             raise AssertionError(f"LOI send failed: {toast_msg}")
 
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state("domcontentloaded")
         components["candidate_form_url"] = candidate_redirect_url
         if candidate_redirect_url:
             logger.info(f"[VERIFIED] Candidate Form Fill Redirect URL Captured: '{candidate_redirect_url}'")

@@ -39,7 +39,6 @@ class PayrollCompanyWorkflow:
             phone=director_data.get("phone")
         )
         self.payroll_company_page.click_submit()
-        self.page.wait_for_timeout(1000)
         return self.payroll_company_page.get_form_error_or_toast()
 
     def edit_payroll_company_add_manual_director_only(self, company_name: str, director_data: dict) -> str:
@@ -57,5 +56,4 @@ class PayrollCompanyWorkflow:
             phone=director_data.get("phone")
         )
         self.payroll_company_page.click_submit()
-        self.page.wait_for_timeout(1000)
         return self.payroll_company_page.get_form_error_or_toast()

@@ -27,6 +27,7 @@ def dummy_resume_path():
 
 
 @pytest.mark.ui
+@pytest.mark.e2e
 @pytest.mark.recruitment
 @pytest.mark.regression
 @pytest.mark.candidate

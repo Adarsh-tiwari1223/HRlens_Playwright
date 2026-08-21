@@ -63,11 +63,20 @@ HRlens_Playwright/
 ├── tests/                            # Layer 3: Test Suites
 │   ├── conftest.py                   # Hooks, per-test logging & fixtures
 │   ├── hrlense_portal/               # HRlens Portal Test Suites
-│   │   ├── ui/                       # Employee, attendance, master, auth tests
+│   │   ├── ui/                       # Domain test suites (tagged with @pytest.mark.e2e)
+│   │   │   ├── admin_control/        # Settings & hierarchy tests
+│   │   │   ├── asset/                # Asset lifecycle & master E2E flows
+│   │   │   ├── attendance/           # Leave application & approval E2E flows
+│   │   │   ├── auth/                 # Authentication & security tests
+│   │   │   ├── employee/             # Onboarding & salary calculation tests
+│   │   │   ├── increment/            # Increment & appraisal E2E flows
+│   │   │   ├── master/               # Company master configurations
+│   │   │   ├── meeting/              # Calendar & meeting scheduling tests
+│   │   │   └── payroll/              # Salary settings & UI payroll tests
 │   │   ├── api/                      # REST API contract & absence validation tests
 │   │   └── test_payroll_comparison.py# Dynamic Excel vs API payroll reconciliation
 │   └── recruitment_portal/           # Recruitment Portal Test Suites
-│       └── ui/active_job/            # Drafts, creation, candidate & offer validation
+│       └── ui/active_job/            # Drafts, creation, candidate & offer E2E flows
 ├── logs/                             # Automatic Per-Test Execution Logs
 │   ├── hrlense_portal/               # Dedicated logs for HRlens portal tests
 │   └── recruitment_portal/           # Dedicated logs for Recruitment portal tests
@@ -99,7 +108,19 @@ $env:HEADLESS="false"; venv\Scripts\pytest.exe tests/recruitment_portal/ui/activ
 
 ---
 
-### 2. Run Excluded / Dedicated Suites via Terminal
+### 2. Run All End-to-End Workflows (`@pytest.mark.e2e`)
+
+```powershell
+# Run all E2E cross-role multi-step workflows across both portals
+venv\Scripts\pytest.exe -m "e2e" -v -s
+
+# Run E2E workflows in parallel
+pytest -m "e2e" -n auto
+```
+
+---
+
+### 3. Run Excluded / Dedicated Suites via Terminal
 
 The following suites are excluded from default runs and can be executed explicitly:
 

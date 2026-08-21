@@ -15,6 +15,8 @@ def onboarding_page(page):
     return OnboardingPage(page)
 
 @pytest.mark.ui
+@pytest.mark.e2e
+@pytest.mark.regression
 @pytest.mark.onboarding
 def test_verify_and_send_offer(onboarding_page):
     """

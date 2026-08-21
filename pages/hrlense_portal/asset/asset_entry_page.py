@@ -20,18 +20,18 @@ class AssetEntryPage(BasePage):
         self.page.wait_for_timeout(1000)
 
     def click_add_asset(self):
-        """Opens standard Add Asset manual creation modal."""
-        logger.info("Clicking 'Add Asset' / 'Add New Asset' button...")
-        btn = self.page.get_by_role("button", name=re.compile(r"Add\s*(New)?\s*Asset", re.I)).first
+        """Opens standard Add Asset / Add Manual creation modal."""
+        logger.info("Clicking 'Add Manual' / 'Add Asset' button...")
+        btn = self.page.get_by_role("button", name=re.compile(r"Add\s*(Manual|New\s*Asset|Asset)", re.I)).first
         if not btn.is_visible(timeout=2000):
-            btn = self.page.locator("button").filter(has_text=re.compile(r"Add\s*(New)?\s*Asset", re.I)).first
+            btn = self.page.locator("button").filter(has_text=re.compile(r"Add\s*(Manual|New\s*Asset|Asset)", re.I)).first
         if not btn.is_visible(timeout=2000):
-            btn = self.page.locator(self.ADD_ASSET_BTN)
+            btn = self.page.locator("button:has-text('Add Manual'), button:has-text('Add Asset'), button:has-text('Add New Asset')").first
 
         btn.wait_for(state="visible", timeout=10000)
         btn.click()
         self.page.locator("[role='dialog'][aria-modal='true'], .chakra-modal__content").wait_for(state="visible", timeout=10000)
-        logger.info("Verified 'Add New Asset' form/modal is visible.")
+        logger.info("Verified 'Add Asset' / 'Add Manual' modal is visible.")
 
     def click_generate_assets_button(self):
         """Clicks the 'Generate Assets' button and waits for drawer/modal with header 'Generate Assets' to open."""
@@ -168,27 +168,46 @@ class AssetEntryPage(BasePage):
 
         return toast_msg
 
-    def click_add_asset(self):
-        """Opens standard Add New Asset manual creation modal."""
-        logger.info("Clicking 'Add New Asset' button...")
-        btn = self.page.get_by_text("Add New Asset", exact=True).first
-        if not btn.is_visible(timeout=2000):
-            btn = self.page.locator("button").filter(has_text=re.compile(r"^Add (New )?Asset$", re.I)).first
-        if not btn.is_visible(timeout=2000):
-            btn = self.page.locator("button:has-text('Add New Asset'), button:has-text('Add Asset')").first
 
-        btn.wait_for(state="visible", timeout=10000)
-        btn.click()
-
-        form_indicator = self.page.locator("label:has-text('Asset Name'), header:has-text('Add New Asset'), h2:has-text('Add New Asset'), .chakra-modal__content").first
-        form_indicator.wait_for(state="visible", timeout=10000)
-        logger.info("Verified 'Add New Asset' form/modal is visible.")
+    def _select_preferred_or_first_option(self, select_locator, preferred_keywords: list[str] = None):
+        """Selects option matching preferred keywords if found, else first valid option."""
+        try:
+            select_locator.locator("option:not([value=''])").first.wait_for(state="attached", timeout=2000)
+        except Exception:
+            pass
+        try:
+            options = select_locator.locator("option").all()
+            # 1. Look for preferred keyword match
+            if preferred_keywords:
+                for opt in options[1:]:
+                    txt = opt.inner_text().strip().lower()
+                    val = opt.get_attribute("value")
+                    if val and val.strip() != "" and "select" not in txt:
+                        for kw in preferred_keywords:
+                            if kw.lower() in txt:
+                                select_locator.select_option(value=val)
+                                return opt.inner_text().strip()
+            # 2. Fallback to first valid option
+            for opt in options[1:]:
+                val = opt.get_attribute("value")
+                txt = opt.inner_text().strip()
+                if val and val.strip() != "" and "select" not in txt.lower():
+                    select_locator.select_option(value=val)
+                    return txt
+            if len(options) > 1:
+                select_locator.select_option(index=1)
+                return options[1].inner_text().strip()
+        except Exception:
+            pass
+        return ""
 
     def fill_asset_details(
         self,
-        name: str,
+        name: str = None,
         category: str = None,
         sub_category: str = None,
+        branch: str = None,
+        payroll_company: str = None,
         brand: str = None,
         model: str = None,
         serial_no: str = None,
@@ -196,7 +215,7 @@ class AssetEntryPage(BasePage):
         expiry_date: str = None,
         insured: str = "No",
         insurance_provider: str = "ICICI Lombard",
-        policy_number: str = "POL-883920",
+        policy_number: str = None,
         premium_amount: str = "1200",
         premium_frequency: str = "Yearly",
         insurance_start_date: str = "2025-01-01",
@@ -204,47 +223,22 @@ class AssetEntryPage(BasePage):
         notes: str = None,
         category_label: str = None,
         sub_category_label: str = None,
+        branch_label: str = None,
+        payroll_company_label: str = None,
         **kwargs
     ) -> dict:
         category = category or category_label
         sub_category = sub_category or sub_category_label
+        branch = branch or branch_label
+        payroll_company = payroll_company or payroll_company_label or kwargs.get("company") or kwargs.get("company_label")
         policy_number = policy_number or f"POL-{random.randint(100000, 999999)}"
         insurance_provider = insurance_provider or "ICICI Lombard"
-        """
-        Populates all fields on the 'Add New Asset' modal:
-        1. Asset Name *
-        2. Category *
-        3. Sub Category * (wait for enabled)
-        4. Brand
-        5. Model No.
-        6. Serial No.
-        7. Warranty / Guarantee
-        8. Expiry Date (enabled after step 7)
-        9. Insured? (Yes/No)
-           If Yes:
-           10.1 Insurance Provider *
-           10.2 Policy Number *
-           10.3 Premium Amount (₹)
-           10.4 Premium Frequency *
-           10.5 Start Date
-           10.6 Expiry Date *
-        10. Notes
-        """
-        logger.info(f"Filling Add Asset modal details: Name='{name}', Brand='{brand}', Serial='{serial_no}', Insured='{insured}'")
+
         modal = self.page.locator(".chakra-modal__content, [aria-modal='true'], .chakra-drawer__content").first
         if not modal.is_visible(timeout=1000):
             modal = self.page
 
-        # 1. Asset Name *
-        name_in = modal.locator("//div[./label[contains(text(), 'Asset Name')]]//input").first
-        if not name_in.is_visible(timeout=1000):
-            name_in = modal.get_by_placeholder("e.g. Dell Latitude").first
-        if not name_in.is_visible(timeout=1000):
-            name_in = modal.locator("input[placeholder*='Latitude' i], input[name*='name' i]").first
-        name_in.wait_for(state="visible", timeout=5000)
-        name_in.fill(name)
-
-        # 2. Category *
+        # 1. Category * (Select Category First to determine contextual matching)
         cat_select = modal.locator("//div[./label[contains(text(), 'Category') and not(contains(text(), 'Sub'))]]//select").first
         if not cat_select.is_visible(timeout=1000):
             cat_select = modal.get_by_label("Category*", exact=False).first
@@ -258,19 +252,16 @@ class AssetEntryPage(BasePage):
             except Exception:
                 pass
         if not selected_category:
-            options = cat_select.locator("option").all()
-            for opt in options[1:]:
-                val = opt.get_attribute("value")
-                txt = opt.inner_text().strip()
-                if val and val.strip() != "" and "select" not in txt.lower():
-                    cat_select.select_option(value=val)
-                    selected_category = txt
-                    break
+            # Prefer IT Hardware / Electronics / Hardware if available
+            selected_category = self._select_preferred_or_first_option(
+                cat_select,
+                preferred_keywords=["hardware", "electronics", "it hardware", "laptop", "computer", "it assets"]
+            )
 
         logger.info(f"Selected Category: '{selected_category}'")
         self.page.wait_for_timeout(800)
 
-        # 3. Sub Category *
+        # 2. Sub Category *
         sub_select = modal.locator("//div[./label[contains(text(), 'Sub Category')]]//select").first
         if not sub_select.is_visible(timeout=1000):
             sub_select = modal.get_by_label("Sub Category", exact=False).first
@@ -290,18 +281,95 @@ class AssetEntryPage(BasePage):
             except Exception:
                 pass
         if not selected_sub_category:
-            options = sub_select.locator("option").all()
-            for opt in options[1:]:
-                val = opt.get_attribute("value")
-                txt = opt.inner_text().strip()
-                if val and val.strip() != "" and "select" not in txt.lower():
-                    sub_select.select_option(value=val)
-                    selected_sub_category = txt
-                    break
+            selected_sub_category = self._select_preferred_or_first_option(
+                sub_select,
+                preferred_keywords=["laptop", "desktop", "monitor", "workstation", "chair", "desk", "table"]
+            )
 
         logger.info(f"Selected Sub Category: '{selected_sub_category}'")
 
-        # 4. Brand
+        # 3. Contextual Data Alignment (Ensure Name, Brand, Model strictly match the chosen Category/SubCategory)
+        cat_sub_combo = f"{selected_category} {selected_sub_category}".lower()
+        suffix = random.randint(1000, 9999)
+        serial_no = serial_no or f"SN-{suffix}"
+
+        if any(k in cat_sub_combo for k in ["furniture", "chair", "desk", "table"]):
+            brand = brand if (brand and brand != "Dell") else "Godrej"
+            model = model if (model and model != "Latitude 7440") else "Ergonomic Mesh Chair"
+            name = name if (name and "dell" not in name.lower()) else f"{brand} {model} {suffix}"
+        elif any(k in cat_sub_combo for k in ["monitor", "display", "screen"]):
+            brand = brand or "Dell"
+            model = model or "UltraSharp 27 4K"
+            name = name or f"{brand} {model} {suffix}"
+        elif any(k in cat_sub_combo for k in ["printer", "scanner"]):
+            brand = brand or "HP"
+            model = model or "LaserJet Pro 400"
+            name = name or f"{brand} {model} {suffix}"
+        elif any(k in cat_sub_combo for k in ["vehicle", "automobile", "car"]):
+            brand = brand or "Honda"
+            model = model or "City ZX"
+            name = name or f"{brand} {model} {suffix}"
+        else:
+            # Default to IT / Laptop / Electronics
+            brand = brand or "Dell"
+            model = model or "Latitude 7440"
+            name = name or f"{brand} {model} {suffix}"
+
+        logger.info(f"Contextual Asset Data: Name='{name}', Brand='{brand}', Model='{model}', Category='{selected_category}', SubCategory='{selected_sub_category}'")
+
+        # 4. Asset Name *
+        name_in = modal.locator("//div[./label[contains(text(), 'Asset Name')]]//input").first
+        if not name_in.is_visible(timeout=1000):
+            name_in = modal.get_by_placeholder("e.g. Dell Latitude").first
+        if not name_in.is_visible(timeout=1000):
+            name_in = modal.locator("input[placeholder*='Latitude' i], input[name*='name' i]").first
+        name_in.wait_for(state="visible", timeout=5000)
+        name_in.fill("")
+        name_in.fill(name)
+
+        # 5. Branch Selection (if present)
+        selected_branch = ""
+        try:
+            b_select = modal.locator("//div[./label[contains(text(), 'Branch')]]//select").first
+            if not b_select.is_visible(timeout=500):
+                b_select = modal.locator("select").filter(has=self.page.locator("option", has_text=re.compile(r"Select branch", re.I))).first
+            if not b_select.is_visible(timeout=500):
+                b_select = modal.get_by_label("Branch", exact=False).first
+            if b_select.is_visible(timeout=1000):
+                if branch:
+                    try:
+                        b_select.select_option(label=branch)
+                        selected_branch = branch
+                    except Exception:
+                        pass
+                if not selected_branch:
+                    selected_branch = self._select_first_valid_option(b_select)
+                logger.info(f"Selected Branch: '{selected_branch}'")
+        except Exception:
+            pass
+
+        # 6. Payroll Company Selection (if present)
+        selected_payroll_company = ""
+        try:
+            c_select = modal.locator("//div[./label[contains(text(), 'Payroll Company') or contains(text(), 'Company')]]//select").first
+            if not c_select.is_visible(timeout=500):
+                c_select = modal.locator("select").filter(has=self.page.locator("option", has_text=re.compile(r"Select payroll company|Select company", re.I))).first
+            if not c_select.is_visible(timeout=500):
+                c_select = modal.get_by_label("Payroll Company", exact=False).first
+            if c_select.is_visible(timeout=1000):
+                if payroll_company:
+                    try:
+                        c_select.select_option(label=payroll_company)
+                        selected_payroll_company = payroll_company
+                    except Exception:
+                        pass
+                if not selected_payroll_company:
+                    selected_payroll_company = self._select_first_valid_option(c_select)
+                logger.info(f"Selected Payroll Company: '{selected_payroll_company}'")
+        except Exception:
+            pass
+
+        # 7. Brand
         if brand:
             b_in = modal.locator("//div[./label[normalize-space()='Brand']]//input").first
             if not b_in.is_visible(timeout=500):
@@ -309,7 +377,7 @@ class AssetEntryPage(BasePage):
             if b_in.is_visible(timeout=1000):
                 b_in.fill(brand)
 
-        # 5. Model No.
+        # 8. Model No.
         if model:
             m_in = modal.locator("//div[./label[contains(text(), 'Model')]]//input").first
             if not m_in.is_visible(timeout=500):
@@ -416,6 +484,8 @@ class AssetEntryPage(BasePage):
             "name": name,
             "category": selected_category,
             "sub_category": selected_sub_category,
+            "branch": selected_branch,
+            "payroll_company": selected_payroll_company,
             "brand": brand,
             "model": model,
             "serial_no": serial_no,

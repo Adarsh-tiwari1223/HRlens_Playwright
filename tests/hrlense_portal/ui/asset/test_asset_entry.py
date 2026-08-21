@@ -161,6 +161,8 @@ def test_manual_add_asset_workflow(admin_page):
 
     filled_data = entry_page.fill_asset_details(
         name=asset_name,
+        branch="Varanasi",
+        payroll_company="TEK Inspirations LLC",
         brand="Dell",
         model="Latitude 7440",
         serial_no=serial_no,

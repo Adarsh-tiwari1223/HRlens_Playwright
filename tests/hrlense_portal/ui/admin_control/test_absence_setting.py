@@ -5,13 +5,13 @@ from pages.hrlense_portal.admin_control.absence_setting_page import AbsenceSetti
 
 logger = logging.getLogger(__name__)
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def admin_page(logged_in_page):
     page, _ = logged_in_page("admin")
     absence_page = AbsenceSettingPage(page)
     return absence_page
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def manager_page(logged_in_page):
     # 'vivek' is Varanasi Branch Head/Manager
     page, _ = logged_in_page("vivek")

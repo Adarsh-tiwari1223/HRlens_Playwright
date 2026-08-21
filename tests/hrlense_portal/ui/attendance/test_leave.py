@@ -12,7 +12,7 @@ EMPLOYEE_USERS = ["kumar_piyush", "uttam_kumar", "abhishek_singh"]
 
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def employee_context(logged_in_page):
     valid_users = [u for u in EMPLOYEE_USERS if settings.USERS.get(u, {}).get("username")]
     selected_user = random.choice(valid_users) if valid_users else settings.EMPLOYEE_USER
@@ -21,7 +21,7 @@ def employee_context(logged_in_page):
 
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def approver_context(logged_in_page, submitted_leave):
     approver_key = settings.APPROVERS.get(submitted_leave["approver_name"])
     assert approver_key, f"No approver mapping for '{submitted_leave['approver_name']}' — add to settings.APPROVERS"
@@ -29,7 +29,7 @@ def approver_context(logged_in_page, submitted_leave):
     yield page
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def submitted_leave(employee_context):
     from workflows.hrlense_portal.attendance.leave_workflow import LeaveWorkflow
 
@@ -67,7 +67,7 @@ def submitted_leave(employee_context):
     }
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def approver_login(approver_context, submitted_leave):
     leave = LeavePage(approver_context)
     leave.click_attendance()

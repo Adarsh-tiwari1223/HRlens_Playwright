@@ -6,7 +6,7 @@ from pages.hrlense_portal.employee.salary_settings_page import SalarySettingsPag
 EMPLOYEE_NAME = "Kiaan Shere"
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def salary_page(logged_in_page):
     page, _ = logged_in_page("admin")
     return SalarySettingsPage(page)
@@ -14,13 +14,13 @@ def salary_page(logged_in_page):
 
 # ── Step 1 + 2 : grab employee context → read live settings ──────────────────
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def employee_context(salary_page):
     """Step 1 — navigate to employee and capture company/branch/department."""
     return salary_page.navigate_to_employee(EMPLOYEE_NAME)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def salary_settings(salary_page, employee_context):
     """Step 2 — navigate to salary calc settings and read pf_threshold + percentages
     for the exact company+branch pulled from the employee profile."""
@@ -32,7 +32,7 @@ def salary_settings(salary_page, employee_context):
     )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def pf_threshold(salary_settings):
     return salary_settings["pf_threshold"]
 

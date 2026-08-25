@@ -45,6 +45,10 @@ USERS = {
         "username": _get_env("RITESH_SINGH_USERNAME"),
         "password": _get_env("RITESH_SINGH_PASSWORD")
     },
+    "adarsh": {
+        "username": _get_env("ADARSH_TIWARI"),
+        "password": _get_env("ADARSH_TIWARI_PASSWORD")
+    },
     "adarsh_tiwari": {
         "username": _get_env("ADARSH_TIWARI"),
         "password": _get_env("ADARSH_TIWARI_PASSWORD")

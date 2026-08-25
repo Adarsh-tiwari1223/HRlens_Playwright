@@ -1,4 +1,5 @@
 import re
+import random
 import logging
 from pages.base_page import BasePage
 from core.config import settings
@@ -234,29 +235,28 @@ class AssetEntryPage(BasePage):
         policy_number = policy_number or f"POL-{random.randint(100000, 999999)}"
         insurance_provider = insurance_provider or "ICICI Lombard"
 
-        modal = self.page.locator(".chakra-modal__content, [aria-modal='true'], .chakra-drawer__content").first
+        modal = self.page.locator(".chakra-modal__content:visible, [aria-modal='true']:visible, .chakra-drawer__content:visible").last
         if not modal.is_visible(timeout=1000):
             modal = self.page
 
-        # 1. Category * (Select Category First to determine contextual matching)
+        # 1. Category *
         cat_select = modal.locator("//div[./label[contains(text(), 'Category') and not(contains(text(), 'Sub'))]]//select").first
         if not cat_select.is_visible(timeout=1000):
             cat_select = modal.get_by_label("Category*", exact=False).first
         cat_select.wait_for(state="visible", timeout=5000)
 
+        cat_options = [o.strip() for o in cat_select.locator("option").all_inner_texts() if o.strip() and not o.lower().startswith("select")]
         selected_category = ""
-        if category:
-            try:
-                cat_select.select_option(label=category)
-                selected_category = category
-            except Exception:
-                pass
-        if not selected_category:
-            # Prefer IT Hardware / Electronics / Hardware if available
-            selected_category = self._select_preferred_or_first_option(
-                cat_select,
-                preferred_keywords=["hardware", "electronics", "it hardware", "laptop", "computer", "it assets"]
-            )
+        if category and any(category.lower() in o.lower() for o in cat_options):
+            for opt in cat_options:
+                if category.lower() in opt.lower():
+                    cat_select.select_option(label=opt)
+                    selected_category = opt
+                    break
+        if not selected_category and cat_options:
+            # Randomly select across any available category in the database
+            selected_category = random.choice(cat_options)
+            cat_select.select_option(label=selected_category)
 
         logger.info(f"Selected Category: '{selected_category}'")
         self.page.wait_for_timeout(800)
@@ -273,49 +273,63 @@ class AssetEntryPage(BasePage):
         except Exception:
             pass
 
+        sub_options = [o.strip() for o in sub_select.locator("option").all_inner_texts() if o.strip() and not o.lower().startswith("select")]
         selected_sub_category = ""
-        if sub_category:
-            try:
-                sub_select.select_option(label=sub_category)
-                selected_sub_category = sub_category
-            except Exception:
-                pass
-        if not selected_sub_category:
-            selected_sub_category = self._select_preferred_or_first_option(
-                sub_select,
-                preferred_keywords=["laptop", "desktop", "monitor", "workstation", "chair", "desk", "table"]
-            )
+        if sub_category and any(sub_category.lower() in o.lower() for o in sub_options):
+            for opt in sub_options:
+                if sub_category.lower() in opt.lower():
+                    sub_select.select_option(label=opt)
+                    selected_sub_category = opt
+                    break
+        if not selected_sub_category and sub_options:
+            # Randomly select across any available subcategory under the chosen category
+            selected_sub_category = random.choice(sub_options)
+            sub_select.select_option(label=selected_sub_category)
 
         logger.info(f"Selected Sub Category: '{selected_sub_category}'")
 
         # 3. Contextual Data Alignment (Ensure Name, Brand, Model strictly match the chosen Category/SubCategory)
         cat_sub_combo = f"{selected_category} {selected_sub_category}".lower()
-        suffix = random.randint(1000, 9999)
-        serial_no = serial_no or f"SN-{suffix}"
+        suffix = random.randint(100000, 999999)
 
-        if any(k in cat_sub_combo for k in ["furniture", "chair", "desk", "table"]):
-            brand = brand if (brand and brand != "Dell") else "Godrej"
-            model = model if (model and model != "Latitude 7440") else "Ergonomic Mesh Chair"
-            name = name if (name and "dell" not in name.lower()) else f"{brand} {model} {suffix}"
+        if any(k in cat_sub_combo for k in ["furniture", "chair", "desk", "table", "workstation"]):
+            brand = brand or "Godrej"
+            model = model or "Ergonomic Mesh Chair"
+            name = name or f"{brand} {model}"
+            serial_no = serial_no or f"GD-CH-{suffix}"
         elif any(k in cat_sub_combo for k in ["monitor", "display", "screen"]):
             brand = brand or "Dell"
             model = model or "UltraSharp 27 4K"
-            name = name or f"{brand} {model} {suffix}"
+            name = name or f"{brand} {model}"
+            serial_no = serial_no or f"DL-MON-{suffix}"
         elif any(k in cat_sub_combo for k in ["printer", "scanner"]):
             brand = brand or "HP"
             model = model or "LaserJet Pro 400"
-            name = name or f"{brand} {model} {suffix}"
+            name = name or f"{brand} {model}"
+            serial_no = serial_no or f"HP-PRN-{suffix}"
+        elif any(k in cat_sub_combo for k in ["mouse", "keyboard", "peripheral", "headset", "accessory"]):
+            brand = brand or "Logitech"
+            model = model or "MX Master 3S"
+            name = name or f"{brand} {model}"
+            serial_no = serial_no or f"LOGI-{suffix}"
+        elif any(k in cat_sub_combo for k in ["router", "switch", "networking", "firewall"]):
+            brand = brand or "Cisco"
+            model = model or "Catalyst 1000"
+            name = name or f"{brand} {model}"
+            serial_no = serial_no or f"CSCO-{suffix}"
         elif any(k in cat_sub_combo for k in ["vehicle", "automobile", "car"]):
             brand = brand or "Honda"
             model = model or "City ZX"
-            name = name or f"{brand} {model} {suffix}"
+            name = name or f"{brand} {model}"
+            serial_no = serial_no or f"HN-{suffix}"
         else:
-            # Default to IT / Laptop / Electronics
+            # Default to IT Hardware / Laptop / Electronics
             brand = brand or "Dell"
             model = model or "Latitude 7440"
-            name = name or f"{brand} {model} {suffix}"
+            name = name or f"{brand} {model}"
+            serial_no = serial_no or f"DL-7440-{suffix}"
 
-        logger.info(f"Contextual Asset Data: Name='{name}', Brand='{brand}', Model='{model}', Category='{selected_category}', SubCategory='{selected_sub_category}'")
+        logger.info(f"Contextual Asset Data: Name='{name}', Brand='{brand}', Model='{model}', Category='{selected_category}', SubCategory='{selected_sub_category}', Serial='{serial_no}'")
 
         # 4. Asset Name *
         name_in = modal.locator("//div[./label[contains(text(), 'Asset Name')]]//input").first
@@ -331,19 +345,22 @@ class AssetEntryPage(BasePage):
         selected_branch = ""
         try:
             b_select = modal.locator("//div[./label[contains(text(), 'Branch')]]//select").first
-            if not b_select.is_visible(timeout=500):
+            if not b_select.is_visible(timeout=200):
                 b_select = modal.locator("select").filter(has=self.page.locator("option", has_text=re.compile(r"Select branch", re.I))).first
-            if not b_select.is_visible(timeout=500):
+            if not b_select.is_visible(timeout=200):
                 b_select = modal.get_by_label("Branch", exact=False).first
-            if b_select.is_visible(timeout=1000):
+            if b_select.is_visible(timeout=500):
                 if branch:
                     try:
-                        b_select.select_option(label=branch)
+                        b_select.select_option(label=re.compile(re.escape(branch), re.I), timeout=400)
                         selected_branch = branch
                     except Exception:
                         pass
                 if not selected_branch:
-                    selected_branch = self._select_first_valid_option(b_select)
+                    opt_count = b_select.locator("option").count()
+                    rand_idx = random.randint(1, opt_count - 1) if opt_count > 1 else 0
+                    b_select.select_option(index=rand_idx)
+                    selected_branch = b_select.input_value()
                 logger.info(f"Selected Branch: '{selected_branch}'")
         except Exception:
             pass
@@ -352,19 +369,22 @@ class AssetEntryPage(BasePage):
         selected_payroll_company = ""
         try:
             c_select = modal.locator("//div[./label[contains(text(), 'Payroll Company') or contains(text(), 'Company')]]//select").first
-            if not c_select.is_visible(timeout=500):
+            if not c_select.is_visible(timeout=200):
                 c_select = modal.locator("select").filter(has=self.page.locator("option", has_text=re.compile(r"Select payroll company|Select company", re.I))).first
-            if not c_select.is_visible(timeout=500):
+            if not c_select.is_visible(timeout=200):
                 c_select = modal.get_by_label("Payroll Company", exact=False).first
-            if c_select.is_visible(timeout=1000):
+            if c_select.is_visible(timeout=500):
                 if payroll_company:
                     try:
-                        c_select.select_option(label=payroll_company)
+                        c_select.select_option(label=re.compile(re.escape(payroll_company), re.I), timeout=400)
                         selected_payroll_company = payroll_company
                     except Exception:
                         pass
                 if not selected_payroll_company:
-                    selected_payroll_company = self._select_first_valid_option(c_select)
+                    opt_count = c_select.locator("option").count()
+                    rand_idx = random.randint(1, opt_count - 1) if opt_count > 1 else 0
+                    c_select.select_option(index=rand_idx)
+                    selected_payroll_company = c_select.input_value()
                 logger.info(f"Selected Payroll Company: '{selected_payroll_company}'")
         except Exception:
             pass
@@ -501,17 +521,19 @@ class AssetEntryPage(BasePage):
     def click_save_and_generate_qr(self) -> str:
         """Clicks 'Save & Generate QR' button, waits for loading spinner, and captures confirmation toast."""
         logger.info("Clicking 'Save & Generate QR' button...")
-        modal = self.page.locator("[role='dialog'], .chakra-modal__content").first
-        if not modal.is_visible(timeout=500):
+        modal = self.page.locator("[role='dialog']:visible, .chakra-modal__content:visible").last
+        if not modal.is_visible(timeout=1000):
             modal = self.page
 
-        btn = modal.locator("button").filter(has_text=re.compile(r"Save.*Generate QR|Save", re.I)).first
+        btn = modal.locator("button").filter(has_text=re.compile(r"Save.*Generate QR|Save", re.I)).last
         if not btn.is_visible(timeout=2000):
-            btn = self.page.locator("button:has-text('Save & Generate QR'), button:has-text('Save')").first
+            btn = modal.locator(".chakra-modal__footer button, button[type='submit']").last
+        if not btn.is_visible(timeout=2000):
+            btn = self.page.locator("button:has-text('Save & Generate QR'), button:has-text('Save')").last
 
-        btn.scroll_into_view_if_needed()
-        self.page.wait_for_timeout(300)
         try:
+            btn.scroll_into_view_if_needed()
+            self.page.wait_for_timeout(300)
             btn.click(timeout=5000)
         except Exception:
             btn.click(force=True)
@@ -533,6 +555,12 @@ class AssetEntryPage(BasePage):
             logger.info(f"Add Asset Toast captured: '{toast_msg}'")
         except Exception as e:
             logger.warning(f"Toast capture note: {e}")
+
+        # Wait for modal dialog to dismiss
+        try:
+            self.page.locator("[role='dialog']").wait_for(state="hidden", timeout=5000)
+        except Exception:
+            pass
 
         return toast_msg
 

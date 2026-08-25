@@ -33,12 +33,26 @@ def _is_token_expired(token: str) -> bool:
 def _redact(data):
     if isinstance(data, dict):
         return {
-            k: ("***" if any(s in k.lower() for s in ["password", "token", "secret", "email", "username", "user"]) else _redact(v))
+            k: ("***" if any(s in k.lower() for s in ["password", "pwd", "token", "secret", "email", "username", "user", "bearer", "cookie", "auth", "jwt", "key", "credential"]) else _redact(v))
             for k, v in data.items()
         }
     elif isinstance(data, list):
         return [_redact(item) for item in data]
     return data
+
+
+def _sanitize_sensitive_response(body):
+    """Deep strips sensitive fields like login_Password from response objects."""
+    if isinstance(body, dict):
+        body.pop("login_Password", None)
+        body.pop("login_password", None)
+        body.pop("password", None)
+        for v in body.values():
+            _sanitize_sensitive_response(v)
+    elif isinstance(body, list):
+        for item in body:
+            _sanitize_sensitive_response(item)
+    return body
 
 
 def get_token(user: str = "admin") -> str:
@@ -97,7 +111,7 @@ def get(endpoint: str, user: str = "admin", params: dict = None) -> dict:
     )
     if not response.ok:
         raise Exception(f"HTTP {response.status}: {response.text()}")
-    body = response.json()
+    body = _sanitize_sensitive_response(response.json())
     _log_response("GET", endpoint, response.status, body)
     return body
 

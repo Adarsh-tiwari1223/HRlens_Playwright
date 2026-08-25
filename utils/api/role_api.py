@@ -233,6 +233,9 @@ def get_user_by_email_or_username(identifier: str, user: str = "admin") -> dict:
             users_list = response.get("users", response.get("data", response.get("result", [])))
 
         for u in users_list:
+            u.pop("login_Password", None)
+            u.pop("password", None)
+            u.pop("login_password", None)
             u_email = (u.get("email") or "").strip().lower()
             if u_email == target_email.strip().lower() or target_email.strip().lower() in u_email or prefix.lower() in u_email:
                 u["id"] = u.get("login_ID") or u.get("id") or u.get("userId")
@@ -262,7 +265,11 @@ def fetch_user_role_and_branch(global_filter: str, user: str = "admin") -> dict:
         logger.warning(f"No user found via /api/user for filter: '{global_filter}'")
         return {}
 
-    first_match = users_list[0]
+    first_match = dict(users_list[0])
+    first_match.pop("login_Password", None)
+    first_match.pop("password", None)
+    first_match.pop("login_password", None)
+
     result = {
         "user_id": first_match.get("id") or first_match.get("login_ID") or first_match.get("userId"),
         "name": first_match.get("name") or first_match.get("userName") or first_match.get("employeeName"),

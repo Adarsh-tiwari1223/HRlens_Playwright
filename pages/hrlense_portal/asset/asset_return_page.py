@@ -110,10 +110,10 @@ class AssetReturnPage(BasePage):
             except Exception as e:
                 logger.warning(f"Remarks fill note: {e}")
 
-            # Click Submit/Return Confirmation Button (e.g. 'Return 1 Asset' or 'Return Asset')
-            confirm_btn = dialog.get_by_role("button", name=re.compile(r"Return \d+ Asset|Return Asset", re.I)).first
+            # Click Submit/Return Confirmation Button (supports 'Return Asset', 'Return 1 Asset', 'Submit Request', 'Submit', 'Confirm')
+            confirm_btn = dialog.get_by_role("button", name=re.compile(r"Return \d+ Asset|Return Asset|Submit Request|Submit|Confirm|Fulfill|Proceed", re.I)).first
             if not confirm_btn.is_visible(timeout=1000):
-                confirm_btn = dialog.get_by_role("button", name=re.compile(r"(Return|Confirm|Yes|Proceed|Submit)", re.I)).first
+                confirm_btn = dialog.locator("button.chakra-button, button[type='submit'], button").filter(has_text=re.compile(r"Return|Submit|Confirm|Fulfill|Proceed", re.I)).last
             confirm_btn.click()
 
     def process_bulk_return(self, asset_codes: list[str] = None, condition: str = "Good", return_date: str = "2026-08-18", remarks: str = "Batch return at quarter close"):
@@ -194,10 +194,10 @@ class AssetReturnPage(BasePage):
             except Exception as e:
                 logger.warning(f"Remarks fill note: {e}")
 
-            # Click modal submission button (e.g. 'Return 1 Asset', 'Return 2 Assets', or 'Return Asset')
-            submit_btn = dialog.get_by_role("button", name=re.compile(r"Return \d+ Asset|Return Asset", re.I)).first
+            # Click modal submission button (supports 'Return 1 Asset', 'Return Asset', 'Submit Request', 'Submit', 'Confirm')
+            submit_btn = dialog.get_by_role("button", name=re.compile(r"Return \d+ Asset|Return Asset|Submit Request|Submit|Confirm|Fulfill|Proceed", re.I)).first
             if not submit_btn.is_visible(timeout=1000):
-                submit_btn = dialog.locator("button.chakra-button").filter(has_text=re.compile(r"Return", re.I)).last
+                submit_btn = dialog.locator("button.chakra-button, button[type='submit'], button").filter(has_text=re.compile(r"Return|Submit|Confirm|Fulfill|Proceed", re.I)).last
             
             submit_btn.click()
 

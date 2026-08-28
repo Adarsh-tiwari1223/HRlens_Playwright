@@ -89,27 +89,19 @@ class AssetProcurementWorkflow:
         )
         if story:
             story.log_step(
-                "Select Branch & Payroll Company Dropdowns",
-                record=f"Vendor: {vendor_label or 'Preserved'}, Branch: {branch_label or 'Selected'}, Payroll Company: {company_label or 'Selected'}",
-                expected="Branch and Payroll Company should be selected cleanly",
-                actual="Dropdown selections applied successfully",
+                "Select Dropdowns & Fill Missing Step 1 Details",
+                record=f"Vendor: {vendor_label or 'Selected'}, Branch: {branch_label or 'Selected'}, Payroll: {company_label or 'Selected'}",
+                expected="Vendor, Branch, Payroll Company selected and missing fields filled",
+                actual="Step 1 details filled successfully",
                 status="PASS"
             )
 
         # Step 5: Advance to Step 2 (Add Items)
         next_res = self.procurement_page.click_next()
-        if next_res.get("status") == "TOAST" and next_res.get("toast"):
-            step1_toast = next_res["toast"]
-            logger.info(f"[WORKFLOW] Step 1 Validation Toast captured: '{step1_toast}'")
-            if story:
-                story.log_step(
-                    "Advance to Step 2 (Next — Add items)",
-                    record=f"Step 1 Toast: '{step1_toast}'",
-                    expected="Form should advance or show validation toast",
-                    actual=f"Step 1 returned validation toast: '{step1_toast}'",
-                    status="INFO"
-                )
-            return step1_toast
+        if not self.procurement_page.is_step2_active():
+            # If still on Step 1, retry fill_step1_details and click next
+            self.procurement_page.fill_step1_details(vendor_label=vendor_label, branch_label=branch_label, company_label=company_label)
+            next_res = self.procurement_page.click_next()
 
         if story:
             story.log_step(
@@ -138,7 +130,7 @@ class AssetProcurementWorkflow:
         logger.info(f"[WORKFLOW] Captured Procurement Toast: '{toast}'")
 
         # Self-Healing Check: If backend returns Total Amount validation mismatch
-        # e.g., 'Total Amount ₹12,09,237.00 must equal the sum of all asset line totals ₹26,00,000.16'
+        # e.g., 'Total Amount ₹12,09,237.00 must equal the sum of all asset line totals ₹6,04,325.00'
         match = re.search(r"Total Amount\s*[₹Rs.]*\s*([\d,]+\.?\d*)\s*must equal", toast, re.I)
         if match:
             raw_target = match.group(1)

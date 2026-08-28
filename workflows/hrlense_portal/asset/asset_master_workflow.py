@@ -22,9 +22,10 @@ class AssetMasterWorkflow:
         self.asset_master_page.click_add_category()
         self.asset_master_page.fill_category_details(name=name, description=description, toggle_spans=toggle_spans)
         self.asset_master_page.click_create()
-        feedback = self.asset_master_page.get_submission_feedback()
+        toast = self.asset_master_page.wait_for_toast_message()
+        self.page.wait_for_timeout(300)
         self.asset_master_page._ensure_modal_closed()
-        return feedback
+        return toast
 
     def create_sub_category_workflow(self, category_name: str, sub_category_name: str, prefix: str = "LAP", description: str = "") -> str:
         if "asset-master" not in self.page.url:
@@ -38,9 +39,10 @@ class AssetMasterWorkflow:
             description=description
         )
         self.asset_master_page.click_create()
-        feedback = self.asset_master_page.get_submission_feedback()
+        toast = self.asset_master_page.wait_for_toast_message()
+        self.page.wait_for_timeout(300)
         self.asset_master_page._ensure_modal_closed()
-        return feedback
+        return toast
 
     def create_vendor_workflow(self, vendor_data: dict) -> str:
         if "asset-master" not in self.page.url:
@@ -55,12 +57,13 @@ class AssetMasterWorkflow:
             address=vendor_data.get("address"),
             gst=vendor_data.get("gst"),
             supports_amc=vendor_data.get("supports_amc", False),
-            toggle_spans=vendor_data.get("toggle_spans", True)
+            toggle_spans=vendor_data.get("toggle_spans", False)
         )
         self.asset_master_page.click_create()
-        feedback = self.asset_master_page.get_submission_feedback()
+        toast = self.asset_master_page.wait_for_toast_message()
+        self.page.wait_for_timeout(300)
         self.asset_master_page._ensure_modal_closed()
-        return feedback
+        return toast
 
     def setup_category_with_subcategories_workflow(self) -> tuple[str, list[dict]]:
         """

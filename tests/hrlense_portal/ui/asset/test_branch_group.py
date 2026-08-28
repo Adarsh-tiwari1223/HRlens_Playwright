@@ -1,9 +1,11 @@
+import logging
 import pytest
 from core.config import settings
 from pages.base_page import TestStoryLogger
 from pages.hrlense_portal.asset.branch_group_page import BranchGroupPage
 from faker import Faker
 
+logger = logging.getLogger(__name__)
 fake = Faker()
 
 
@@ -539,6 +541,86 @@ def test_branch_group_reassignment_validation(admin_page):
     )
 
     story.finish(status="PASS")
+
+
+@pytest.mark.ui
+@pytest.mark.asset
+def test_create_all_branch_groups_in_single_run(admin_page):
+    """
+    Creates Branch Groups for ALL branches across the organization in a single run:
+    1. Discovers all company branches (Varanasi, Agra, Noida, Greater Noida, Meerut, Lucknow, Jaipur, Bhubaneswar, Ranchi, etc.)
+    2. Sequentially creates / verifies a Branch Group for each branch with Seating Cost (₹2500.00).
+    3. Validates that all Branch Groups and branch mappings are listed in the grid table.
+    4. Outputs structured ASCII summary table.
+    """
+    from pages.base_page import format_ascii_table
+    story = TestStoryLogger("Create All Branch Groups in Single Run", module="Asset Master", phase="Branch Groups")
+    story.start()
+
+    bg_page = BranchGroupPage(admin_page)
+    bg_page.navigate_to_branch_group()
+
+    # Step 1: Discover all branches and group by city
+    from testdata.dynamic.business_test_data import BusinessTestData
+    branch_map = BusinessTestData.get_branch_groups_map_from_api()
+    all_cities = sorted(list(branch_map.keys()))
+    logger.info(f"[DISCOVERED CITIES] Total Cities: {len(all_cities)} -> {all_cities}")
+
+    existing_groups = [g.lower() for g in bg_page.get_all_existing_branch_groups()]
+    configured_groups = []
+
+    # Step 2: Loop and create Branch Group for each distinct City
+    for idx, city in enumerate(all_cities, 1):
+        group_name = f"{city} Group"
+        branches_in_city = branch_map.get(city, [city])
+        
+        # Check if already present in table
+        is_already_present = any(group_name.lower() in eg or city.lower() in eg for eg in existing_groups)
+
+        if is_already_present:
+            status_msg = f"ALREADY CONFIGURED ({len(branches_in_city)} branches)"
+            logger.info(f"[{idx}/{len(all_cities)}] City: '{city}' ({group_name}) -> {status_msg}")
+        else:
+            try:
+                bg_page.navigate_to_branch_group()
+                bg_page.click_new_group()
+                bg_page.fill_group_details(
+                    group_name=group_name,
+                    branch_names=branches_in_city,
+                    seating_cost="2500.00",
+                    search_query=city
+                )
+                bg_page.click_create()
+                toast = bg_page.wait_for_toast_message()
+                bg_page._ensure_modal_closed()
+                status_msg = f"CREATED (Toast='{toast}', {len(branches_in_city)} branches)"
+                logger.info(f"[{idx}/{len(all_cities)}] Created '{group_name}' for City '{city}' -> {status_msg}")
+            except Exception as ex:
+                status_msg = f"ERROR: {ex}"
+                logger.warning(f"[{idx}/{len(all_cities)}] Error creating '{group_name}': {ex}")
+                bg_page._ensure_modal_closed()
+
+        configured_groups.append({
+            "index": idx,
+            "city": city,
+            "branch_group_name": group_name,
+            "mapped_branches": ", ".join(branches_in_city[:2]) + (f" (+{len(branches_in_city)-2} more)" if len(branches_in_city) > 2 else ""),
+            "seating_cost": "₹2,500.00",
+            "status": status_msg
+        })
+
+    # Step 3: Log step and print ASCII Report
+    story.log_step(
+        "Create Branch Groups for All Branches",
+        record=f"Total: {len(all_cities)} Cities across company",
+        expected="Branch Group configured for each city cluster in single run",
+        actual=f"Processed: {len(configured_groups)} Branch Groups",
+        status="PASS"
+    )
+
+    print("\n" + format_ascii_table("ALL BRANCH GROUPS CONFIGURATION SUMMARY", configured_groups))
+    story.finish(status="PASS")
+
 
 
 

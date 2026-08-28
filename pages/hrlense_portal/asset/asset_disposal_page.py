@@ -112,41 +112,63 @@ class AssetDisposalPage(BasePage):
         # 4. Handle Disposal Review Modal
         dialog = self.page.locator("[role='dialog'][aria-modal='true'], .chakra-modal__content").first
         if dialog.is_visible(timeout=5000):
-            # Select Disposal Type (Scrap / Sell / Write-Off)
+            # Select Disposal Type (Scrap / Sell / Write-Off) from radio group
             try:
-                type_select = dialog.get_by_label("Disposal Type", exact=False).first
-                if not type_select.is_visible(timeout=500):
-                    type_select = dialog.locator("select").filter(has_text=re.compile(r"(Scrap|Sell|Write-Off)", re.I)).first
-                if type_select.is_visible(timeout=500):
-                    type_select.select_option(label=disposal_type)
+                # 1. Try exact radio input by value
+                radio_in = dialog.locator(f"input[type='radio'][value*='{disposal_type}' i]").first
+                if radio_in.is_visible(timeout=500):
+                    radio_in.click(force=True)
+                    logger.info(f"Checked Disposal Type radio: '{disposal_type}'")
                 else:
-                    dialog.get_by_text(disposal_type, exact=True).first.click()
+                    # 2. Click radio label or badge element with matching text
+                    radio_btn = dialog.locator("label.chakra-radio, div.chakra-radio, span.chakra-radio__label, button, label").filter(has_text=re.compile(f"^{re.escape(disposal_type)}$", re.I)).last
+                    if radio_btn.is_visible(timeout=1000):
+                        radio_btn.click(force=True)
+                        logger.info(f"Clicked Disposal Type element: '{disposal_type}'")
             except Exception as ex:
                 logger.warning(f"Disposal type note: {ex}")
+
+            # Fill Disposal Date * (defaults to today)
+            try:
+                disposal_date = kwargs.get("disposal_date", datetime.date.today().strftime("%Y-%m-%d"))
+                date_in = dialog.locator("//div[./label[contains(text(), 'Disposal Date')]]//input, input[type='date']").first
+                if date_in.is_visible(timeout=1000):
+                    date_in.fill(disposal_date)
+                    logger.info(f"Filled Disposal Date: '{disposal_date}'")
+            except Exception as e:
+                logger.warning(f"Disposal date fill note: {e}")
 
             # Recovery Value
             if recovery_value:
                 try:
-                    val_in = dialog.get_by_placeholder("0.00", exact=False).first
+                    val_in = dialog.locator("input[placeholder*='0.00' i], input[type='number'], input[name*='recovery' i]").first
                     if val_in.is_visible(timeout=500):
-                        val_in.fill(recovery_value)
+                        val_in.fill(str(recovery_value))
+                        logger.info(f"Filled Recovery Value: '{recovery_value}'")
                 except Exception:
                     pass
 
             # Remarks / Reason
             if remarks:
                 try:
-                    rem_in = dialog.locator("textarea").first
+                    rem_in = dialog.locator("textarea[placeholder*='detail' i], textarea.chakra-textarea, textarea").first
                     if rem_in.is_visible(timeout=500):
                         rem_in.fill(remarks)
+                        logger.info(f"Filled Remarks: '{remarks}'")
                 except Exception:
                     pass
 
-            # Submit
-            submit_btn = dialog.get_by_role("button", name=re.compile(r"(Submit|Confirm|Dispose|Save)", re.I)).first
+            # Submit Disposal Action
+            submit_btn = dialog.get_by_role("button", name=re.compile(r"(Submit|Confirm|Dispose|Save|Complete)", re.I)).first
+            if not submit_btn.is_visible(timeout=1000):
+                submit_btn = dialog.locator("button.chakra-button, button[type='submit']").filter(has_text=re.compile(r"Dispose|Submit|Confirm", re.I)).first
+
             if submit_btn.is_visible(timeout=2000):
+                submit_btn.scroll_into_view_if_needed()
                 submit_btn.click()
                 self.page.wait_for_timeout(1000)
+                toast = self.wait_for_toast_message()
+                logger.info(f"Disposal confirmation toast: '{toast}'")
                 return True
 
         return False

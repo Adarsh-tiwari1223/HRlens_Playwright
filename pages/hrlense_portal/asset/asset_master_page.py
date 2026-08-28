@@ -62,12 +62,12 @@ class AssetMasterPage(BasePage):
     def navigate_to_sub_categories(self):
         """Navigates to Sub Category tab."""
         logger.debug("Navigating to Sub Categories tab...")
+        self._ensure_modal_closed()
         try:
-            tab = self.page.locator("[role='tab']").filter(has_text=re.compile(r"^Sub\s*Categor", re.I)).first
-            if not tab.is_visible():
-                tab = self.page.get_by_role("tab", name=re.compile(r"^Sub\s*Categor", re.I)).first
-            tab.click(force=True)
-            self.page.wait_for_timeout(500)
+            tab = self.page.locator("button[role='tab'], [role='tab']").filter(has_text=re.compile(r"Sub.?Categor", re.I)).first
+            if tab.is_visible(timeout=1000):
+                tab.click(force=True)
+                self.page.wait_for_timeout(600)
         except Exception:
             try:
                 self.page.locator(self.SUB_CATEGORIES_TAB).click()
@@ -77,12 +77,12 @@ class AssetMasterPage(BasePage):
     def navigate_to_vendors(self):
         """Navigates to Vendors tab."""
         logger.debug("Navigating to Vendors tab...")
+        self._ensure_modal_closed()
         try:
-            tab = self.page.locator("[role='tab']").filter(has_text=re.compile(r"^Vendor", re.I)).first
-            if not tab.is_visible():
-                tab = self.page.get_by_role("tab", name=re.compile(r"^Vendor", re.I)).first
-            tab.click(force=True)
-            self.page.wait_for_timeout(500)
+            tab = self.page.locator("button[role='tab'], [role='tab']").filter(has_text=re.compile(r"Vendor", re.I)).first
+            if tab.is_visible(timeout=1000):
+                tab.click(force=True)
+                self.page.wait_for_timeout(600)
         except Exception:
             try:
                 self.page.locator(self.VENDORS_TAB).click()
@@ -97,10 +97,11 @@ class AssetMasterPage(BasePage):
             self.page.locator("tbody tr").first.wait_for(state="visible", timeout=5000)
             rows = self.page.locator("tbody tr").all()
             for r in rows:
-                txt = r.locator("td").nth(0).inner_text().strip()
-                if txt and txt != "" and not txt.startswith("No "):
-                    logger.info(f"Read existing Category from grid: '{txt}'")
-                    return txt
+                for td in r.locator("td").all():
+                    txt = td.inner_text().strip()
+                    if txt and not txt.isdigit() and len(txt) > 1 and not txt.startswith("No ") and "active" not in txt.lower() and "inactive" not in txt.lower():
+                        logger.info(f"Read existing Category from grid: '{txt}'")
+                        return txt
         except Exception as ex:
             logger.warning(f"Could not read existing Category: {ex}")
         return "Hardware"
@@ -116,10 +117,10 @@ class AssetMasterPage(BasePage):
             self.page.locator("tbody tr").first.wait_for(state="visible", timeout=5000)
             rows = self.page.locator("tbody tr").all()
             for r in rows:
-                cells = r.locator("td").all()
-                if len(cells) >= 2:
-                    cat_txt = cells[0].inner_text().strip()
-                    sub_txt = cells[1].inner_text().strip()
+                non_digit_cells = [c.inner_text().strip() for c in r.locator("td").all() if c.inner_text().strip() and not c.inner_text().strip().isdigit()]
+                if len(non_digit_cells) >= 2:
+                    cat_txt = non_digit_cells[0]
+                    sub_txt = non_digit_cells[1]
                     if cat_txt and sub_txt and not cat_txt.startswith("No "):
                         logger.info(f"Read existing Sub-Category from grid: Category='{cat_txt}', SubCategory='{sub_txt}'")
                         return cat_txt, sub_txt
@@ -148,126 +149,186 @@ class AssetMasterPage(BasePage):
         if "asset-master" not in self.page.url:
             self.navigate_to_asset_master()
         self.navigate_to_category_tab()
-        cats = set()
-        try:
-            self.page.locator("tbody tr, table tr").first.wait_for(state="visible", timeout=6000)
-            while True:
-                for r in self.page.locator("tbody tr, table tr").all():
-                    for td in r.locator("td").all():
-                        t = td.inner_text().strip()
-                        if t and not t.startswith("No ") and not t.isdigit() and len(t) > 1:
-                            cats.add(t)
-                next_btn = self.page.locator("button[aria-label='Next Page'], button:has-text('Next')").first
-                if next_btn.is_visible() and next_btn.is_enabled():
-                    next_btn.click()
-                    self.page.wait_for_timeout(400)
-                else:
-                    break
-        except Exception:
-            pass
-        return sorted(list(cats))
-
-    def get_all_existing_sub_categories(self) -> list[dict]:
-        """Returns list of all sub-categories [{'category': ..., 'sub_category': ...}] across pages."""
-        if "asset-master" not in self.page.url:
-            self.navigate_to_asset_master()
-        self.navigate_to_sub_categories()
-        subs = []
+        cats = []
         seen = set()
         try:
             self.page.locator("tbody tr, table tr").first.wait_for(state="visible", timeout=6000)
             while True:
                 for r in self.page.locator("tbody tr, table tr").all():
-                    cell_texts = [c.inner_text().strip() for c in r.locator("td").all() if c.inner_text().strip()]
-                    if cell_texts and not cell_texts[0].startswith("No "):
-                        full_row = " ".join(cell_texts)
-                        if full_row not in seen:
-                            seen.add(full_row)
-                            subs.append({
-                                "all_texts": cell_texts,
-                                "row_text": full_row
-                            })
+                    cells = r.locator("td").all()
+                    if cells:
+                        cat_name = cells[0].inner_text().strip()
+                        if cat_name and not cat_name.startswith("No ") and cat_name.lower() not in ["active", "inactive"] and not cat_name.isdigit():
+                            if cat_name not in seen:
+                                seen.add(cat_name)
+                                cats.append(cat_name)
                 next_btn = self.page.locator("button[aria-label='Next Page'], button:has-text('Next')").first
-                if next_btn.is_visible() and next_btn.is_enabled():
+                if next_btn.is_visible() and next_btn.is_enabled() and not next_btn.get_attribute("disabled") and next_btn.get_attribute("aria-disabled") != "true":
                     next_btn.click()
                     self.page.wait_for_timeout(400)
                 else:
                     break
         except Exception:
             pass
+        return cats
+
+    def get_toast_message(self) -> str:
+        """Alias for wait_for_toast_message."""
+        return self.wait_for_toast_message()
+
+    def get_all_existing_sub_categories(self) -> list[dict]:
+        """Returns list of all sub-categories [{'all_texts': [...], 'row_text': ...}] across pages."""
+        if "asset-master" not in self.page.url:
+            self.navigate_to_asset_master()
+        self.navigate_to_sub_categories()
+        self.page.wait_for_timeout(600)
+        subs = []
+        seen = set()
+        try:
+            self.page.locator("tbody tr, table tr").first.wait_for(state="visible", timeout=5000)
+            for _ in range(10):
+                raw_rows = self.page.locator("tbody tr, table tr").all_inner_texts()
+                for row_str in raw_rows:
+                    clean_row = row_str.replace("\n", " ").strip().lower()
+                    if clean_row and not clean_row.startswith("no "):
+                        if clean_row not in seen:
+                            seen.add(clean_row)
+                            subs.append({
+                                "all_texts": clean_row.split(),
+                                "row_text": clean_row
+                            })
+                next_btn = self.page.locator("button[aria-label='Next Page'], button:has-text('Next')").first
+                if next_btn.is_visible() and next_btn.is_enabled() and not next_btn.get_attribute("disabled") and next_btn.get_attribute("aria-disabled") != "true":
+                    next_btn.click()
+                    self.page.wait_for_timeout(400)
+                else:
+                    break
+        except Exception as ex:
+            logger.debug(f"Sub-categories table scan ended: {ex}")
+        logger.info(f"[DISCOVERED SUB-CATEGORIES] Found {len(subs)} entries in grid")
         return subs
 
-    def get_all_existing_vendors(self) -> list[str]:
-        """Returns list of all vendor names currently in the Vendors table across pages."""
+    def get_all_existing_vendors(self) -> list[dict]:
+        """Returns list of all vendor records [{'all_texts': [...], 'row_text': ...}] across pages."""
         if "asset-master" not in self.page.url:
             self.navigate_to_asset_master()
         self.navigate_to_vendors()
-        vendors = set()
+        self.page.wait_for_timeout(600)
+        vendors = []
+        seen = set()
         try:
-            self.page.locator("tbody tr, table tr").first.wait_for(state="visible", timeout=6000)
-            while True:
-                for r in self.page.locator("tbody tr, table tr").all():
-                    for td in r.locator("td").all():
-                        t = td.inner_text().strip()
-                        if t and not t.startswith("No ") and not t.isdigit() and len(t) > 2:
-                            vendors.add(t)
+            self.page.locator("tbody tr, table tr").first.wait_for(state="visible", timeout=5000)
+            for _ in range(10):
+                raw_rows = self.page.locator("tbody tr, table tr").all_inner_texts()
+                for row_str in raw_rows:
+                    clean_row = row_str.replace("\n", " ").strip().lower()
+                    if clean_row and not clean_row.startswith("no "):
+                        if clean_row not in seen:
+                            seen.add(clean_row)
+                            vendors.append({
+                                "all_texts": clean_row.split(),
+                                "row_text": clean_row
+                            })
                 next_btn = self.page.locator("button[aria-label='Next Page'], button:has-text('Next')").first
-                if next_btn.is_visible() and next_btn.is_enabled():
+                if next_btn.is_visible() and next_btn.is_enabled() and not next_btn.get_attribute("disabled") and next_btn.get_attribute("aria-disabled") != "true":
                     next_btn.click()
                     self.page.wait_for_timeout(400)
                 else:
                     break
-        except Exception:
-            pass
-        return sorted(list(vendors))
+        except Exception as ex:
+            logger.debug(f"Vendors table scan ended: {ex}")
+        logger.info(f"[DISCOVERED VENDORS] Found {len(vendors)} entries in grid")
+        return vendors
+
+    def create_category(self, name: str, description: str = "Standard category", **kwargs):
+        """Creates a new Category through the UI modal."""
+        self.click_add_category()
+        self.fill_category_details(name=name, description=description)
+        self.click_create()
+        self._ensure_modal_closed()
+
+    def create_sub_category(self, category: str, sub_category_name: str, code_prefix: str = "SUB", description: str = "Standard subcategory", **kwargs):
+        """Creates a new Sub-Category through the UI modal."""
+        self.click_add_sub_category()
+        self.fill_sub_category_details(category_name=category, sub_category_name=sub_category_name, code_prefix=code_prefix, description=description)
+        self.click_create()
+        self._ensure_modal_closed()
+
+    def create_vendor(self, name: str, contact_person: str = "Sales", phone: str = "9876543210", email: str = "vendor@example.com", address: str = "Corporate HQ", gst: str = "07AAAAA0000A1Z5", **kwargs):
+        """Creates a new Vendor through the UI modal."""
+        self.click_add_vendor()
+        self.fill_vendor_details(name=name, contact_person=contact_person, phone=phone, email=email, address=address, gst=gst)
+        self.click_create()
+        self._ensure_modal_closed()
 
     def _ensure_modal_closed(self):
-        dialog = self.page.locator("[role='dialog']").first
-        if dialog.is_visible():
-            close_btn = dialog.locator(".chakra-modal__close-btn, button:has-text('Cancel')").first
-            if close_btn.is_visible():
-                try:
-                    close_btn.click(force=True)
-                    dialog.wait_for(state="hidden", timeout=2000)
-                except Exception:
-                    pass
-            if dialog.is_visible():
-                try:
-                    self.page.keyboard.press("Escape")
-                    dialog.wait_for(state="hidden", timeout=2000)
-                except Exception:
-                    pass
         try:
-            self.page.locator(".chakra-modal__overlay").first.wait_for(state="hidden", timeout=2000)
+            dialog = self.page.locator("[role='dialog'], .chakra-modal__content").first
+            if dialog.is_visible(timeout=500):
+                close_btn = dialog.locator(".chakra-modal__close-btn, button:has-text('Cancel')").first
+                if close_btn.is_visible(timeout=500):
+                    close_btn.click(force=True)
+                else:
+                    self.page.keyboard.press("Escape")
+                self.page.wait_for_timeout(300)
+            self.dismiss_toasts()
         except Exception:
             pass
+        self.page.wait_for_timeout(200)
 
     def click_add_category(self):
+        self.dismiss_toasts()
         self._ensure_modal_closed()
         self.navigate_to_category_tab()
-        self.page.locator(self.ADD_CATEGORY_BTN).click()
-        self.page.locator("[role='dialog']").wait_for(state="visible", timeout=10000)
+        btn = self.page.locator("button:has-text('Add Category'), button.chakra-button:has-text('Category')").first
+        if not btn.is_visible(timeout=1500):
+            btn = self.page.get_by_role("button", name=re.compile(r"Add Category", re.I)).first
+        btn.wait_for(state="visible", timeout=10000)
+
+        dialog = self.page.locator("[role='dialog'], .chakra-modal__content").first
+        for _ in range(3):
+            btn.click(force=True)
+            self.page.wait_for_timeout(400)
+            if dialog.is_visible(timeout=1000):
+                break
+        dialog.wait_for(state="visible", timeout=10000)
+        self.page.wait_for_timeout(300)
 
     def click_add_sub_category(self):
+        self.dismiss_toasts()
         self._ensure_modal_closed()
         self.navigate_to_sub_categories()
-        logger.info("Attempting to click Add Sub Category")
-        btn = self.page.get_by_role("button", name="Add Sub Category", exact=True).first
-        if not btn.is_visible():
-            btn = self.page.locator("button:has-text('Add Sub Category')").first
-        btn.click(force=True)
-        self.page.locator("[role='dialog']").wait_for(state="visible", timeout=10000)
+        btn = self.page.locator("button:has-text('Add Sub Category'), button:has-text('Add Sub')").first
+        if not btn.is_visible(timeout=1500):
+            btn = self.page.get_by_role("button", name=re.compile(r"Add Sub", re.I)).first
+        btn.wait_for(state="visible", timeout=10000)
+
+        dialog = self.page.locator("[role='dialog'], .chakra-modal__content").first
+        for _ in range(3):
+            btn.click(force=True)
+            self.page.wait_for_timeout(400)
+            if dialog.is_visible(timeout=1000):
+                break
+        dialog.wait_for(state="visible", timeout=10000)
+        self.page.wait_for_timeout(300)
 
     def click_add_vendor(self):
+        self.dismiss_toasts()
         self._ensure_modal_closed()
         self.navigate_to_vendors()
-        logger.info("Attempting to click Add Vendor")
-        btn = self.page.locator("button:has-text('Add Vendor'), [role='button']:has-text('Add Vendor')").first
-        if not btn.is_visible():
-            btn = self.page.get_by_role("button", name="Add Vendor", exact=True).first
+        btn = self.page.locator("button:has-text('Add Vendor'), button.chakra-button:has-text('Vendor')").first
+        if not btn.is_visible(timeout=1500):
+            btn = self.page.get_by_role("button", name=re.compile(r"Add Vendor", re.I)).first
         btn.wait_for(state="visible", timeout=10000)
-        btn.click(force=True)
-        self.page.locator("[role='dialog']").wait_for(state="visible", timeout=10000)
+
+        dialog = self.page.locator("[role='dialog'], .chakra-modal__content").first
+        for _ in range(3):
+            btn.click(force=True)
+            self.page.wait_for_timeout(400)
+            if dialog.is_visible(timeout=1000):
+                break
+        dialog.wait_for(state="visible", timeout=10000)
+        self.page.wait_for_timeout(300)
 
     def fill_category_details(self, name: str, description: str = None, toggle_spans: bool = False):
         dialog = self.page.locator("[role='dialog']").first
@@ -380,9 +441,9 @@ class AssetMasterPage(BasePage):
                     pass
 
     def click_create(self):
-        btn = self.page.get_by_role("button", name="Create", exact=True).first
+        btn = self.page.locator("[role='dialog'] button:has-text('Create'), button:has-text('Create'), button[type='submit']").first
         if not btn.is_visible(timeout=1000):
-            btn = self.page.locator(self.CREATE_BTN).first
+            btn = self.page.get_by_role("button", name="Create", exact=True).first
         btn.click(force=True)
         self.page.wait_for_timeout(400)
 
@@ -539,10 +600,10 @@ class AssetMasterPage(BasePage):
         if inline_errs:
             return f"Validation: {', '.join(inline_errs)}"
 
-        return self.wait_for_toast(self.TOAST)
+        return super().wait_for_toast_message(self.TOAST)
 
     def wait_for_toast_message(self, timeout: int = 5000) -> str:
-        return self.wait_for_toast(self.TOAST, timeout=timeout)
+        return super().wait_for_toast_message(self.TOAST, timeout=timeout)
 
     def set_category_inactive(self, category_name: str):
         """Edit a category and toggle its Active status to Inactive."""

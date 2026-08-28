@@ -18,9 +18,16 @@ class AssetAssignmentPage(BasePage):
         self.page.wait_for_load_state("domcontentloaded")
 
     def click_assign_asset(self):
-        self.page.locator(self.ASSIGN_ASSET_BTN).first.wait_for(state="visible", timeout=10000)
-        self.page.locator(self.ASSIGN_ASSET_BTN).first.click()
-        self.page.locator("[role='dialog'][aria-modal='true']").wait_for(state="visible", timeout=10000)
+        """Clicks 'Assign Asset' button to open direct assignment drawer/modal."""
+        btn = self.page.locator("button:has-text('Assign Asset'), button.chakra-button:has-text('Assign Asset')").first
+        if not btn.is_visible(timeout=3000):
+            btn = self.page.get_by_role("button", name="Assign Asset").first
+
+        btn.wait_for(state="visible", timeout=10000)
+        btn.click()
+        modal = self.page.locator(".chakra-modal__content, .chakra-drawer__content, [role='dialog']").first
+        modal.wait_for(state="visible", timeout=10000)
+        self.page.wait_for_timeout(500)
 
     def validate_available_assets_dropdown(self) -> dict:
         """
@@ -53,10 +60,55 @@ class AssetAssignmentPage(BasePage):
             logger.warning(f"Error checking available asset dropdown: {ex}")
             return {"populated": False, "count": 0, "items": []}
 
+    def is_asset_in_available_dropdown(self, asset_code: str) -> bool:
+        """
+        Targeted search filter check:
+        1. Clicks 'Select asset' trigger button.
+        2. Clicks self.page.get_by_placeholder("Search...") directly.
+        3. Pastes/fills the asset code to instantly filter the list.
+        4. Verifies if any matching asset option exists.
+        """
+        logger.info(f"Checking availability of asset code '{asset_code}' via targeted search filter...")
+        trigger_btn = self.page.locator("button:has-text('Select asset'), button:has-text('Select')").first
+        if not trigger_btn.is_visible(timeout=1500):
+            trigger_btn = self.page.locator(".chakra-menu__menubutton, button").filter(has_text=re.compile(r"Select|Available|ASSET", re.I)).first
+
+        if not trigger_btn.is_visible(timeout=1500):
+            logger.warning("Available Asset dropdown trigger button is not visible.")
+            return False
+
+        try:
+            trigger_btn.click()
+            self.page.wait_for_timeout(250)
+
+            # Direct search input click and fill
+            search_input = self.page.get_by_placeholder("Search...")
+            search_input.click()
+            search_input.fill(asset_code)
+            self.page.wait_for_timeout(250)
+
+            # Direct check for filtered matching option
+            target_match = self.page.locator("[role='menuitem'], [role='menuitemcheckbox'], [role='option'], .chakra-menu__menuitem, div.chakra-menu__menu-list button").filter(has_text=asset_code)
+            is_present = target_match.count() > 0
+
+            # Press Escape to close popover cleanly
+            self.page.keyboard.press("Escape")
+            self.page.wait_for_timeout(200)
+
+            logger.info(f"[SEARCH FILTER RESULT] Asset '{asset_code}' visible in filtered dropdown = {is_present}")
+            return is_present
+        except Exception as ex:
+            logger.warning(f"Error checking targeted asset in dropdown: {ex}")
+            try:
+                self.page.keyboard.press("Escape")
+            except Exception:
+                pass
+            return False
+
     def fill_assignment_details(self, employee_name: str, category: str, sub_category: str, asset_name_or_code: str = None, expected_return_date: str = None, remarks: str = None) -> dict:
         logger.info(f"Filling assignment details: Employee={employee_name}, Category={category}, SubCategory={sub_category}")
         
-        # Employee Search input
+        # 1. Employee Search input
         emp_search = self.page.get_by_placeholder("Search employee name…")
         if not emp_search.is_visible(timeout=1000):
             emp_search = self.page.locator("input[placeholder*='Search employee']").first
@@ -66,63 +118,101 @@ class AssetAssignmentPage(BasePage):
         # Select first matching result from suggestion popover/portal
         try:
             opt = self.page.locator(".chakra-portal, [role='listbox'], [role='option'], .chakra-menu__menu-list").get_by_text(employee_name, exact=False).first
-            if not opt.is_visible(timeout=2500):
-                opt = self.page.locator(".chakra-portal div, [role='option'], p, li").filter(has_text=re.compile(employee_name.split()[0], re.I)).first
-            opt.click(force=True)
+            if opt.is_visible(timeout=1500):
+                opt.click(force=True)
+            else:
+                fallback = self.page.locator(".chakra-portal div, [role='option'], p, li").filter(has_text=re.compile(employee_name.split()[0], re.I)).first
+                if fallback.is_visible(timeout=1500):
+                    fallback.click(force=True)
+                else:
+                    self.page.keyboard.press("ArrowDown")
+                    self.page.keyboard.press("Enter")
         except Exception as ex:
             logger.warning(f"Note selecting employee '{employee_name}': {ex}")
             self.page.keyboard.press("ArrowDown")
             self.page.keyboard.press("Enter")
         
         # Category dropdown
-        if category:
-            cat_select = self.page.get_by_label("Category*", exact=True)
-            if not cat_select.is_visible(timeout=1000):
-                cat_select = self.page.locator("select").first
+        cat_select = self.page.get_by_label("Category*", exact=True)
+        if not cat_select.is_visible(timeout=1000):
+            cat_select = self.page.locator("select").first
+
+        cat_options = [o.strip() for o in cat_select.locator("option").all_inner_texts() if o.strip() and not o.lower().startswith("select")]
+        target_cat = category if category and any(category.lower() in o.lower() for o in cat_options) else (cat_options[0] if cat_options else None)
+
+        def _select_cat(cat_name):
+            if not cat_name:
+                return
             try:
-                cat_select.select_option(label=category)
+                cat_select.select_option(label=cat_name)
             except Exception:
-                options = cat_select.locator("option").all_inner_texts()
-                for idx, opt in enumerate(options):
-                    if category.lower() in opt.lower():
+                for idx, opt in enumerate(cat_select.locator("option").all_inner_texts()):
+                    if cat_name.lower() in opt.lower():
                         cat_select.select_option(index=idx)
                         break
-            self.page.wait_for_timeout(500)
+            self.page.wait_for_timeout(800)
+
+        _select_cat(target_cat)
         
         # Sub Category dropdown
-        sub_select = self.page.get_by_label("Sub Category*", exact=True)
-        if not sub_select.is_visible(timeout=1000):
-            sub_select = self.page.locator("select").nth(1)
+        modal = self.page.locator("[role='dialog'], .chakra-modal__content, .chakra-drawer__content").first
+        if not modal.is_visible(timeout=1000):
+            modal = self.page
 
-        sub_options = [o.strip() for o in sub_select.locator("option").all_inner_texts() if o.strip() and not o.startswith("Select")]
-        target_sub = sub_category if sub_category and sub_category in sub_options else (sub_options[0] if sub_options else None)
+        sub_select = modal.locator("//div[./label[contains(text(), 'Sub Category')]]//select").first
+        if not sub_select.is_visible(timeout=1000):
+            sub_select = modal.get_by_label("Sub Category*", exact=True).first
+        if not sub_select.is_visible(timeout=1000):
+            sub_select = modal.locator("select").nth(1)
 
         def _try_select_asset(sub_name):
             try:
-                sub_select.select_option(label=sub_name)
+                sub_select.select_option(label=sub_name, timeout=1500)
             except Exception:
-                for idx, opt in enumerate(sub_select.locator("option").all_inner_texts()):
-                    if sub_name.lower() in opt.lower():
-                        sub_select.select_option(index=idx)
-                        break
-            self.page.wait_for_timeout(1500)
+                try:
+                    options = [o.strip() for o in sub_select.locator("option").all_inner_texts() if o.strip()]
+                    for idx, opt in enumerate(options):
+                        if any(part.lower() in opt.lower() for part in sub_name.lower().split() if len(part) > 3) or sub_name.lower() in opt.lower():
+                            sub_select.select_option(index=idx, timeout=1500)
+                            break
+                except Exception as e:
+                    logger.warning(f"Subcategory option select note: {e}")
+            self.page.wait_for_timeout(300)
 
-            trigger = self.page.get_by_role("button", name=re.compile(r"(Select asset|Select|Available)", re.I)).first
-            if not trigger.is_visible(timeout=1000):
-                trigger = self.page.locator(".chakra-menu__menubutton, [id*='menu-button']").first
+            trigger = modal.locator(".chakra-menu__menubutton, button").filter(has_text=re.compile(r"Select asset|Select|Available|ASSET", re.I)).first
+            if not trigger.is_visible(timeout=300):
+                trigger = modal.locator(".chakra-menu__menubutton").first
 
-            if trigger.is_visible(timeout=2000):
-                trigger.click()
-                self.page.wait_for_timeout(800)
-                menu = self.page.locator(".chakra-portal div[role='menu'], div.chakra-menu__menu-list").first
-                if menu.is_visible(timeout=2000):
-                    items = menu.locator("[role='menuitem'], button").all()
-                else:
-                    items = self.page.locator("[role='menuitem'], .chakra-menu__menuitem").all()
+            if trigger.is_visible(timeout=300):
+                trigger.click(force=True)
+                self.page.wait_for_timeout(200)
+
+                # Optional search box inside dropdown popover
+                if asset_name_or_code:
+                    try:
+                        search_box = self.page.get_by_placeholder("Search...").first
+                        if not search_box.is_visible(timeout=500):
+                            search_box = self.page.locator(".chakra-portal input[placeholder*='Search' i], div.chakra-menu__menu-list input").first
+                        if search_box.is_visible(timeout=1000):
+                            search_box.fill(asset_name_or_code)
+                            self.page.wait_for_timeout(300)
+                    except Exception as e:
+                        logger.warning(f"Dropdown search box note: {e}")
+
+                menu = self.page.locator(".chakra-portal div[role='menu'], div.chakra-menu__menu-list, [role='menu']").first
+                items = menu.locator("[role='menuitem'], [role='menuitemcheckbox'], [role='option'], button").all() if menu.is_visible(timeout=300) else self.page.locator("[role='menuitem'], [role='menuitemcheckbox'], .chakra-menu__menuitem").all()
 
                 valid_items = [itm for itm in items if "not uploaded" not in itm.inner_text().lower() and len(itm.inner_text().strip()) > 0]
                 if valid_items:
-                    target_itm = valid_items[0]
+                    target_itm = None
+                    if asset_name_or_code:
+                        for itm in valid_items:
+                            if asset_name_or_code.lower() in itm.inner_text().lower():
+                                target_itm = itm
+                                break
+                    if not target_itm:
+                        target_itm = valid_items[0]
+
                     text = target_itm.inner_text().strip()
                     m = re.search(r"ASSET-[A-Z0-9-]+", text)
                     code = m.group(0) if m else text
@@ -133,19 +223,36 @@ class AssetAssignmentPage(BasePage):
                     self.page.keyboard.press("Escape")
             return None
 
-        selected_code = _try_select_asset(target_sub) if target_sub else None
+        # Try initial subcategory or iterate available subcategories
+        selected_code = None
+        sub_options = [o.strip() for o in sub_select.locator("option").all_inner_texts() if o.strip() and not o.lower().startswith("select")]
+        target_sub = sub_category if sub_category and any(sub_category.lower() in o.lower() or o.lower() in sub_category.lower() for o in sub_options) else (sub_options[0] if sub_options else None)
 
-        # Fallback to other available subcategories if first one had 0 stock
-        if not selected_code and sub_options:
+        if target_sub:
+            selected_code = _try_select_asset(target_sub)
+
+        # Fast fallback to other available subcategories under target category if asset_name_or_code not strictly required
+        if not selected_code and not asset_name_or_code and sub_options:
             for alt_sub in sub_options:
                 if alt_sub != target_sub:
-                    logger.info(f"[STOCK LOOKUP] Checking available assets under SubCategory: '{alt_sub}'...")
                     selected_code = _try_select_asset(alt_sub)
                     if selected_code:
                         break
 
-        # STRICT USER RULE: If no asset was selected, mark test failed immediately!
-        assert selected_code, f"[ASSIGNMENT FAILED] Could not select an available asset from dropdown for '{employee_name}'! Ensure available stock exists."
+        # Fast fallback across other categories if not strictly looking for specific asset_name_or_code
+        if not selected_code and not asset_name_or_code and cat_options:
+            for alt_cat in cat_options:
+                if alt_cat != target_cat:
+                    _select_cat(alt_cat)
+                    alt_subs = [o.strip() for o in sub_select.locator("option").all_inner_texts() if o.strip() and not o.lower().startswith("select")]
+                    for alt_s in alt_subs:
+                        selected_code = _try_select_asset(alt_s)
+                        if selected_code:
+                            break
+                    if selected_code:
+                        break
+
+        assert selected_code, f"[ASSIGNMENT FAILED] Could not select an available asset from dropdown for '{employee_name}'! Ensure available stock exists in the branch."
 
         # Expected Return Date
         if expected_return_date:
@@ -166,14 +273,30 @@ class AssetAssignmentPage(BasePage):
         return selected_code or asset_name_or_code or "ASSET"
 
     def click_submit_assignment(self):
-        dialog = self.page.locator("[role='dialog'], .chakra-modal__content, .chakra-drawer__content").first
-        btn = dialog.get_by_role("button", name=re.compile(r"Assign Asset|Assign|Submit|Save", re.I)).first
-        if not btn.is_visible(timeout=1000):
-            btn = self.page.locator("button:has-text('Assign Asset'), button:has-text('Assign'), button:has-text('Submit')").first
+        """Submits the Direct Assignment form using the modal's submit button (.last)."""
+        btn = self.page.locator("button:has-text('Assign Asset'), button.chakra-button:has-text('Assign Asset')").last
+        if not btn.is_visible(timeout=2000):
+            dialog = self.page.locator("[role='dialog'], .chakra-modal__content, .chakra-drawer__content").first
+            btn = dialog.locator("button:has-text('Assign Asset'), button:has-text('Assign'), button[type='submit']").last
         btn.click(force=True)
+        try:
+            self.page.locator(".chakra-spinner, span:has-text('Loading')").wait_for(state="hidden", timeout=5000)
+        except Exception:
+            pass
+        self.page.wait_for_timeout(500)
 
     def click_cancel(self):
-        self.page.locator(self.CANCEL_BTN).click()
+        try:
+            btn = self.page.locator("button:has-text('Cancel'), button.chakra-button:has-text('Cancel')").last
+            if btn.is_visible(timeout=1000):
+                btn.click()
+            else:
+                self.page.keyboard.press("Escape")
+        except Exception:
+            try:
+                self.page.keyboard.press("Escape")
+            except Exception:
+                pass
 
     def assign_requested_asset(self, employee_name: str, asset_code: str = None, assignment_type: str = "Temporary", expected_return_date: str = "2026-12-31", remarks: str = "Asset issued against request") -> dict:
         """

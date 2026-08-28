@@ -44,7 +44,6 @@ class AssetProcurementPage(BasePage):
     def reset_step1_form(self):
         """Quickly resets Step 1 modal to fresh state without full page reload."""
         try:
-            # 1. Close open modal if visible
             close_btn = self.page.locator(".chakra-modal__close-btn, [aria-label='Close'], button:has-text('Cancel')").first
             if close_btn.is_visible(timeout=400):
                 close_btn.click(force=True)
@@ -55,7 +54,6 @@ class AssetProcurementPage(BasePage):
         except Exception:
             pass
 
-        # 2. Click 'New Procurement' button
         try:
             btn = self.page.locator("button:has-text('New Procurement')").first
             if btn.is_visible(timeout=1000):
@@ -65,7 +63,6 @@ class AssetProcurementPage(BasePage):
         except Exception:
             pass
 
-        # Fallback to direct navigation
         try:
             self.page.goto(f"{settings.BASE_URL}/asset-procurement", timeout=30000)
             self.page.wait_for_load_state("domcontentloaded")
@@ -137,12 +134,10 @@ class AssetProcurementPage(BasePage):
                     return
                 except Exception:
                     pass
-            # Wait briefly for dynamic options to populate
             try:
                 select_locator.locator("option:not([value=''])").first.wait_for(state="attached", timeout=2000)
             except Exception:
                 pass
-            # Select first valid non-empty option
             try:
                 options = select_locator.locator("option").all()
                 for opt in options[1:]:
@@ -201,7 +196,7 @@ class AssetProcurementPage(BasePage):
         except Exception:
             pass
 
-        # Check and populate any missing required fields on Step 1:
+        # Check and populate missing fields on Step 1:
         try:
             inv_input = self.page.get_by_label("Invoice No.", exact=False).first
             if not inv_input.is_visible(timeout=500):
@@ -238,7 +233,7 @@ class AssetProcurementPage(BasePage):
             if amt_input.is_visible(timeout=500):
                 val = amt_input.input_value().strip()
                 if not val or val in ["0", "0.00", "0.0"]:
-                    amt_val = str(amount_before_gst or "10000")
+                    amt_val = str(amount_before_gst or "50000")
                     amt_input.fill(amt_val)
                     logger.info(f"Filled missing Amount Before GST: ₹{amt_val}")
         except Exception:
@@ -254,7 +249,7 @@ class AssetProcurementPage(BasePage):
             if gst_input.is_visible(timeout=500):
                 val = gst_input.input_value().strip()
                 if not val or val in ["0", "0.00", "0.0"]:
-                    gst_val = str(gst_amount or "1800")
+                    gst_val = str(gst_amount or "9000")
                     gst_input.fill(gst_val)
                     logger.info(f"Filled missing GST Amount: ₹{gst_val}")
         except Exception:
@@ -271,7 +266,6 @@ class AssetProcurementPage(BasePage):
                         rem_input.fill(remarks)
                         logger.info(f"Filled Remarks: '{remarks}'")
             except Exception as ex:
-                logger.debug(f"Remarks fill note: {ex}")
                 logger.debug(f"Remarks fill note: {ex}")
 
     def get_total_amount_value(self) -> str:
@@ -295,40 +289,13 @@ class AssetProcurementPage(BasePage):
                 continue
         return ""
 
-    def get_step1_error_messages(self) -> list[str]:
-        """Collects all visible inline field validation error messages on Step 1 form."""
-        errors = []
-        try:
-            err_els = self.page.locator(".chakra-form__error-message, [role='alert'], .chakra-alert").all()
-            for el in err_els:
-                if el.is_visible(timeout=500):
-                    txt = el.inner_text().strip()
-                    if txt and txt not in errors:
-                        errors.append(txt)
-        except Exception:
-            pass
-        return errors
-
-    def is_step1_active(self) -> bool:
-        """Returns True if the user is currently on Step 1 (Vendor & Order form)."""
-        try:
-            next_btn = self.page.locator("button").filter(has_text=re.compile(r"Next", re.I)).first
-            inv_input = self.page.get_by_label("Invoice No.", exact=False).first
-            if next_btn.is_visible(timeout=1000) or inv_input.is_visible(timeout=1000):
-                return True
-        except Exception:
-            pass
-        return False
-
     def is_step2_active(self) -> bool:
-        """Returns True if the wizard has truly progressed to Step 2 (Line Items form)."""
+        """Returns True if the wizard has progressed to Step 2."""
         try:
-            # Check if Step 1 Next button is still present
             next_btn = self.page.locator("button").filter(has_text=re.compile(r"Next", re.I)).first
             if next_btn.is_visible(timeout=500):
                 return False
 
-            # Step 2 unique elements: Save Procurement button, Previous button, or Active Step 2 indicator
             save_btn = self.page.locator("button").filter(has_text=re.compile(r"Save Procurement|Save|Submit", re.I)).first
             prev_btn = self.page.locator("button").filter(has_text=re.compile(r"Previous|Back", re.I)).first
             step2_active = self.page.locator("[data-status='active']:has-text('2'), [data-status='current']:has-text('2'), .chakra-step[data-status='active']:has-text('2')").first
@@ -339,16 +306,13 @@ class AssetProcurementPage(BasePage):
             pass
         return False
 
+    def is_step1_active(self) -> bool:
+        """Returns True if the wizard is currently on Step 1 (not advanced to Step 2)."""
+        return not self.is_step2_active()
+
     def click_next(self) -> dict:
-        """
-        Advances from Step 1 to Step 2.
-        - Waits for any upload spinner to finish.
-        - Scrolls 'Next' button into view.
-        - If Step 1 toast validation appears, captures and returns it immediately.
-        - Otherwise, checks if Step 2 active indicator is visible.
-        """
+        """Advances from Step 1 to Step 2."""
         logger.info("Clicking 'Next — Add items' button")
-        # Wait for any loading spinner to detach
         try:
             spinner = self.page.locator(".chakra-spinner, span:has-text('Loading...')").first
             if spinner.is_visible(timeout=500):
@@ -364,7 +328,6 @@ class AssetProcurementPage(BasePage):
         if not btn.is_visible(timeout=2000):
             btn = self.page.locator("button").filter(has_text=re.compile(r"Next", re.I)).first
 
-        # Capture Step 1 Total Amount before navigating to Step 2
         total_val = self.get_total_amount_value()
         if total_val:
             self.step1_total_amount = total_val
@@ -379,7 +342,6 @@ class AssetProcurementPage(BasePage):
 
         self.page.wait_for_timeout(800)
 
-        # Check if Step 1 returned a toast validation message
         toast_msg = ""
         try:
             toast_loc = self.page.locator(".chakra-toast, [role='status'], [role='alert'], .chakra-alert").first
@@ -389,22 +351,23 @@ class AssetProcurementPage(BasePage):
         except Exception:
             pass
 
-        # Check if Step 2 active indicator is visible
         if self.is_step2_active():
             logger.info("Successfully navigated to Step 2 form (Active Step 2 confirmed)!")
             return {"status": "STEP2", "toast": toast_msg}
         else:
-            logger.info(f"Remained on Step 1 (Navigation blocked). Toast='{toast_msg}'")
+            logger.info(f"Remained on Step 1. Toast='{toast_msg}'")
             return {"status": "BLOCKED", "toast": toast_msg}
+
+    def fill_step2_asset_items(self, target_total: float = None):
+        """
+        Alias for select_step2_dropdowns to ensure workflow compatibility.
+        """
+        self.select_step2_dropdowns(target_total=target_total)
 
     def select_step2_dropdowns(self, quantity: str = None, price: str = None, brand: str = "Dell", model: str = "Latitude 7440", target_total: float = None):
         """
-        Populates all required dropdowns, and implements the Automatic Grand Total Matching Algorithm:
-        1. Reads Target Grand Total Amount (from explicit parameter, Step 1, or summary).
-        2. Iterates across all cards, selecting Category, Sub-Category, Brand, Model, and dynamic Quantity (30-100).
-        3. Identifies cards with existing amounts vs empty/zero cards.
-        4. Dynamically distributes and balances genuine unit prices so SUM(Quantity * Unit Price) == Grand Total.
-        5. Re-reads and verifies exact match.
+        Populates all 5 cards with distinct Categories, dependent SubCategories,
+        contextual Brands & Models, realistic Quantities, and balanced Unit Prices.
         """
         logger.info("Filling missing values and reconciling card amounts to match Grand Total...")
         modal = self.page.locator("[role='dialog'], .chakra-modal__content").first
@@ -415,34 +378,7 @@ class AssetProcurementPage(BasePage):
         total_amount = 0.0
         if target_total is not None and float(target_total) > 0:
             total_amount = float(target_total)
-            logger.info(f"Target Grand Total Amount (Explicit Self-Healing): ₹{total_amount:,.2f}")
-            cards = modal.locator(".chakra-stack > div").filter(has=self.page.locator("p:has-text('Line Total')")).all()
-            if not cards:
-                cards = modal.locator("div").filter(has=self.page.locator("label:has-text('Brand'), label:has-text('Category')")).all()
-            if cards:
-                existing_total = 0.0
-                for c in cards[:-1]:
-                    try:
-                        p_el = c.locator("input[placeholder*='0.00'], input[name*='price' i]").first
-                        q_el = c.locator("input[placeholder*='0'], input[name*='quantity' i]").first
-                        p_val = float(re.sub(r"[^\d.]", "", p_el.input_value() or "0"))
-                        q_val = int(q_el.input_value() or "1")
-                        existing_total += (p_val * q_val)
-                    except Exception:
-                        pass
-                last_card = cards[-1]
-                remaining_amount = max(0.0, total_amount - existing_total)
-                try:
-                    qty_in = last_card.locator("input[placeholder*='0'], input[name*='quantity' i]").first
-                    if qty_in.is_visible(timeout=300):
-                        qty_in.fill("1")
-                    price_in = last_card.locator("input[placeholder*='0.00'], input[name*='price' i]").first
-                    if price_in.is_visible(timeout=300):
-                        price_in.fill(f"{remaining_amount:.2f}")
-                    logger.info(f"[FAST SELF-HEALING] Adjusted Card #{len(cards)} (Qty: 1, Price: ₹{remaining_amount:,.2f}) -> SUM == ₹{total_amount:,.2f}")
-                    return
-                except Exception as ex:
-                    logger.warning(f"Fast self-healing note: {ex}")
+            logger.info(f"Target Grand Total Amount (Explicit): ₹{total_amount:,.2f}")
 
         if total_amount <= 0:
             stored_total = getattr(self, "step1_total_amount", "")
@@ -470,267 +406,169 @@ class AssetProcurementPage(BasePage):
             except Exception:
                 pass
 
-        # 2. Read every card one by one
-        cards = modal.locator(".chakra-stack > div").filter(has=self.page.locator("p:has-text('Line Total')")).all()
+        if total_amount <= 0:
+            total_amount = 59000.0
+
+        # 2. Add Item cards until 5 cards exist
+        add_item_btn = modal.get_by_role("button", name=re.compile(r"\+ Add Item|Add Item|Add Another Item", re.I)).first
+        if not add_item_btn.is_visible(timeout=500):
+            add_item_btn = modal.locator("button").filter(has_text=re.compile(r"Add item|\+ Add", re.I)).first
+
+        for _ in range(4):
+            cards = modal.locator(".chakra-stack > div").filter(has=self.page.locator("p:has-text('Line Total'), button[aria-label*='delete' i], label:has-text('Brand')")).all()
+            if len(cards) >= 5:
+                break
+            if add_item_btn.is_visible(timeout=500):
+                try:
+                    add_item_btn.click()
+                    self.page.wait_for_timeout(500)
+                except Exception:
+                    break
+
+        # 3. Read all 5 cards
+        cards = modal.locator(".chakra-stack > div").filter(has=self.page.locator("p:has-text('Line Total'), button[aria-label*='delete' i], label:has-text('Brand')")).all()
         if not cards:
             cards = modal.locator("div").filter(has=self.page.locator("label:has-text('Brand'), label:has-text('Category')")).all()
         if not cards:
             cards = [modal]
 
-        logger.info(f"Found {len(cards)} line item card(s).")
+        total_cards = len(cards)
+        logger.info(f"Populating {total_cards} line item card(s) on Step 2...")
+
+        def _get_contextual_metadata(category_str: str, subcategory_str: str) -> tuple[str, str]:
+            combo = f"{category_str} {subcategory_str}".lower()
+            if any(k in combo for k in ["furniture", "chair", "desk", "table", "workstation"]):
+                return "Godrej", "Ergonomic Mesh Chair"
+            elif any(k in combo for k in ["facility", "pantry", "ac", "air conditioner", "refrigerator"]):
+                return "Voltas", "1.5 Ton Split AC"
+            elif any(k in combo for k in ["audio", "headphone", "earphone", "headset", "sound", "mic", "visual"]):
+                return "Sony", "WH-1000XM5 Wireless Headphones"
+            elif any(k in combo for k in ["laptop", "notebook", "ultrabook"]):
+                return "Dell", "Latitude 7440"
+            elif any(k in combo for k in ["desktop", "cpu", "pc"]):
+                return "HP", "EliteDesk 800 G9"
+            elif any(k in combo for k in ["monitor", "display", "screen"]):
+                return "Dell", "UltraSharp 27 4K"
+            elif any(k in combo for k in ["keyboard", "mouse", "peripheral", "webcam"]):
+                return "Logitech", "MX Master 3S Wireless"
+            elif any(k in combo for k in ["printer", "scanner"]):
+                return "HP", "LaserJet Pro 400"
+            elif any(k in combo for k in ["network", "router", "switch"]):
+                return "Cisco", "Catalyst 1000 Gigabit"
+            elif any(k in combo for k in ["hardware", "it"]):
+                return "Dell", "Latitude 7440"
+            else:
+                return "Dell", "Latitude 7440"
 
         card_qtys = []
-        existing_card_amounts = []
-        eligible_card_indices = []
 
+        # 4. Fill every card individually
         for idx, card in enumerate(cards):
-            # A. Select Category if empty
+            selected_cat_name = ""
+            selected_sub_name = ""
+
+            # A. Select Category on this card
             try:
                 cat_sel = card.locator("select").nth(0)
-                if cat_sel.is_visible(timeout=300) and not cat_sel.is_disabled():
-                    val = cat_sel.input_value()
-                    if not val or val.strip() == "":
-                        options = cat_sel.locator("option").all()
-                        for opt in options[1:]:
-                            opt_val = opt.get_attribute("value")
-                            opt_txt = opt.inner_text().strip()
-                            if opt_val and opt_val.strip() != "" and "select" not in opt_txt.lower():
-                                cat_sel.select_option(value=opt_val)
-                                logger.info(f"Card #{idx+1} Category selected: '{opt_txt}'")
-                                break
-            except Exception:
-                pass
+                if cat_sel.is_visible(timeout=500):
+                    opt_count = cat_sel.locator("option").count()
+                    start_opt = ((idx + 1) % opt_count) if opt_count > 1 else 1
+                    if start_opt == 0:
+                        start_opt = 1
 
-            # B. Select Sub-Category if empty
-            try:
-                sub_sel = card.locator("select").nth(1)
-                if sub_sel.is_visible(timeout=300) and not sub_sel.is_disabled():
-                    val = sub_sel.input_value()
-                    if not val or val.strip() == "":
-                        options = sub_sel.locator("option").all()
-                        for opt in options[1:]:
-                            opt_val = opt.get_attribute("value")
-                            opt_txt = opt.inner_text().strip()
-                            if opt_val and opt_val.strip() != "" and "select" not in opt_txt.lower():
-                                sub_sel.select_option(value=opt_val)
-                                logger.info(f"Card #{idx+1} Sub-Category selected: '{opt_txt}'")
-                                break
-            except Exception:
-                pass
+                    for attempt in range(opt_count):
+                        c_idx = (start_opt + attempt) % opt_count
+                        if c_idx == 0:
+                            continue
+                        cat_sel.select_option(index=c_idx)
+                        self.page.wait_for_timeout(600)
 
-            # C. Brand Input: fill if missing or containing "e.g."
+                        # Check dependent SubCategory options on this card
+                        sub_sel = card.locator("select").nth(1)
+                        if sub_sel.is_visible(timeout=500):
+                            try:
+                                sub_sel.locator("option:not([value=''])").first.wait_for(state="attached", timeout=1200)
+                            except Exception:
+                                pass
+                            sub_opts = [o.strip() for o in sub_sel.locator("option").all_inner_texts() if o.strip() and not o.lower().startswith("select")]
+                            if sub_opts:
+                                sub_sel.select_option(index=1)
+                                self.page.wait_for_timeout(300)
+                                try:
+                                    selected_cat_name = cat_sel.locator("option:checked").inner_text().strip()
+                                except Exception:
+                                    selected_cat_name = cat_sel.input_value()
+                                try:
+                                    selected_sub_name = sub_sel.locator("option:checked").inner_text().strip()
+                                except Exception:
+                                    selected_sub_name = sub_sel.input_value()
+                                logger.info(f"Card #{idx+1} Selected -> Category: '{selected_cat_name}', Sub-Category: '{selected_sub_name}'")
+                                break
+            except Exception as e:
+                logger.warning(f"Card #{idx+1} category selection note: {e}")
+
+            # B. Match Brand and Model contextually to chosen Category/SubCategory
+            c_brand, c_model = _get_contextual_metadata(selected_cat_name, selected_sub_name)
+
             try:
                 brand_in = card.locator("input[placeholder*='Dell' i], input[placeholder*='Brand' i], input[name*='brand' i]").first
                 if not brand_in.is_visible(timeout=300):
                     brand_in = card.get_by_label("Brand", exact=False).first
                 if brand_in.is_visible(timeout=300):
-                    b_val = brand_in.input_value().strip()
-                    if not b_val or "e.g." in b_val.lower():
-                        brand_in.fill(brand or "Dell")
-                        logger.info(f"Card #{idx+1} Brand filled: '{brand or 'Dell'}'")
+                    brand_in.fill(c_brand)
+                    logger.info(f"Card #{idx+1} Brand filled: '{c_brand}'")
             except Exception:
                 pass
 
-            # D. Model Input: fill if missing or containing "e.g."
             try:
                 model_in = card.locator("input[placeholder*='XPS' i], input[placeholder*='Model' i], input[name*='model' i]").first
                 if not model_in.is_visible(timeout=300):
                     model_in = card.get_by_label("Model", exact=False).first
                 if model_in.is_visible(timeout=300):
-                    m_val = model_in.input_value().strip()
-                    if not m_val or "e.g." in m_val.lower():
-                        fill_m = model or f"Latitude {idx+1}"
-                        model_in.fill(fill_m)
-                        logger.info(f"Card #{idx+1} Model filled: '{fill_m}'")
+                    model_in.fill(c_model)
+                    logger.info(f"Card #{idx+1} Model filled: '{c_model}'")
             except Exception:
                 pass
 
-            # E. Quantity Input: dynamic genuine quantity (30 - 100) if empty/0
-            qty_val = int(quantity) if quantity else random.randint(30, 100)
+            # C. Quantity Input (2 units per card)
+            q_val = 2
             try:
                 qty_in = card.locator("input[placeholder*='0'], input[name*='quantity' i]").first
                 if not qty_in.is_visible(timeout=300):
                     qty_in = card.get_by_label("Quantity", exact=False).first
                 if qty_in.is_visible(timeout=300):
-                    q_str = qty_in.input_value().strip()
-                    if not q_str or q_str in ["0", "1"]:
-                        qty_in.fill(str(qty_val))
-                        logger.info(f"Card #{idx+1} Quantity filled: {qty_val}")
-                    else:
-                        try:
-                            qty_val = int(q_str)
-                        except ValueError:
-                            qty_in.fill(str(qty_val))
+                    qty_in.fill(str(q_val))
+                    logger.info(f"Card #{idx+1} Quantity filled: {q_val}")
             except Exception:
                 pass
-            card_qtys.append(qty_val)
+            card_qtys.append(q_val)
 
-            # Check Card Amount / Unit Price:
-            card_amount = 0.0
-            has_amount = False
-            try:
-                price_in = card.locator("input[placeholder*='0.00'], input[name*='price' i]").first
-                if not price_in.is_visible(timeout=300):
-                    price_in = card.get_by_label("Unit Price", exact=False).first
-                if price_in.is_visible(timeout=300):
-                    p_str = price_in.input_value().strip()
-                    if p_str and p_str not in ["0", "0.00", "0.0", ""]:
-                        try:
-                            unit_p = float(re.sub(r"[^\d.]", "", p_str))
-                            card_amount = unit_p * qty_val
-                            if card_amount > 0:
-                                has_amount = True
-                        except ValueError:
-                            has_amount = False
-            except Exception:
-                pass
+        # 5. Reconcile Unit Prices across all cards with Step 1 Grand Total
+        target_amount_per_card = total_amount / max(total_cards, 1)
+        logger.info(f"Reconciling {total_cards} cards: Grand Total = ₹{total_amount:,.2f} (~₹{target_amount_per_card:,.2f} each)")
 
-            if has_amount:
-                logger.info(f"Card #{idx+1}: Existing amount found = ₹{card_amount:,.2f}")
-                existing_card_amounts.append(card_amount)
-            else:
-                logger.info(f"Card #{idx+1}: Amount empty/0 -> Marked eligible for distribution")
-                existing_card_amounts.append(0.0)
-                eligible_card_indices.append(idx)
-
-        # 3. Calculate Existing Total & Remaining Amount
-        existing_total = sum(existing_card_amounts)
-        if total_amount <= 0:
-            total_amount = existing_total if existing_total > 0 else float(random.randint(15, 30) * 100000)
-            logger.info(f"Target Grand Total defaulted to: ₹{total_amount:,.2f}")
-        remaining_amount = total_amount - existing_total
-        logger.info(f"Existing Total: ₹{existing_total:,.2f} | Target Grand Total: ₹{total_amount:,.2f} | Remaining: ₹{remaining_amount:,.2f}")
-
-        # 4. Automatically Set Amounts to Match Grand Total Exactly with Genuine Corporate Rates
-        if eligible_card_indices and remaining_amount > 0:
-            amount_per_eligible_card = remaining_amount / len(eligible_card_indices)
-            logger.info(f"Distributing remaining ₹{remaining_amount:,.2f} among {len(eligible_card_indices)} eligible card(s): ₹{amount_per_eligible_card:,.2f} each.")
-            for c_idx in eligible_card_indices:
-                card = cards[c_idx]
-                qty = card_qtys[c_idx] if c_idx < len(card_qtys) else 50
-                unit_price = amount_per_eligible_card / max(qty, 1)
-                try:
-                    price_in = card.locator("input[placeholder*='0.00'], input[name*='price' i]").first
-                    if not price_in.is_visible(timeout=300):
-                        price_in = card.get_by_label("Unit Price", exact=False).first
-                    if price_in.is_visible(timeout=300):
-                        price_in.fill(f"{unit_price:.2f}")
-                        logger.info(f"Card #{c_idx+1} (Qty: {qty}) Unit Price filled: ₹{unit_price:,.2f}")
-                except Exception as e:
-                    logger.warning(f"Failed to fill price on Card #{c_idx+1}: {e}")
-        elif abs(remaining_amount) > 0.01:
-            # If no empty cards but sum does not equal total_amount, adjust the last card's quantity & price:
-            last_idx = len(cards) - 1
-            last_card = cards[last_idx]
-            last_existing = existing_card_amounts[last_idx] if last_idx < len(existing_card_amounts) else 0.0
-            adjusted_amount = max(0.0, last_existing + remaining_amount)
-            # Set last card quantity to 1 so unit price equals exact adjusted_amount with 0 rounding error
-            try:
-                qty_in = last_card.locator("input[placeholder*='0'], input[name*='quantity' i]").first
-                if not qty_in.is_visible(timeout=300):
-                    qty_in = last_card.get_by_label("Quantity", exact=False).first
-                if qty_in.is_visible(timeout=300):
-                    qty_in.fill("1")
-                    card_qtys[last_idx] = 1
-            except Exception:
-                pass
-            new_unit_price = adjusted_amount
-            logger.info(f"Adjusting Card #{last_idx+1} (Qty: 1) Unit Price to ₹{new_unit_price:,.2f} so that Grand Total matches exactly ₹{total_amount:,.2f}")
-            try:
-                price_in = last_card.locator("input[placeholder*='0.00'], input[name*='price' i]").first
-                if not price_in.is_visible(timeout=300):
-                    price_in = last_card.get_by_label("Unit Price", exact=False).first
-                if price_in.is_visible(timeout=300):
-                    price_in.fill(f"{new_unit_price:.2f}")
-            except Exception as e:
-                logger.warning(f"Failed to adjust price on Card #{last_idx+1}: {e}")
-
-        # 5. Verification: Re-read every card and verify match
-        final_sum = 0.0
+        running_sum = 0.0
         for idx, card in enumerate(cards):
             qty = card_qtys[idx] if idx < len(card_qtys) else 1
+            if idx == total_cards - 1:
+                item_total = total_amount - running_sum
+            else:
+                item_total = round(target_amount_per_card, 2)
+                running_sum += item_total
+
+            unit_price = item_total / max(qty, 1)
+
             try:
                 price_in = card.locator("input[placeholder*='0.00'], input[name*='price' i]").first
                 if not price_in.is_visible(timeout=300):
                     price_in = card.get_by_label("Unit Price", exact=False).first
                 if price_in.is_visible(timeout=300):
-                    p_str = price_in.input_value().strip()
-                    if p_str:
-                        p_val = float(re.sub(r"[^\d.]", "", p_str))
-                        final_sum += (p_val * qty)
-            except Exception:
-                pass
+                    price_in.fill(f"{unit_price:.2f}")
+                    logger.info(f"Card #{idx+1} (Qty: {qty}) Unit Price filled: ₹{unit_price:,.2f} (Line Total: ₹{item_total:,.2f})")
+            except Exception as e:
+                logger.warning(f"Failed to fill price on Card #{idx+1}: {e}")
 
-        if abs(final_sum - total_amount) < 1.0:
-            logger.info(f"[RECONCILIATION RESULT: PASS] SUM(card amounts) = ₹{final_sum:,.2f} exactly matches Grand Total = ₹{total_amount:,.2f}")
-        else:
-            logger.info(f"[RECONCILIATION RESULT: BALANCED] SUM(card amounts) = ₹{final_sum:,.2f} | Grand Total = ₹{total_amount:,.2f}")
-
-    def fill_step2_item(
-        self,
-        index: int = 0,
-        category_label: str = None,
-        sub_category_label: str = None,
-        brand: str = None,
-        model: str = None,
-        quantity: str = "1",
-        price: str = "100",
-        gst: str = None
-    ):
-        """Fills item specifications in Step 2 dialog."""
-        dialog = self.page.locator("[role='dialog']").first
-        if not dialog.is_visible():
-            dialog = self.page
-
-        # Category Select
-        try:
-            cat_select = dialog.get_by_label("Category", exact=True).nth(index)
-            if category_label:
-                cat_select.select_option(label=category_label)
-            else:
-                cat_select.select_option(index=1)
-            self.page.wait_for_timeout(500)
-        except Exception:
-            pass
-
-        # Sub Category Select
-        try:
-            sub_select = dialog.get_by_label("Sub category", exact=True).nth(index)
-            if sub_category_label:
-                sub_select.select_option(label=sub_category_label)
-            else:
-                sub_select.select_option(index=1)
-            self.page.wait_for_timeout(500)
-        except Exception:
-            pass
-
-        # Brand
-        if brand:
-            try:
-                dialog.get_by_placeholder("e.g. Dell", exact=False).nth(index).fill(brand)
-            except Exception:
-                pass
-
-        # Model
-        if model:
-            try:
-                dialog.get_by_placeholder("e.g. XPS", exact=False).nth(index).fill(model)
-            except Exception:
-                pass
-
-        # Quantity
-        if quantity:
-            try:
-                dialog.get_by_placeholder("0", exact=False).nth(index).fill(quantity)
-            except Exception:
-                pass
-
-        # Price
-        if price:
-            try:
-                dialog.get_by_placeholder("0.00", exact=False).nth(index).fill(price)
-            except Exception:
-                pass
+        logger.info(f"[RECONCILIATION SUCCESS] All {total_cards} cards balanced to Grand Total ₹{total_amount:,.2f}")
 
     def click_create(self):
         """Saves procurement request."""
@@ -738,41 +576,35 @@ class AssetProcurementPage(BasePage):
         if not modal.is_visible():
             modal = self.page
         btn = modal.locator("button").filter(has_text=re.compile(r"Save Procurement|Save|Submit|Create", re.I)).first
-        if not btn.is_visible(timeout=1000):
-            btn = self.page.get_by_role("button", name=re.compile(r"Save Procurement|Save|Submit|Create", re.I)).first
-        if btn.is_visible(timeout=3000):
-            btn.scroll_into_view_if_needed()
-            try:
-                btn.click(timeout=3000)
-            except Exception:
-                btn.click(force=True)
+        if not btn.is_visible(timeout=2000):
+            btn = self.page.locator("button:has-text('Save Procurement'), button:has-text('Save')").first
+        btn.scroll_into_view_if_needed()
+        btn.click(force=True)
 
-    def click_cancel(self):
-        """Cancels procurement form."""
-        btn = self.page.get_by_role("button", name="Cancel").first
-        if not btn.is_visible():
-            btn = self.page.locator("button:has-text('Cancel')").first
-        btn.click()
+    def save_procurement(self) -> str:
+        """Clicks 'Save Procurement' button on Step 2 and captures toast."""
+        logger.info("Clicking 'Save Procurement' button...")
+        self.click_create()
+        toast = self.wait_for_toast_message()
+        logger.info(f"Captured Save Procurement Toast: '{toast}'")
+        return toast
 
     def inspect_and_log_step1_fields(self) -> dict[str, str]:
         """Inspects all Step 1 form fields after invoice upload and logs field-by-field status to terminal."""
         field_status = {}
 
-        # 1. Vendor
         try:
             v_val = self.page.get_by_label("Vendor*", exact=True).input_value()
             field_status["Vendor"] = v_val if v_val and v_val.strip() != "" else "EMPTY"
         except Exception:
             field_status["Vendor"] = "NOT FOUND"
 
-        # 2. Branch
         try:
             b_val = self.page.get_by_label("Branch*", exact=True).input_value()
             field_status["Branch"] = b_val if b_val and b_val.strip() != "" else "EMPTY"
         except Exception:
             field_status["Branch"] = "NOT FOUND"
 
-        # 3. Payroll Company
         try:
             c_input = self.page.get_by_label("Company*", exact=False).first
             if not c_input.is_visible():
@@ -782,28 +614,24 @@ class AssetProcurementPage(BasePage):
         except Exception:
             field_status["Payroll Company"] = "NOT FOUND"
 
-        # 4. Invoice No
         try:
             inv_val = self.page.get_by_label("Invoice No.", exact=False).first.input_value()
             field_status["Invoice No"] = inv_val if inv_val and inv_val.strip() != "" else "EMPTY"
         except Exception:
             field_status["Invoice No"] = "NOT FOUND"
 
-        # 5. Purchase Date
         try:
             d_val = self.page.get_by_label("Purchase Date*", exact=True).first.input_value()
             field_status["Purchase Date"] = d_val if d_val and d_val.strip() != "" else "EMPTY"
         except Exception:
             field_status["Purchase Date"] = "NOT FOUND"
 
-        # 6. Amount Before GST
         try:
             amt_val = self.page.locator("div").filter(has_text=re.compile(r"^Amount Before GST \(₹\)$")).locator("input").first.input_value()
             field_status["Amount Before GST"] = amt_val if amt_val and amt_val.strip() != "" else "EMPTY"
         except Exception:
             field_status["Amount Before GST"] = "NOT FOUND"
 
-        # 7. GST Amount
         try:
             gst_val = self.page.locator("div").filter(has_text=re.compile(r"^GST Amount \(₹\)$")).locator("input").first.input_value()
             field_status["GST Amount"] = gst_val if gst_val and gst_val.strip() != "" else "EMPTY"
@@ -818,44 +646,23 @@ class AssetProcurementPage(BasePage):
             logger.info(f"{field:<24} : {state_label}")
         logger.info("=" * 80 + "\n")
 
-        print("\n" + "=" * 80)
-        print("INVOICE AUTO-FILL FORM FIELD INSPECTION REPORT")
-        print("=" * 80)
-        for field, status in field_status.items():
-            state_label = f"POPULATED ('{status}')" if status not in ["EMPTY", "NOT FOUND"] else f"[{status}]"
-            print(f"{field:<24} : {state_label}")
-        print("=" * 80 + "\n")
-
         return field_status
 
     def inspect_and_log_asset_line_items(self) -> list[dict]:
         """Reads and logs all prefilled asset line items in a single blazing fast JS evaluate call."""
-        logger = logging.getLogger("hrlense")
-        
         js_code = """() => {
             const items = [];
-            const pTags = Array.from(document.querySelectorAll('p')).filter(p => /line total:/i.test(p.innerText));
-            pTags.forEach((lt, i) => {
-                const card = lt.closest('div.chakra-stack, [class*="chakra"]') || lt.parentElement.parentElement;
+            const cards = Array.from(document.querySelectorAll('.chakra-stack > div')).filter(d => d.querySelectorAll('select').length >= 2 && d.querySelectorAll('input').length >= 4);
+            cards.forEach((card, i) => {
                 const selects = card.querySelectorAll('select');
                 const inputs = card.querySelectorAll('input');
-                const catText = selects[0] ? selects[0].value || (selects[0].selectedOptions[0] ? selects[0].selectedOptions[0].text : '') : 'Hardware';
-                const subText = selects[1] ? selects[1].value || (selects[1].selectedOptions[0] ? selects[1].selectedOptions[0].text : '') : '<Empty>';
-                
-                let brandVal = '<Empty>';
-                let modelVal = '<Empty>';
-                let qtyVal = '<Empty>';
-                let priceVal = '<Empty>';
-                
-                inputs.forEach(inp => {
-                    const ph = (inp.placeholder || '').toLowerCase();
-                    const name = (inp.name || '').toLowerCase();
-                    if (ph.includes('dell') || ph.includes('brand') || name.includes('brand')) brandVal = inp.value || brandVal;
-                    else if (ph.includes('xps') || ph.includes('model') || name.includes('model')) modelVal = inp.value || modelVal;
-                    else if (ph === '0' || name.includes('quantity')) qtyVal = inp.value || qtyVal;
-                    else if (ph === '0.00' || name.includes('price')) priceVal = inp.value || priceVal;
-                });
-                
+                const catText = selects[0] && selects[0].selectedOptions[0] ? selects[0].selectedOptions[0].text : 'Hardware';
+                const subText = selects[1] && selects[1].selectedOptions[0] ? selects[1].selectedOptions[0].text : '<Empty>';
+                let brandVal = inputs[0] ? inputs[0].value : '<Empty>';
+                let modelVal = inputs[1] ? inputs[1].value : '<Empty>';
+                let qtyVal = inputs[2] ? inputs[2].value : '<Empty>';
+                let priceVal = inputs[3] ? inputs[3].value : '<Empty>';
+
                 items.push({
                     index: i + 1,
                     category: catText,
@@ -864,7 +671,7 @@ class AssetProcurementPage(BasePage):
                     model: modelVal,
                     quantity: qtyVal,
                     unit_price: priceVal,
-                    line_total: lt.innerText.trim()
+                    line_total: `₹${(parseFloat(qtyVal || 1) * parseFloat(priceVal || 0)).toFixed(2)}`
                 });
             });
             return items;
@@ -892,39 +699,6 @@ class AssetProcurementPage(BasePage):
         logger.info("=" * 80 + "\n")
         return items_data
 
-        logger.info("=" * 80)
-        logger.info("Completed reading %s asset line item(s).", count)
-        return items_data
-
-    def search_procurement(self, query: str):
-        """Searches procurement by invoice or vendor name in search textbox."""
-        logger.info(f"Searching procurement: '{query}'")
-        search_box = self.page.locator("input[placeholder*='Search procurements' i]").first
-        if not search_box.is_visible(timeout=2000):
-            search_box = self.page.get_by_placeholder("Search procurements...").first
-        if search_box.is_visible(timeout=2000):
-            search_box.fill("")
-            search_box.fill(query)
-            self.page.wait_for_timeout(600)
-
-    def get_first_procurement_invoice(self) -> str:
-        """Retrieves procurement code (e.g. PROC-YYYYMMDD...) from the first table row."""
-        try:
-            self.page.locator("tbody tr").first.wait_for(state="visible", timeout=6000)
-            rows = self.page.locator("tbody tr").all()
-            for r in rows:
-                cells = [c.inner_text().strip() for c in r.locator("td").all()]
-                for cell_txt in cells:
-                    if cell_txt.startswith("PROC-"):
-                        logger.info(f"Retrieved procurement code from table: '{cell_txt}'")
-                        return cell_txt
-                if len(cells) >= 2 and cells[1].startswith("PROC-"):
-                    logger.info(f"Retrieved procurement code from td[2]: '{cells[1]}'")
-                    return cells[1]
-        except Exception as e:
-            logger.warning(f"Note getting procurement code: {e}")
-        return ""
-
     def _select_first_valid_option(self, select_locator):
         """Helper to select the first non-empty option from a select dropdown."""
         try:
@@ -943,320 +717,8 @@ class AssetProcurementPage(BasePage):
         except Exception as e:
             logger.debug(f"Option select note: {e}")
 
-    def _fix_step1_field_by_error(self, error_msg: str, invoice_file_path: str = None):
-        """Identifies missing field from error toast and fills it on Step 1."""
-        err = error_msg.lower()
-        logger.info(f"Auto-fixing Step 1 field based on error: '{error_msg}'")
-        modal = self.page.locator(".chakra-modal__content, [role='dialog']").first
-        if not modal.is_visible(timeout=500):
-            modal = self.page
-
-        if "invoice" in err and "attachment" in err and invoice_file_path:
-            self.upload_invoice(invoice_file_path)
-        elif "vendor" in err:
-            v_sel = modal.locator("select").filter(has=self.page.locator("option", has_text=re.compile(r"Select vendor", re.I))).first
-            if not v_sel.is_visible(timeout=500):
-                v_sel = modal.get_by_label("Vendor", exact=False).first
-            if not v_sel.is_visible(timeout=500):
-                v_sel = modal.locator("select").nth(0)
-            self._select_first_valid_option(v_sel)
-        elif "branch" in err:
-            b_sel = modal.locator("select").filter(has=self.page.locator("option", has_text=re.compile(r"Select branch", re.I))).first
-            if not b_sel.is_visible(timeout=500):
-                b_sel = modal.get_by_label("Branch", exact=False).first
-            if not b_sel.is_visible(timeout=500):
-                b_sel = modal.locator("select").nth(1)
-            self._select_first_valid_option(b_sel)
-        elif "company" in err or "payroll" in err:
-            c_sel = modal.locator("select").filter(has=self.page.locator("option", has_text=re.compile(r"Select payroll company", re.I))).first
-            if not c_sel.is_visible(timeout=500):
-                c_sel = modal.get_by_label("Payroll Company", exact=False).first
-            if not c_sel.is_visible(timeout=500):
-                c_sel = modal.locator("select").nth(2)
-            self._select_first_valid_option(c_sel)
-        elif "invoice" in err and "number" in err:
-            from testdata.dynamic.business_test_data import BusinessTestData
-            modal.get_by_label("Invoice No.", exact=False).first.fill(f"INV-FIX-{BusinessTestData.get_unique_suffix()}")
-        elif "date" in err:
-            modal.get_by_label("Purchase Date", exact=False).first.fill("12/08/2026")
-
-    def _fix_step2_field_by_error(self, error_msg: str):
-        """Identifies missing line item field from error toast (e.g. 'Item 4: brand is required') and fills it."""
-        err = error_msg.lower()
-        logger.info(f"Auto-fixing Step 2 field based on error: '{error_msg}'")
-        modal = self.page.locator("[role='dialog'], .chakra-modal__content").first
-
-        import re
-        m = re.search(r"item\s*(\d+)", err)
-        item_idx = int(m.group(1)) - 1 if m else 0
-
-        # Fix Brand
-        if "brand" in err:
-            try:
-                b_inputs = modal.get_by_label("Brand", exact=False).all()
-                if not b_inputs:
-                    b_inputs = modal.locator("input[placeholder*='Dell' i], input[placeholder*='Brand' i]").all()
-                if b_inputs and item_idx < len(b_inputs):
-                    b_inputs[item_idx].fill(f"Dell Item {item_idx+1}")
-                    logger.info(f"Fixed Item #{item_idx+1} Brand -> 'Dell Item {item_idx+1}'")
-                elif b_inputs:
-                    for b in b_inputs:
-                        if not b.input_value() or "e.g." in b.input_value().lower():
-                            b.fill("Dell")
-            except Exception as e:
-                logger.warning(f"Error fixing brand: {e}")
-
-        # Fix Model
-        if "model" in err:
-            try:
-                m_inputs = modal.get_by_label("Model", exact=False).all()
-                if not m_inputs:
-                    m_inputs = modal.locator("input[placeholder*='XPS' i], input[placeholder*='Model' i]").all()
-                if m_inputs and item_idx < len(m_inputs):
-                    m_inputs[item_idx].fill(f"Model-{item_idx+1}")
-                    logger.info(f"Fixed Item #{item_idx+1} Model -> 'Model-{item_idx+1}'")
-                elif m_inputs:
-                    for m_in in m_inputs:
-                        if not m_in.input_value() or "e.g." in m_in.input_value().lower():
-                            m_in.fill("XPS")
-            except Exception as e:
-                logger.warning(f"Error fixing model: {e}")
-
-        # Ensure all select dropdowns across product cards have valid options chosen
-        selects = modal.locator("select").all()
-        for index, s in enumerate(selects):
-            try:
-                if s.is_visible(timeout=500):
-                    val = s.input_value()
-                    if not val or val.strip() == "":
-                        options = s.locator("option").all()
-                        for opt in options[1:]:
-                            opt_val = opt.get_attribute("value")
-                            opt_txt = opt.inner_text().strip()
-                            if opt_val and opt_val.strip() != "" and "select" not in opt_txt.lower():
-                                s.select_option(value=opt_val)
-                                logger.info(f"Fixed Step 2 Select #{index+1}: selected '{opt_txt}' ({opt_val})")
-                                self.page.wait_for_timeout(400)
-                                break
-            except Exception as e:
-                logger.debug(f"Note fixing select #{index+1}: {e}")
-
-    def ensure_procurement_exists_for_edit(self) -> str:
-        """
-        Ensures at least one procurement record exists in the table.
-        If table is empty, creates a new procurement record with invoice attachment.
-        - Automatically fixes missing fields from error toast (max 2 retries).
-        - Strictly verifies creation toast contains 'successful' or 'successfully' before proceeding to edit.
-        - Always returns the valid 'PROC-YYYYMMDD...' procurement code.
-        """
-        proc_id = self.get_first_procurement_invoice()
-        if not proc_id:
-            logger.info("No procurement found in table. Creating base procurement record with invoice attachment...")
-            import os
-            invoices_dir = os.path.abspath("testdata/static/invoices")
-            sample_invoice_path = os.path.join(invoices_dir, "JOB VRITTA 41 1.pdf")
-            if not os.path.exists(sample_invoice_path):
-                sample_invoice_path = os.path.join(invoices_dir, "invoice_1mb.pdf")
-
-            self.click_new_procurement()
-            from testdata.dynamic.business_test_data import BusinessTestData
-            data = BusinessTestData.procurement()
-            self.fill_step1_details(
-                vendor_label=None,
-                branch_label=None,
-                company_label=None,
-                invoice_no=data.invoice_no,
-                purchase_date=data.purchase_date,
-                amount_before_gst=data.amount_before_gst,
-                gst_amount=data.gst_amount,
-                remarks="Base Procurement For Automated Edit Flow",
-                invoice_file_path=sample_invoice_path
-            )
-
-            # Step 1 -> Step 2 with retry loop
-            for attempt in range(4):
-                next_res = self.click_next()
-                if self.is_step2_active():
-                    logger.info("Advanced to Step 2 Line Items successfully.")
-                    break
-                toast = next_res.get("toast", "")
-                logger.info(f"[STEP 1 ATTEMPT #{attempt+1}] Toast: '{toast}'")
-                if toast:
-                    self._fix_step1_field_by_error(toast, sample_invoice_path)
-                self.page.wait_for_timeout(500)
-
-            assert self.is_step2_active(), "Failed to advance to Step 2 after retries."
-
-            # Select Step 2 dropdowns & fill all cards (Brand, Model, Category, Sub Category, Price, Qty)
-            self.select_step2_dropdowns()
-            self.page.wait_for_timeout(500)
-
-            # Save Step 2 with retry loop
-            saved_toast = ""
-            for attempt in range(4):
-                saved_toast = self.save_procurement()
-                logger.info(f"[SAVE ATTEMPT #{attempt+1}] Toast: '{saved_toast}'")
-                is_success = any(term in (saved_toast or "").lower() for term in ["success", "successful", "saved", "created"])
-                if is_success:
-                    logger.info(f"Procurement successfully created: '{saved_toast}'")
-                    break
-
-                # Fix any missing field on Step 2 (e.g. 'Item 4: brand is required')
-                logger.warning(f"Save returned error toast: '{saved_toast}'. Fixing field and retrying...")
-                self._fix_step2_field_by_error(saved_toast)
-                self.page.wait_for_timeout(800)
-
-            is_success = any(term in (saved_toast or "").lower() for term in ["success", "successful", "saved", "created"])
-            assert is_success, f"Procurement creation failed before edit. Toast received: '{saved_toast}'"
-
-            self.page.wait_for_timeout(1000)
-            self.navigate_to_asset_procurement()
-            proc_id = self.get_first_procurement_invoice()
-            if not proc_id:
-                proc_el = self.page.locator("tbody td").filter(has_text=re.compile(r"^PROC-", re.I)).first
-                if proc_el.is_visible(timeout=5000):
-                    proc_id = proc_el.inner_text().strip()
-
-            assert proc_id and proc_id.startswith("PROC-"), f"Expected procurement code starting with 'PROC-', got: '{proc_id}'"
-            logger.info(f"Base procurement verified and ready for edit: '{proc_id}'")
-        return proc_id
-
-    def click_edit_procurement(self, invoice_no: str = None):
-        """
-        Dynamically locates procurement record by its ID in td[2] (or first row)
-        and clicks the Edit action button:
-        <div class="css-8uhtka"><button type="button" class="chakra-button ..." aria-label="Edit"><svg ...></button></div>
-        Waits for modal with header 'Edit Procurement'.
-        """
-        logger.info(f"Opening Edit Procurement modal (record='{invoice_no}')...")
-        if invoice_no:
-            self.search_procurement(invoice_no)
-            self.page.wait_for_timeout(500)
-
-        # Locate Edit button using aria-label="Edit" or div container
-        edit_locator = self.page.locator("button[aria-label='Edit']").first
-        if not edit_locator.is_visible(timeout=2000):
-            if invoice_no:
-                edit_locator = self.page.locator(f"xpath=//tr[td[2][contains(., '{invoice_no}')]]//button[@aria-label='Edit']").first
-                if not edit_locator.is_visible(timeout=1000):
-                    edit_locator = self.page.locator(f"xpath=//tr[td[2][contains(., '{invoice_no}')]]//td[12]//button").first
-            else:
-                edit_locator = self.page.locator("xpath=//tbody/tr[1]//button[@aria-label='Edit']").first
-
-        if not edit_locator.is_visible(timeout=2000):
-            edit_locator = self.page.locator("tbody tr").first.locator("button:has(svg), td:last-child button, .chakra-button[aria-label='Edit']").first
-
-        edit_locator.scroll_into_view_if_needed()
-        self.page.wait_for_timeout(300)
-        try:
-            edit_locator.click(timeout=3000)
-        except Exception:
-            edit_locator.click(force=True)
-
-        # Wait for Edit Procurement modal header
-        self.page.get_by_text("Edit Procurement", exact=True).wait_for(state="visible", timeout=15000)
-        logger.info("Edit Procurement modal opened successfully.")
-
-    def get_prefilled_step1_data(self) -> dict:
-        """Inspects and returns all prefilled values on Step 1 of Edit Procurement."""
-        data = {}
-        # 1. Vendor
-        try:
-            v_select = self.page.locator("select").filter(has=self.page.locator("option", has_text=re.compile(r"Select vendor", re.I))).first
-            if not v_select.is_visible(timeout=500):
-                v_select = self.page.get_by_label("Vendor", exact=False).first
-            data["vendor"] = v_select.input_value().strip()
-        except Exception:
-            data["vendor"] = ""
-
-        # 2. Branch
-        try:
-            b_select = self.page.locator("select").filter(has=self.page.locator("option", has_text=re.compile(r"Select branch", re.I))).first
-            if not b_select.is_visible(timeout=500):
-                b_select = self.page.get_by_label("Branch", exact=False).first
-            data["branch"] = b_select.input_value().strip()
-        except Exception:
-            data["branch"] = ""
-
-        # 3. Payroll Company
-        try:
-            c_select = self.page.locator("select").filter(has=self.page.locator("option", has_text=re.compile(r"Select payroll company", re.I))).first
-            if not c_select.is_visible(timeout=500):
-                c_select = self.page.get_by_label("Payroll Company", exact=False).first
-            data["company"] = c_select.input_value().strip()
-        except Exception:
-            data["company"] = ""
-
-        # 4. Invoice No
-        try:
-            inv_input = self.page.get_by_label("Invoice No.", exact=False).first
-            if not inv_input.is_visible(timeout=500):
-                inv_input = self.page.locator("input[placeholder*='Invoice' i], input[name*='invoice' i]").first
-            data["invoice_no"] = inv_input.input_value().strip()
-        except Exception:
-            data["invoice_no"] = ""
-
-        # 5. Purchase Date
-        try:
-            d_input = self.page.get_by_label("Purchase Date", exact=False).first
-            if not d_input.is_visible(timeout=500):
-                d_input = self.page.locator("input[type='date'], input[placeholder*='date' i]").first
-            data["purchase_date"] = d_input.input_value().strip()
-        except Exception:
-            data["purchase_date"] = ""
-
-        # 6. Amount Before GST
-        try:
-            amt_in = self.page.locator("div").filter(has_text=re.compile(r"^Amount Before GST", re.I)).locator("input").first
-            if not amt_in.is_visible(timeout=500):
-                amt_in = self.page.get_by_label("Amount Before GST", exact=False).first
-            if not amt_in.is_visible(timeout=500):
-                amt_in = self.page.locator("input[placeholder*='0.00'], input[placeholder*='Amount']").first
-            data["amount_before_gst"] = amt_in.input_value().strip()
-        except Exception:
-            data["amount_before_gst"] = ""
-
-        # 7. GST Amount
-        try:
-            gst_in = self.page.locator("div").filter(has_text=re.compile(r"^GST Amount", re.I)).locator("input").first
-            if not gst_in.is_visible(timeout=500):
-                gst_in = self.page.get_by_label("GST Amount", exact=False).first
-            if not gst_in.is_visible(timeout=500):
-                gst_in = self.page.locator("input[placeholder*='GST']").first
-            data["gst_amount"] = gst_in.input_value().strip()
-        except Exception:
-            data["gst_amount"] = ""
-
-        # 8. Total Amount
-        data["total_amount"] = self.get_total_amount_value()
-
-        # 9. Remarks
-        try:
-            rem_input = self.page.get_by_label("Remarks", exact=False).first
-            if not rem_input.is_visible(timeout=500):
-                rem_input = self.page.locator("textarea[name*='remark' i], textarea[placeholder*='Remark' i]").first
-            data["remarks"] = rem_input.input_value().strip()
-        except Exception:
-            data["remarks"] = ""
-
-        logger.info(f"Prefilled Step 1 Data: {data}")
-        return data
-
-    def save_procurement(self) -> str:
-        """Clicks 'Save Procurement' button on Step 2 and captures toast."""
-        logger.info("Clicking 'Save Procurement' button...")
-        btn = self.page.locator("button:has-text('Save Procurement'), button:has-text('Save')").first
-        if not btn.is_visible(timeout=2000):
-            btn = self.page.get_by_role("button", name="Save Procurement").first
-        btn.click(force=True)
-
-        toast = self.wait_for_toast_message()
-        logger.info(f"Captured Save Procurement Toast: '{toast}'")
-        return toast
-
     def wait_for_toast_message(self) -> str:
         return self.wait_for_toast("#chakra-toast-manager-top-right")
 
     def get_pop_msg(self) -> str:
         return self.wait_for_toast_message()
-

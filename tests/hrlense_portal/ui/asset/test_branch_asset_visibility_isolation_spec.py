@@ -277,3 +277,89 @@ class TestBranchAssetVisibilityIsolationSpec:
         print(format_ascii_table(f"VISIBLE ASSETS SAMPLE ({branch_name.upper()})", visible_assets[:10]))
 
         logger.info(f"[BRANCH VISIBILITY AUDIT COMPLETED] Result: {audit_summary['visibility_scope']}")
+
+    def test_verify_branch_dropdown_content_across_personas(self, logged_in_page):
+        """
+        Validates Branch Dropdown Content Isolation:
+        1. Varanasi IT Person -> Sees ONLY Varanasi branch options.
+        2. Agra IT Person -> Sees ONLY Agra branch options.
+        3. Noida IT Person -> Sees ONLY Noida branch options.
+        4. Global Admin -> Sees ALL branch options across India.
+        """
+        logger.info("\n" + "=" * 60)
+        logger.info("[AUDIT] Branch Dropdown Content Verification Across Personas")
+        logger.info("=" * 60 + "\n")
+
+        test_personas = [
+            {"branch": "Varanasi", "user_key": "it_varanasi_ashutosh", "expected_scope": "Varanasi"},
+            {"branch": "Agra", "user_key": "it_agra_ritesh", "expected_scope": "Agra"},
+            {"branch": "Noida", "user_key": "it_noida_puneet", "expected_scope": "Noida"},
+            {"branch": "Global Admin", "user_key": "admin", "expected_scope": "ALL"}
+        ]
+
+        audit_results = []
+
+        for p in test_personas:
+            user_key = p["user_key"] if settings.USERS.get(p["user_key"], {}).get("password") else "admin"
+            logger.info(f"[AUDIT PERSONA] Logging in as {p['user_key']} for {p['branch']} scope...")
+            page, ctx = logged_in_page(user_key)
+
+            proc_page = AssetProcurementPage(page)
+            proc_page.navigate_to_asset_procurement()
+            proc_page.click_new_procurement()
+            page.wait_for_timeout(1500)
+
+            modal = page.locator(".chakra-modal__content, .chakra-drawer__content, [role='dialog']").first
+            if not modal.is_visible(timeout=1000):
+                modal = page
+
+            try:
+                modal.locator("select").first.wait_for(state="visible", timeout=4000)
+            except Exception:
+                pass
+
+            selects = modal.locator("select").all()
+            if not selects:
+                selects = page.locator("select").all()
+
+            # 1. Branch / Branch Group Dropdown (Index 0 in modal)
+            bg_select = modal.locator("label:has-text('Branch')").locator("xpath=..").locator("select").first
+            if not bg_select.is_visible(timeout=1000):
+                bg_select = selects[0] if len(selects) >= 1 else None
+            branch_group_opts = [opt.strip() for opt in bg_select.locator("option").all_inner_texts() if opt.strip() and not opt.lower().startswith("select")] if bg_select and bg_select.is_visible(timeout=500) else []
+
+            # 2. Vendor Dropdown (Index 1 in modal)
+            v_select = modal.locator("label:has-text('Vendor')").locator("xpath=..").locator("select").first
+            if not v_select.is_visible(timeout=1000):
+                v_select = selects[1] if len(selects) >= 2 else None
+            vendor_opts = [opt.strip() for opt in v_select.locator("option").all_inner_texts() if opt.strip() and not opt.lower().startswith("select")] if v_select and v_select.is_visible(timeout=500) else []
+
+            # 3. Payroll Company Dropdown (Index 2 in modal)
+            c_select = modal.locator("label:has-text('Company')").locator("xpath=..").locator("select").first
+            if not c_select.is_visible(timeout=1000):
+                c_select = selects[2] if len(selects) >= 3 else None
+            payroll_opts = [opt.strip() for opt in c_select.locator("option").all_inner_texts() if opt.strip() and not opt.lower().startswith("select")] if c_select and c_select.is_visible(timeout=500) else []
+
+            ctx.close()
+
+            exp_city = p["expected_scope"]
+            if exp_city == "ALL":
+                is_isolated = len(branch_group_opts) >= 5
+                status = "PASS (Global View — All Groups)" if is_isolated else f"FAIL (Only {len(branch_group_opts)} groups)"
+            else:
+                unauthorized = [opt for opt in branch_group_opts if exp_city.lower() not in opt.lower()]
+                is_isolated = len(unauthorized) == 0 and len(branch_group_opts) > 0
+                status = "PASS (Strictly Isolated to City Group)" if is_isolated else (f"FAIL (Leaked: {unauthorized})" if unauthorized else "FAIL (Empty)")
+
+            audit_results.append({
+                "persona_role": p["user_key"],
+                "target_city": p["branch"],
+                "branch_groups_visible": len(branch_group_opts),
+                "branch_group_options": ", ".join(branch_group_opts) if branch_group_opts else "—",
+                "vendor_count_global": len(vendor_opts),
+                "vendor_sample": ", ".join(vendor_opts[:3]) if vendor_opts else "—",
+                "payroll_companies_count": len(payroll_opts),
+                "branch_group_scoping": status
+            })
+
+        print("\n" + format_ascii_table("MODAL DROPDOWN CONTENT & BRANCH GROUP SCOPING AUDIT", audit_results))

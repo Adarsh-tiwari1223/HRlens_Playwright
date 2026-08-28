@@ -75,6 +75,8 @@ def format_ascii_table(title: str, data: dict | list[dict] | None) -> str:
 
 class TestStoryLogger:
     """Enterprise Storyteller Logger for Playwright Test Execution."""
+    __test__ = False
+
     def __init__(self, test_name: str, module: str = "Asset Management", phase: str = "Asset Lifecycle"):
         self.test_name = test_name
         self.module = module
@@ -210,8 +212,28 @@ class BasePage:
     # TOAST & NOTIFICATION HELPERS
     # ──────────────────────────────────────────────────────────────────────────
 
-    def wait_for_toast(self, locator: str = "#chakra-toast-manager-top-right", timeout: int = 10000) -> str:
-        """Waits for and extracts text from Chakra UI toast notification."""
+    def dismiss_toasts(self):
+        """Dismisses all visible Chakra toasts by clicking their close 'X' button or SVG."""
+        try:
+            close_locators = [
+                ".chakra-toast button[aria-label='Close']",
+                ".chakra-toast .chakra-toast__close-button",
+                ".chakra-toast button:has(svg)",
+                ".chakra-toast svg.chakra-icon",
+                "#chakra-toast-manager-top-right button",
+                "#chakra-toast-manager-top-right svg"
+            ]
+            for sel in close_locators:
+                elements = self.page.locator(sel).all()
+                for el in elements:
+                    if el.is_visible():
+                        el.click(force=True)
+            self.page.wait_for_timeout(200)
+        except Exception:
+            pass
+
+    def wait_for_toast(self, locator: str = "#chakra-toast-manager-top-right", timeout: int = 10000, **kwargs) -> str:
+        """Waits for a toast message to appear, captures text, and dismisses the toast 'X' button."""
         toast_loc = self.page.locator(
             f"{locator} .chakra-toast, {locator} [role='status'], {locator} [role='alert'], "
             f".chakra-toast, [role='status'], [role='alert'], .chakra-alert"
@@ -219,11 +241,19 @@ class BasePage:
         try:
             toast_loc.wait_for(state="visible", timeout=timeout)
             text = toast_loc.inner_text().strip()
+            # Click 'X' close button / SVG icon on toast
+            close_btn = toast_loc.locator("button[aria-label='Close'], .chakra-toast__close-button, button:has(svg), svg.chakra-icon").first
+            if close_btn.is_visible(timeout=500):
+                close_btn.click(force=True)
         except Exception as e:
             logger.warning(f"Timeout waiting for toast element: {e}")
             text = ""
         logger.debug(f"toast → '{text}'")
         return text
+
+    def wait_for_toast_message(self, locator: str = "#chakra-toast-manager-top-right", timeout: int = 10000, **kwargs) -> str:
+        """Alias for wait_for_toast."""
+        return self.wait_for_toast(locator=locator, timeout=timeout, **kwargs)
 
     def get_all_toasts(self, locator: str = "#chakra-toast-manager-top-right", timeout: int = 6000) -> list[str]:
         """Returns all visible toast messages."""

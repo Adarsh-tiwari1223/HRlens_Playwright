@@ -88,22 +88,24 @@ BRANCH_RESPONSIBILITY_MAP = {
 }
 
 def get_branch_it_person(branch: str = "Varanasi") -> dict:
-    """Returns respected IT Person for a specific branch with valid credentials in .env."""
+    """Returns the primary deterministic IT Person for a specific branch with valid credentials in .env."""
     from core.config import settings
-    b_data = BRANCH_RESPONSIBILITY_MAP.get(branch, BRANCH_RESPONSIBILITY_MAP["Varanasi"])
+    matched_branch = next((k for k in BRANCH_RESPONSIBILITY_MAP if k.lower() == (branch or "").lower()), "Varanasi")
+    b_data = BRANCH_RESPONSIBILITY_MAP.get(matched_branch, BRANCH_RESPONSIBILITY_MAP["Varanasi"])
     it_list = b_data.get("it_persons", [])
     valid_its = [
         it for it in it_list
         if settings.USERS.get(it.get("user_key"), {}).get("password")
     ]
     if valid_its:
-        return random.choice(valid_its)
+        return valid_its[0]
     return it_list[0] if it_list else {"name": "Ashutosh Kumar", "email": "ashutosh.kumar@jobvritta.com", "user_key": "it_varanasi_ashutosh"}
 
 def get_branch_target_employee(branch: str = "Varanasi") -> dict:
     """Returns respected employee belonging to the specific branch for asset assignment, randomly chosen from valid .env credentials."""
     from core.config import settings
-    b_data = BRANCH_RESPONSIBILITY_MAP.get(branch, BRANCH_RESPONSIBILITY_MAP["Varanasi"])
+    matched_branch = next((k for k in BRANCH_RESPONSIBILITY_MAP if k.lower() == (branch or "").lower()), "Varanasi")
+    b_data = BRANCH_RESPONSIBILITY_MAP.get(matched_branch, BRANCH_RESPONSIBILITY_MAP["Varanasi"])
     emp_list = b_data.get("employees", [])
     valid_emps = [
         e for e in emp_list

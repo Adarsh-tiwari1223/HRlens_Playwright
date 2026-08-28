@@ -192,8 +192,12 @@ class BranchGroupPage(BasePage):
                 first_chk.click(force=True)
                 logger.info("[ASSIGN BRANCHES] Checked first available branch checkbox.")
 
-    def get_available_branches(self) -> list[str]:
-        return self.get_api_company_branches()
+    def create_branch_group(self, name: str, branches: list[str] = None, seating_cost: str = "2500.00", **kwargs):
+        """Creates a new Branch Group via modal."""
+        self.click_new_group()
+        self.fill_group_details(group_name=name, branch_names=branches, seating_cost=seating_cost)
+        self.click_create()
+        self._ensure_modal_closed()
 
     def click_create(self):
         btn = self.page.locator("button:has-text('Create Group'), button:has-text('Create'), button[type='submit']").first

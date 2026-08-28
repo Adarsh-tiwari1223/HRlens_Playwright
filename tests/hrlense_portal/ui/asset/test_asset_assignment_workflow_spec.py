@@ -27,6 +27,7 @@ from pages.hrlense_portal.asset.asset_entry_page import AssetEntryPage
 from pages.hrlense_portal.asset.asset_assignment_page import AssetAssignmentPage
 from pages.hrlense_portal.asset.asset_request_page import AssetRequestPage
 from pages.hrlense_portal.asset.asset_return_page import AssetReturnPage
+from pages.hrlense_portal.asset.asset_maintenance_page import AssetMaintenancePage
 from utils.branch_it_selector import get_branch_target_employee
 
 logger = logging.getLogger(__name__)
@@ -54,7 +55,7 @@ class TestAssetAssignmentWorkflowSpec:
         assign_page.click_assign_asset()
         details = assign_page.fill_assignment_details(
             employee_name=emp_info["name"],
-            category="Hardware",
+            category="IT Hardware",
             sub_category="Laptop"
         )
         assign_page.click_submit_assignment()
@@ -86,7 +87,7 @@ class TestAssetAssignmentWorkflowSpec:
         assign_page.click_assign_asset()
         assign_page.fill_assignment_details(
             employee_name=emp_info["name"],
-            category="Hardware",
+            category="IT Hardware",
             sub_category="Laptop"
         )
         assign_page.click_submit_assignment()
@@ -219,7 +220,7 @@ class TestAssetAssignmentWorkflowSpec:
         assign_page.click_assign_asset()
         assign_page.fill_assignment_details(
             employee_name="Anurag Sharma",
-            category="Hardware",
+            category="IT Hardware",
             sub_category="Laptop",
             remarks="Temporary replacement during laptop repair"
         )
@@ -240,7 +241,7 @@ class TestAssetAssignmentWorkflowSpec:
         assign_page.navigate_to_asset_assignment()
 
         assign_page.click_assign_asset()
-        assign_page.fill_assignment_details(employee_name="Anurag Sharma", category="Hardware", sub_category="Laptop")
+        assign_page.fill_assignment_details(employee_name="Anurag Sharma", category="IT Hardware", sub_category="Laptop")
         
         dropdown_info = assign_page.validate_available_assets_dropdown()
         items = dropdown_info.get("items", [])

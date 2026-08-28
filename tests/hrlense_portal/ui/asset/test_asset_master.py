@@ -35,22 +35,24 @@ def test_create_category_validation(admin_page):
     asset_page.click_create()
     
     # Assert field-level validation message
-    validations = asset_page.get_validation_messages()
-    field_msg = validations.get("Category Name", asset_page.get_field_validation_message("Category Name"))
-    is_valid = "required" in field_msg.lower() or "name" in field_msg.lower()
+    active_errors = asset_page.get_active_form_errors()
+    is_valid = any("required" in e.lower() or "name" in e.lower() for e in active_errors) or admin_page.get_by_text("Category name is required").is_visible()
+    field_msg = active_errors[0] if active_errors else "Category name is required"
     
     story.log_step(
         "Submit Blank Form",
         expected="Category name is required",
-        actual=field_msg if field_msg else "<No field error displayed>",
+        actual=field_msg if is_valid else "<No field error displayed>",
         status="PASS" if is_valid else "FAIL"
     )
-    assert is_valid, f"Expected field validation 'Category name is required', got: '{field_msg}'"
+    assert is_valid, f"Expected field validation 'Category name is required', got errors: {active_errors}"
+    asset_page.click_cancel()
     story.finish(status="PASS")
 
 
 @pytest.mark.ui
 @pytest.mark.asset
+@pytest.mark.dependency(name="create_category")
 def test_create_category_success(admin_page):
     workflow = AssetMasterWorkflow(admin_page)
     # Clean non-numeric Category name
@@ -61,15 +63,11 @@ def test_create_category_success(admin_page):
 
 @pytest.mark.ui
 @pytest.mark.asset
+@pytest.mark.dependency(depends=["create_category"])
 def test_update_category_success(admin_page):
     """Edit Testing Rule: Pick existing category row from grid and edit in-place without creating redundant records."""
     asset_page = AssetMasterPage(admin_page)
-    asset_page.navigate_to_asset_master()
-    
-    rows = admin_page.locator("table tbody tr").all()
-    assert len(rows) > 0, "No existing Category rows found in grid for edit testing."
-    
-    category_name = rows[0].inner_text().strip().split("\n")[0].strip()
+    category_name = asset_page.read_first_existing_category()
     
     # Edit the existing category in-place
     asset_page.edit_category(category_name)
@@ -102,48 +100,40 @@ def test_create_category_duplicate(admin_page):
     story.start()
 
     asset_page = AssetMasterPage(admin_page)
-    asset_page.navigate_to_asset_master()
-    
-    # Pick existing category from grid
-    rows = admin_page.locator("table tbody tr").all()
-    category_name = "Hardware"
-    if rows:
-        first_row_text = rows[0].inner_text().strip().split("\n")[0].strip()
-        if first_row_text:
-            category_name = first_row_text
+    category_name = asset_page.read_first_existing_category()
 
     # Try creating duplicate category with same name (exact case)
     asset_page.click_add_category()
     asset_page.fill_category_details(name=category_name, description="Duplicate entry test", toggle_spans=False)
     asset_page.click_create()
     
-    validations = asset_page.get_validation_messages()
-    field_msg = validations.get("Category Name", asset_page.get_field_validation_message("Category Name"))
+    active_errors = asset_page.get_active_form_errors()
     toast = asset_page.wait_for_toast_message()
-    is_blocked = "exists" in field_msg.lower() or "already exists" in toast.lower() or "required" in field_msg.lower()
+    is_blocked = any("exists" in e.lower() or "already" in e.lower() for e in active_errors) or ("exists" in toast.lower() or "already" in toast.lower())
     
+    asset_page.click_cancel()
     admin_page.reload()
     asset_page.navigate_to_asset_master()
     
-    story.log_step("Create Duplicate Category (Exact)", record=category_name, expected="Duplicate category should not be created", actual=f"Blocked with message: '{field_msg or toast}'", status="PASS" if is_blocked else "FAIL")
-    assert is_blocked or toast, f"Expected duplicate category error, got: '{field_msg or toast}'"
+    story.log_step("Create Duplicate Category (Exact)", record=category_name, expected="Duplicate category should not be created", actual=f"Blocked with: '{active_errors or toast}'", status="PASS" if is_blocked else "FAIL")
+    assert is_blocked or toast, f"Expected duplicate category error, got errors: {active_errors}, toast: {toast}"
     
     # Try creating duplicate category with lowercase name
     asset_page.click_add_category()
     asset_page.fill_category_details(name=category_name.lower(), description="Duplicate lower entry", toggle_spans=False)
     asset_page.click_create()
     
-    validations3 = asset_page.get_validation_messages()
-    field_msg3 = validations3.get("Category Name", asset_page.get_field_validation_message("Category Name"))
+    active_errors3 = asset_page.get_active_form_errors()
     toast3 = asset_page.wait_for_toast_message()
-    is_blocked3 = "exists" in field_msg3.lower() or "already exists" in toast3.lower() or "required" in field_msg3.lower()
+    is_blocked3 = any("exists" in e.lower() or "already" in e.lower() for e in active_errors3) or ("exists" in toast3.lower() or "already" in toast3.lower())
     
+    asset_page.click_cancel()
     admin_page.reload()
     asset_page.navigate_to_asset_master()
     
-    story.log_step("Create Duplicate Category (Lowercase)", record=category_name.lower(), expected="Duplicate lowercase category should not be created", actual=f"Blocked with message: '{field_msg3 or toast3}'", status="PASS" if is_blocked3 else "FAIL")
+    story.log_step("Create Duplicate Category (Lowercase)", record=category_name.lower(), expected="Duplicate lowercase category should not be created", actual=f"Blocked with: '{active_errors3 or toast3}'", status="PASS" if is_blocked3 else "FAIL")
     story.finish(status="PASS" if is_blocked3 else "FAIL")
-    assert is_blocked3 or toast3, f"Expected duplicate lowercase category error, got: '{field_msg3 or toast3}'"
+    assert is_blocked3 or toast3, f"Expected duplicate lowercase category error, got errors: {active_errors3}, toast: {toast3}"
 
 
 @pytest.mark.ui
@@ -154,11 +144,7 @@ def test_edit_category_blank_blocked(admin_page):
     story.start()
 
     asset_page = AssetMasterPage(admin_page)
-    asset_page.navigate_to_asset_master()
-    
-    rows = admin_page.locator("table tbody tr").all()
-    assert len(rows) > 0, "No existing Category rows found in grid for edit testing."
-    category_name = rows[0].inner_text().strip().split("\n")[0].strip()
+    category_name = asset_page.read_first_existing_category()
     
     # Open Edit Category
     asset_page.edit_category(category_name)
@@ -170,12 +156,13 @@ def test_edit_category_blank_blocked(admin_page):
     
     # Save & Validate
     asset_page.click_update()
-    validations = asset_page.get_validation_messages()
-    field_msg = validations.get("Category Name", asset_page.get_field_validation_message("Category Name"))
-    is_valid = "required" in field_msg.lower() or "name" in field_msg.lower() or admin_page.get_by_text("Category name is required").is_visible()
-    story.log_step("Save", expected="Category name is required", actual=field_msg if field_msg else "Category name is required", status="PASS" if is_valid else "FAIL")
+    active_errors = asset_page.get_active_form_errors()
+    is_valid = any("required" in e.lower() or "name" in e.lower() for e in active_errors) or admin_page.get_by_text("Category name is required").is_visible()
+    field_msg = active_errors[0] if active_errors else "Category name is required"
+    story.log_step("Save", expected="Category name is required", actual=field_msg if is_valid else "<No field error displayed>", status="PASS" if is_valid else "FAIL")
     
-    assert is_valid, f"Expected field validation for blank category name, got: '{field_msg}'"
+    asset_page.click_cancel()
+    assert is_valid, f"Expected field validation for blank category name, got errors: {active_errors}"
     story.finish(status="PASS")
 
 
@@ -290,6 +277,7 @@ def test_create_sub_category_validation(admin_page):
 
 @pytest.mark.ui
 @pytest.mark.asset
+@pytest.mark.dependency(name="create_subcategory", depends=["create_category"])
 def test_create_sub_category_success(admin_page):
     asset_page = AssetMasterPage(admin_page)
     asset_page.navigate_to_asset_master()
@@ -319,43 +307,14 @@ def test_create_sub_category_success(admin_page):
 
 @pytest.mark.ui
 @pytest.mark.asset
+@pytest.mark.dependency(depends=["create_subcategory"])
 def test_update_sub_category_success(admin_page):
     """Edit Testing Rule: Pick existing Sub Category row from grid and edit in-place without creating redundant records."""
     asset_page = AssetMasterPage(admin_page)
-    asset_page.navigate_to_asset_master()
-    asset_page.navigate_to_sub_categories()
-    
-    rows = admin_page.locator("table tbody tr").all()
-    assert len(rows) > 0, "No existing Sub Category rows found in grid for edit testing."
-    
-    target_row = rows[0]
-    row_text = target_row.inner_text().strip()
-    sub_cat_name = row_text.split("\n")[0].strip()
+    cat_name, sub_cat_name = asset_page.read_first_existing_sub_category()
     
     # Click Edit on existing row
-    edit_btn = target_row.get_by_role("button", name=re.compile(r"Edit", re.I)).first
-    if not edit_btn.is_visible(timeout=2000):
-        edit_btn = target_row.locator("button, svg").first
-    edit_btn.click()
-    admin_page.wait_for_timeout(1000)
-    
-    # Update description in-place
-    updated_desc = "Updated enterprise sub category description"
-    asset_page.fill_sub_category_details(
-        category_label=None,
-        name=None,
-        code_prefix=None,
-        description=updated_desc
-    )
-    asset_page.click_update()
-    
-    # Assert update success toast
-    toast = asset_page.wait_for_toast_message()
-    assert "success" in toast.lower() or "updated" in toast.lower(), f"Unexpected toast: {toast}"
-    assert "created" in toast.lower() or "success" in toast.lower(), f"Failed to create sub category: {toast}"
-    
-    # 3. Edit the sub category
-    asset_page.edit_sub_category(category_name, sub_category_name, code_prefix)
+    asset_page.edit_sub_category(cat_name, sub_cat_name, "LAP")
     
     # Assert spelling on Edit Sub Category modal header
     header_locator = admin_page.locator(".chakra-modal__header")
@@ -373,7 +332,7 @@ def test_update_sub_category_success(admin_page):
     )
     asset_page.click_update()
     
-    # 4. Assert update success toast
+    # Assert update success toast
     toast = asset_page.wait_for_toast_message()
     assert "success" in toast.lower() or "updated" in toast.lower(), f"Unexpected toast: {toast}"
 
@@ -695,6 +654,7 @@ def test_create_vendor_validation(admin_page):
 
 @pytest.mark.ui
 @pytest.mark.asset
+@pytest.mark.dependency(name="create_vendor")
 def test_create_vendor_success(admin_page):
     asset_page = AssetMasterPage(admin_page)
     asset_page.navigate_to_asset_master()
@@ -719,6 +679,7 @@ def test_create_vendor_success(admin_page):
 
 @pytest.mark.ui
 @pytest.mark.asset
+@pytest.mark.dependency(depends=["create_vendor"])
 def test_update_vendor_success(admin_page):
     """Edit Testing Rule: Pick existing Vendor row from grid and edit in-place without creating redundant records."""
     story = TestStoryLogger("Update Vendor")

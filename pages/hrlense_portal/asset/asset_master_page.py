@@ -62,12 +62,12 @@ class AssetMasterPage(BasePage):
     def navigate_to_sub_categories(self):
         """Navigates to Sub Category tab."""
         logger.debug("Navigating to Sub Categories tab...")
+        self._ensure_modal_closed()
         try:
-            tab = self.page.locator("[role='tab']").filter(has_text=re.compile(r"^Sub\s*Categor", re.I)).first
-            if not tab.is_visible():
-                tab = self.page.get_by_role("tab", name=re.compile(r"^Sub\s*Categor", re.I)).first
-            tab.click(force=True)
-            self.page.wait_for_timeout(500)
+            tab = self.page.locator("button[role='tab'], [role='tab']").filter(has_text=re.compile(r"Sub.?Categor", re.I)).first
+            if tab.is_visible(timeout=1000):
+                tab.click(force=True)
+                self.page.wait_for_timeout(600)
         except Exception:
             try:
                 self.page.locator(self.SUB_CATEGORIES_TAB).click()
@@ -77,12 +77,12 @@ class AssetMasterPage(BasePage):
     def navigate_to_vendors(self):
         """Navigates to Vendors tab."""
         logger.debug("Navigating to Vendors tab...")
+        self._ensure_modal_closed()
         try:
-            tab = self.page.locator("[role='tab']").filter(has_text=re.compile(r"^Vendor", re.I)).first
-            if not tab.is_visible():
-                tab = self.page.get_by_role("tab", name=re.compile(r"^Vendor", re.I)).first
-            tab.click(force=True)
-            self.page.wait_for_timeout(500)
+            tab = self.page.locator("button[role='tab'], [role='tab']").filter(has_text=re.compile(r"Vendor", re.I)).first
+            if tab.is_visible(timeout=1000):
+                tab.click(force=True)
+                self.page.wait_for_timeout(600)
         except Exception:
             try:
                 self.page.locator(self.VENDORS_TAB).click()
@@ -149,24 +149,32 @@ class AssetMasterPage(BasePage):
         if "asset-master" not in self.page.url:
             self.navigate_to_asset_master()
         self.navigate_to_category_tab()
-        cats = set()
+        cats = []
+        seen = set()
         try:
             self.page.locator("tbody tr, table tr").first.wait_for(state="visible", timeout=6000)
             while True:
                 for r in self.page.locator("tbody tr, table tr").all():
-                    for td in r.locator("td").all():
-                        t = td.inner_text().strip()
-                        if t and not t.startswith("No ") and not t.isdigit() and len(t) > 1:
-                            cats.add(t)
+                    cells = r.locator("td").all()
+                    if cells:
+                        cat_name = cells[0].inner_text().strip()
+                        if cat_name and not cat_name.startswith("No ") and cat_name.lower() not in ["active", "inactive"] and not cat_name.isdigit():
+                            if cat_name not in seen:
+                                seen.add(cat_name)
+                                cats.append(cat_name)
                 next_btn = self.page.locator("button[aria-label='Next Page'], button:has-text('Next')").first
-                if next_btn.is_visible() and next_btn.is_enabled():
+                if next_btn.is_visible() and next_btn.is_enabled() and not next_btn.get_attribute("disabled") and next_btn.get_attribute("aria-disabled") != "true":
                     next_btn.click()
                     self.page.wait_for_timeout(400)
                 else:
                     break
         except Exception:
             pass
-        return sorted(list(cats))
+        return cats
+
+    def get_toast_message(self) -> str:
+        """Alias for wait_for_toast_message."""
+        return self.wait_for_toast_message()
 
     def get_all_existing_sub_categories(self) -> list[dict]:
         """Returns list of all sub-categories [{'all_texts': [...], 'row_text': ...}] across pages."""
@@ -232,6 +240,27 @@ class AssetMasterPage(BasePage):
         logger.info(f"[DISCOVERED VENDORS] Found {len(vendors)} entries in grid")
         return vendors
 
+    def create_category(self, name: str, description: str = "Standard category", **kwargs):
+        """Creates a new Category through the UI modal."""
+        self.click_add_category()
+        self.fill_category_details(name=name, description=description)
+        self.click_create()
+        self._ensure_modal_closed()
+
+    def create_sub_category(self, category: str, sub_category_name: str, code_prefix: str = "SUB", description: str = "Standard subcategory", **kwargs):
+        """Creates a new Sub-Category through the UI modal."""
+        self.click_add_sub_category()
+        self.fill_sub_category_details(category_name=category, sub_category_name=sub_category_name, code_prefix=code_prefix, description=description)
+        self.click_create()
+        self._ensure_modal_closed()
+
+    def create_vendor(self, name: str, contact_person: str = "Sales", phone: str = "9876543210", email: str = "vendor@example.com", address: str = "Corporate HQ", gst: str = "07AAAAA0000A1Z5", **kwargs):
+        """Creates a new Vendor through the UI modal."""
+        self.click_add_vendor()
+        self.fill_vendor_details(name=name, contact_person=contact_person, phone=phone, email=email, address=address, gst=gst)
+        self.click_create()
+        self._ensure_modal_closed()
+
     def _ensure_modal_closed(self):
         try:
             dialog = self.page.locator("[role='dialog'], .chakra-modal__content").first
@@ -242,6 +271,7 @@ class AssetMasterPage(BasePage):
                 else:
                     self.page.keyboard.press("Escape")
                 self.page.wait_for_timeout(300)
+            self.dismiss_toasts()
         except Exception:
             pass
         self.page.wait_for_timeout(200)

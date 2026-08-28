@@ -223,29 +223,138 @@ class AssetRequestPage(BasePage):
             "sub_category": selected_sub
         }
 
+    def request_asset_return(
+        self,
+        asset_code_or_name: str = None,
+        reason: str = "Project concluded / Hardware upgrade required",
+        return_date: str = "2026-08-26",
+        upload_media: bool = True,
+        media_files: list[str] = None,
+        **kwargs
+    ) -> dict:
+        """
+        Employee-Initiated Return Request:
+        1. Identifies the target active assigned asset row in the Employee portal (/asset-request).
+        2. Clicks the action column button: locator("//button[@aria-label='Return asset']//*[name()='svg']")
+        3. Fills the 'Return Request' modal:
+           - Header: <p class="chakra-text css-1mzljxq">Request Asset Return</p>
+           - Media Upload: <p class="chakra-text css-ixa7ci">Click to upload images or video</p>
+             (Attaches up to 4 photos each <= 5MB and 1 video ~10s)
+           - Reason textarea
+           - Return Date (if available)
+        4. Clicks 'Submit Request' / 'Confirm'.
+        5. Captures and returns toast confirmation.
+        """
+        from utils.asset_media_helper import get_return_test_media_files
+
+        logger.info(f"Initiating Employee Return Request for asset: '{asset_code_or_name or 'First Assigned'}'")
+        self.page.wait_for_timeout(1000)
+
+        # 1. Locate the return action button
+        ret_btn = None
+        if asset_code_or_name:
+            target_row = self.page.locator("table tbody tr, .chakra-card, .css-prwjms").filter(has_text=asset_code_or_name).first
+            if target_row.is_visible(timeout=2000):
+                ret_btn = target_row.locator("xpath=.//button[@aria-label='Return asset'] | .//button[@aria-label='Return Asset'] | .//button[contains(@aria-label, 'Return')]").first
+                if not ret_btn.is_visible(timeout=500):
+                    ret_btn = target_row.get_by_role("button", name=re.compile(r"Return|Request Return", re.I)).first
+
+        if not ret_btn or not ret_btn.is_visible(timeout=500):
+            # Fallback to the dedicated aria-label button locator on the table
+            ret_btn = self.page.locator("//button[@aria-label='Return asset'] | //button[@aria-label='Return Asset']").first
+            if not ret_btn.is_visible(timeout=1000):
+                ret_btn = self.page.locator("//button[contains(@aria-label, 'Return')]//*[name()='svg']/..").first
+            if not ret_btn.is_visible(timeout=1000):
+                ret_btn = self.page.get_by_role("button", name=re.compile(r"Return Asset|Request Return|Return", re.I)).first
+
+        if not ret_btn.is_visible(timeout=3000):
+            logger.warning(f"Return button not found on /asset-request for asset: '{asset_code_or_name}'")
+            return {"success": False, "toast": "Return button not visible"}
+
+        logger.info("Clicking Action Column -> 'Return asset' button...")
+        ret_btn.scroll_into_view_if_needed()
+        try:
+            ret_btn.click(timeout=3000)
+        except Exception:
+            ret_btn.click(force=True)
+
+        self.page.wait_for_timeout(800)
+
+        # 2. Handle Return Request Modal
+        dialog = self.page.locator("[role='dialog'][aria-modal='true'], .chakra-modal__content").first
+        if not dialog.is_visible(timeout=3000):
+            dialog = self.page.locator("div.chakra-modal__content").first
+
+        if dialog.is_visible(timeout=4000):
+            # 2.1 Media Attachment Upload (Up to 4 photos <= 5MB + 1 video ~10s)
+            if upload_media:
+                try:
+                    files_to_upload = media_files or get_return_test_media_files(include_video=True, max_photos=4)
+                    file_input = dialog.locator("input[type='file']").first
+                    if not file_input.is_visible(timeout=500):
+                        file_input = self.page.locator("input[type='file']").first
+
+                    if file_input.count() > 0 and files_to_upload:
+                        file_input.set_input_files(files_to_upload)
+                        self.page.wait_for_timeout(1000)
+                        logger.info(f"Attached {len(files_to_upload)} media files to Return Request modal: {[os.path.basename(f) for f in files_to_upload]}")
+                except Exception as ex:
+                    logger.warning(f"Media upload note in return modal: {ex}")
+
+            # 2.2 Fill Reason
+            try:
+                reason_in = dialog.locator("textarea, input[placeholder*='reason' i], [name*='reason' i]").first
+                if not reason_in.is_visible(timeout=1000):
+                    reason_in = dialog.get_by_placeholder(re.compile(r"Reason|Remarks|Why", re.I)).first
+                if reason_in.is_visible(timeout=1000):
+                    reason_in.fill(reason)
+                    logger.info(f"Filled Return Reason: '{reason}'")
+            except Exception as ex:
+                logger.warning(f"Return reason fill note: {ex}")
+
+            # 2.3 Fill Date if requested
+            if return_date:
+                try:
+                    date_in = dialog.locator("input[type='date']").first
+                    if date_in.is_visible(timeout=500):
+                        date_in.fill(return_date)
+                        logger.info(f"Filled Return Date: '{return_date}'")
+                except Exception:
+                    pass
+
+            # 2.4 Click Submit Request / Confirm
+            submit_btn = dialog.get_by_role("button", name=re.compile(r"Submit Request|Submit|Return Asset|Return|Confirm|Proceed", re.I)).first
+            if not submit_btn.is_visible(timeout=1000):
+                submit_btn = dialog.locator("button.chakra-button, button[type='submit']").filter(has_text=re.compile(r"Submit|Return|Confirm", re.I)).first
+
+            logger.info("Clicking modal 'Submit Request' button...")
+            submit_btn.scroll_into_view_if_needed()
+            try:
+                submit_btn.click(timeout=3000)
+            except Exception:
+                submit_btn.click(force=True)
+
+        # 3. Capture Toast
+        toast = self.wait_for_toast_message()
+        logger.info(f"Captured Employee Return Request Toast: '{toast}'")
+
+        # Clean dialog close if blocked or lingering
+        try:
+            if dialog.is_visible(timeout=500):
+                self.page.keyboard.press("Escape")
+                self.page.wait_for_timeout(300)
+        except Exception:
+            pass
+
+        return {
+            "success": any(term in toast.lower() for term in ["success", "submitted", "requested", "created"]),
+            "toast": toast
+        }
+
     def request_return(self, asset_code_or_name: str) -> bool:
-        logger.info(f"Handling return request for asset: {asset_code_or_name}")
-        self.page.wait_for_timeout(2000)
-        # Target the card container class '.css-prwjms' containing the asset code
-        card_locator = self.page.locator(".css-prwjms").filter(has_text=asset_code_or_name).first
-        return_btn = card_locator.get_by_role("button", name=re.compile(r"(Return|Request Return)", re.IGNORECASE))
-        if not return_btn.is_visible():
-            return_btn = self.page.locator("table tbody tr").filter(has_text=asset_code_or_name).get_by_role("button", name=re.compile(r"(Return|Request Return)", re.IGNORECASE))
-            
-        if return_btn.is_visible():
-            logger.info("Clicking Return/Request Return button.")
-            return_btn.click()
-            self.page.wait_for_timeout(1000)
-            
-            modal = self.page.locator("[role='dialog'][aria-modal='true']")
-            if modal.is_visible():
-                confirm_btn = modal.get_by_role("button", name=re.compile(r"(Return|Confirm|Yes|Proceed)", re.IGNORECASE))
-                confirm_btn.click()
-                self.page.wait_for_timeout(1000)
-            return True
-            
-        logger.warning(f"Return button not found or visible for asset: {asset_code_or_name}")
-        return False
+        """Backward-compatible alias for request_asset_return."""
+        res = self.request_asset_return(asset_code_or_name=asset_code_or_name)
+        return res.get("success", False)
 
     def wait_for_toast_message(self) -> str:
         return self.wait_for_toast(self.TOAST)

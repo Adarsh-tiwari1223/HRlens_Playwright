@@ -155,23 +155,29 @@ class AssetAssignmentPage(BasePage):
         _select_cat(target_cat)
         
         # Sub Category dropdown
-        sub_select = self.page.get_by_label("Sub Category*", exact=True)
-        if not sub_select.is_visible(timeout=1000):
-            sub_select = self.page.locator("select").nth(1)
-
         modal = self.page.locator("[role='dialog'], .chakra-modal__content, .chakra-drawer__content").first
         if not modal.is_visible(timeout=1000):
             modal = self.page
 
+        sub_select = modal.locator("//div[./label[contains(text(), 'Sub Category')]]//select").first
+        if not sub_select.is_visible(timeout=1000):
+            sub_select = modal.get_by_label("Sub Category*", exact=True).first
+        if not sub_select.is_visible(timeout=1000):
+            sub_select = modal.locator("select").nth(1)
+
         def _try_select_asset(sub_name):
             try:
-                sub_select.select_option(label=sub_name, timeout=500)
+                sub_select.select_option(label=sub_name, timeout=1500)
             except Exception:
-                for idx, opt in enumerate(sub_select.locator("option").all_inner_texts()):
-                    if any(part.lower() in opt.lower() for part in sub_name.lower().split() if len(part) > 3) or sub_name.lower() in opt.lower():
-                        sub_select.select_option(index=idx)
-                        break
-            self.page.wait_for_timeout(200)
+                try:
+                    options = [o.strip() for o in sub_select.locator("option").all_inner_texts() if o.strip()]
+                    for idx, opt in enumerate(options):
+                        if any(part.lower() in opt.lower() for part in sub_name.lower().split() if len(part) > 3) or sub_name.lower() in opt.lower():
+                            sub_select.select_option(index=idx, timeout=1500)
+                            break
+                except Exception as e:
+                    logger.warning(f"Subcategory option select note: {e}")
+            self.page.wait_for_timeout(300)
 
             trigger = modal.locator(".chakra-menu__menubutton, button").filter(has_text=re.compile(r"Select asset|Select|Available|ASSET", re.I)).first
             if not trigger.is_visible(timeout=300):
@@ -181,12 +187,17 @@ class AssetAssignmentPage(BasePage):
                 trigger.click(force=True)
                 self.page.wait_for_timeout(200)
 
-                # Direct search box click and paste to filter dropdown
+                # Optional search box inside dropdown popover
                 if asset_name_or_code:
-                    search_box = self.page.get_by_placeholder("Search...")
-                    search_box.click()
-                    search_box.fill(asset_name_or_code)
-                    self.page.wait_for_timeout(250)
+                    try:
+                        search_box = self.page.get_by_placeholder("Search...").first
+                        if not search_box.is_visible(timeout=500):
+                            search_box = self.page.locator(".chakra-portal input[placeholder*='Search' i], div.chakra-menu__menu-list input").first
+                        if search_box.is_visible(timeout=1000):
+                            search_box.fill(asset_name_or_code)
+                            self.page.wait_for_timeout(300)
+                    except Exception as e:
+                        logger.warning(f"Dropdown search box note: {e}")
 
                 menu = self.page.locator(".chakra-portal div[role='menu'], div.chakra-menu__menu-list, [role='menu']").first
                 items = menu.locator("[role='menuitem'], [role='menuitemcheckbox'], [role='option'], button").all() if menu.is_visible(timeout=300) else self.page.locator("[role='menuitem'], [role='menuitemcheckbox'], .chakra-menu__menuitem").all()
@@ -220,16 +231,16 @@ class AssetAssignmentPage(BasePage):
         if target_sub:
             selected_code = _try_select_asset(target_sub)
 
-        # Fast fallback to other available subcategories under target category
-        if not selected_code and sub_options:
+        # Fast fallback to other available subcategories under target category if asset_name_or_code not strictly required
+        if not selected_code and not asset_name_or_code and sub_options:
             for alt_sub in sub_options:
                 if alt_sub != target_sub:
                     selected_code = _try_select_asset(alt_sub)
                     if selected_code:
                         break
 
-        # Fast fallback across other categories if still no assets found
-        if not selected_code and cat_options:
+        # Fast fallback across other categories if not strictly looking for specific asset_name_or_code
+        if not selected_code and not asset_name_or_code and cat_options:
             for alt_cat in cat_options:
                 if alt_cat != target_cat:
                     _select_cat(alt_cat)

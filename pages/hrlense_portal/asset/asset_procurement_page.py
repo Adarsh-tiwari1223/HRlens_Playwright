@@ -306,6 +306,10 @@ class AssetProcurementPage(BasePage):
             pass
         return False
 
+    def is_step1_active(self) -> bool:
+        """Returns True if the wizard is currently on Step 1 (not advanced to Step 2)."""
+        return not self.is_step2_active()
+
     def click_next(self) -> dict:
         """Advances from Step 1 to Step 2."""
         logger.info("Clicking 'Next — Add items' button")

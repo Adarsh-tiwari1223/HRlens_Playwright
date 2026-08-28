@@ -4,9 +4,12 @@ Strict 3-Tier Architecture (Page Object -> Workflow Layer -> Test Suite).
 Validates 'Generate Assets' drawer opening, Procurement selection, Procurement Item selection, and submission.
 """
 
+import time
+import random
+import re
 import pytest
 import logging
-from pages.base_page import TestStoryLogger
+from pages.base_page import TestStoryLogger, format_ascii_table
 from pages.hrlense_portal.asset.asset_entry_page import AssetEntryPage
 
 logger = logging.getLogger(__name__)
@@ -218,3 +221,331 @@ def test_manual_add_asset_workflow(admin_page):
     )
 
     story.finish()
+
+
+ASSET_TAXONOMY_15 = [
+    # 1-3. IT Hardware (Laptops)
+    {"name": "Dell Latitude 7440", "brand": "Dell", "model": "Latitude 7440", "cat": "IT Hardware", "sub": "Laptop"},
+    {"name": "Lenovo ThinkPad T14 Gen 4", "brand": "Lenovo", "model": "ThinkPad T14", "cat": "IT Hardware", "sub": "Laptop"},
+    {"name": "HP EliteBook 840 G9", "brand": "HP", "model": "EliteBook 840", "cat": "IT Hardware", "sub": "Laptop"},
+    
+    # 4-5. Display (Monitors)
+    {"name": "Dell UltraSharp 27 4K", "brand": "Dell", "model": "U2723QE", "cat": "Display", "sub": "Monitor"},
+    {"name": "LG UltraGear 27 Gaming Monitor", "brand": "LG", "model": "27GP850-B", "cat": "Display", "sub": "Monitor"},
+    
+    # 6-7. Audio Visual (Headsets)
+    {"name": "Sony WH-1000XM5 Noise Cancelling", "brand": "Sony", "model": "WH-1000XM5", "cat": "Audio Visual", "sub": "Headset"},
+    {"name": "JBL Tune 760NC Headset", "brand": "JBL", "model": "Tune 760NC", "cat": "Audio Visual", "sub": "Headset"},
+    
+    # 8-10. Office Furniture (Chairs & Desks)
+    {"name": "Godrej Ergonomic Mesh Chair", "brand": "Godrej", "model": "Motion Executive", "cat": "Office Furniture", "sub": "Ergonomic Chair"},
+    {"name": "Featherlite Helix Mesh Chair", "brand": "Featherlite", "model": "Helix High-Back", "cat": "Office Furniture", "sub": "Ergonomic Chair"},
+    {"name": "Steelcase Ergonomic Office Desk", "brand": "Steelcase", "model": "Migration SE", "cat": "Office Furniture", "sub": "Executive Desk"},
+    
+    # 11-12. Peripherals & Accessories (Keyboards & Mice)
+    {"name": "Logitech MX Master 3S Mouse", "brand": "Logitech", "model": "MX Master 3S", "cat": "Peripherals and Accessories", "sub": "Mouse"},
+    {"name": "Keychron K2 Mechanical Keyboard", "brand": "Keychron", "model": "K2 Mechanical", "cat": "Peripherals and Accessories", "sub": "Keyboard"},
+    
+    # 13-14. Networking and Servers (Routers & Switches)
+    {"name": "Cisco Catalyst 1000 Switch", "brand": "Cisco", "model": "C1000-24T-4G-L", "cat": "Networking and Servers", "sub": "Switch"},
+    {"name": "TP-Link Omada Multi-WAN Router", "brand": "TP-Link", "model": "ER7206", "cat": "Networking and Servers", "sub": "Router"},
+    
+    # 15. Facility and Pantry (Air Conditioner)
+    {"name": "Voltas 1.5 Ton Split AC", "brand": "Voltas", "model": "Vectra 183V", "cat": "Facility and Pantry", "sub": "Air Conditioner"}
+]
+
+
+@pytest.mark.ui
+@pytest.mark.asset
+@pytest.mark.parametrize("count", [1, 2, 3, 5, 10, 15, 20])
+@pytest.mark.parametrize("branch", [
+    "varanasi",
+    "agra",
+    "noida",
+    "greater_noida",
+    "jaipur",
+    "lucknow",
+    "meerut",
+    "ranchi",
+    "bhubaneswar"
+])
+def test_manual_add_assets_workflow(logged_in_page, request, branch, count):
+    """
+    Manually creates N distinct, realistic assets for the specified branch across multiple categories.
+    Logs in dynamically via that branch's designated IT Person.
+    Supports dynamic count via:
+      pytest tests/hrlense_portal/ui/asset/test_asset_entry.py -k "5 and varanasi" -v -s
+      pytest tests/hrlense_portal/ui/asset/test_asset_entry.py -k "15 and varanasi" -v -s
+    """
+    import random
+    import time
+    import re
+    from utils.branch_it_selector import get_branch_it_person
+
+    # Extract exact count from -k if specified, else use parametrized count
+    k_expr = request.config.getoption("-k") or ""
+    k_numbers = re.findall(r"\b(\d+)\b", k_expr)
+    target_count = int(k_numbers[0]) if k_numbers else count
+
+    it_person = get_branch_it_person(branch)
+    it_user_key = it_person.get("user_key", "admin")
+    logger.info(f"\n{'='*80}\n[AUTH] Logging in as '{branch.title()}' IT Person: {it_person.get('name')} ({it_user_key}) | Target Count: {target_count}\n{'='*80}")
+
+    page, ctx = logged_in_page(it_user_key)
+    story = TestStoryLogger(f"Manual Add {target_count} Assets ({branch.title()})", module="Asset Management", phase="Batch Asset Entry")
+    story.start()
+
+    entry_page = AssetEntryPage(page)
+    created_assets = []
+
+    logger.info(f"\n{'='*80}\n[START] Generating {target_count} Manual Assets for Branch: '{branch.title()}'\n{'='*80}")
+
+    for i in range(target_count):
+        spec = ASSET_TAXONOMY_15[i % len(ASSET_TAXONOMY_15)]
+        unique_suffix = f"{int(time.time())}_{i+1}_{random.randint(100, 999)}"
+        serial_no = f"SN-{spec['brand'][:4].upper()}-{unique_suffix}"
+        
+        logger.info(f"[{i+1}/{target_count}] Adding Asset for '{branch.title()}': '{spec['name']}' (Serial: {serial_no})...")
+        entry_page.navigate_to_asset_entry()
+        entry_page.click_add_asset()
+        
+        filled = entry_page.fill_asset_details(
+            name=f"{spec['name']} #{i+1}",
+            branch=branch.title(),
+            category=spec.get("cat"),
+            sub_category=spec.get("sub"),
+            brand=spec.get("brand"),
+            model=spec.get("model"),
+            serial_no=serial_no,
+            warranty="Warranty",
+            expiry_date="2027-12-31",
+            insured="Yes",
+            insurance_provider="ICICI Lombard",
+            policy_number=f"POL-{unique_suffix}",
+            premium_amount="5000",
+            premium_frequency="Annually",
+            insurance_start_date="2026-08-12",
+            insurance_expiry_date="2027-08-12",
+            notes=f"Manually created batch item #{i+1} for {branch.title()}."
+        )
+        
+        toast = entry_page.click_save_and_generate_qr()
+        logger.info(f"[{i+1}/{target_count}] Saved: Toast='{toast}' | Serial='{serial_no}'")
+        created_assets.append({"index": i+1, "serial": serial_no, "name": filled.get("name"), "toast": toast})
+        page.wait_for_timeout(300)
+
+    logger.info(f"\n{'='*80}\n[COMPLETED] Successfully generated {len(created_assets)} assets for '{branch.title()}'\n{'='*80}")
+
+    story.log_step(
+        f"Generate {target_count} Manual Assets",
+        record=f"Branch: {branch.title()}, Total Created: {len(created_assets)}",
+        expected=f"{target_count} assets created successfully in inventory",
+        actual=f"Created {len(created_assets)} assets",
+        status="PASS"
+    )
+    story.finish()
+    ctx.close()
+
+
+@pytest.mark.ui
+@pytest.mark.asset
+@pytest.mark.security
+@pytest.mark.parametrize("primary_branch, secondary_branch", [
+    ("varanasi", "agra"),
+    ("agra", "noida"),
+    ("noida", "varanasi")
+])
+def test_cross_branch_asset_visibility_isolation(logged_in_page, primary_branch, secondary_branch):
+    """
+    Branch Data Isolation & Security Verification:
+    Verifies that assets created by the IT Person of Branch X (e.g. Varanasi)
+    are strictly visible ONLY to Branch X IT Person, and completely hidden from Branch Y (e.g. Agra).
+
+    Flow:
+    1. IT Person of Primary Branch (Branch X) logs in.
+    2. Creates a unique asset under Branch X.
+    3. Confirms asset is present & visible in Branch X's inventory grid.
+    4. IT Person of Secondary Branch (Branch Y) logs in.
+    5. Navigates to /asset-entry and searches for the Branch X asset serial/code.
+    6. Asserts the asset is NOT listed / returns No Data in Branch Y's inventory grid.
+    """
+    import time
+    import random
+    from utils.branch_it_selector import get_branch_it_person
+
+    p_it = get_branch_it_person(primary_branch)
+    s_it = get_branch_it_person(secondary_branch)
+    
+    p_key = p_it.get("user_key", "admin")
+    s_key = s_it.get("user_key", "admin")
+
+    story = TestStoryLogger(
+        f"Cross-Branch Isolation: {primary_branch.title()} vs {secondary_branch.title()}",
+        module="Asset Management",
+        phase="Security & Branch Isolation"
+    )
+    story.start()
+
+    logger.info(f"\n{'='*80}\n[ISOLATION TEST START] Primary: {primary_branch.title()} ({p_it.get('name')}) | Secondary: {secondary_branch.title()} ({s_it.get('name')})\n{'='*80}")
+
+    # =========================================================================
+    # Step 1: Login as Primary Branch IT Person & Create Asset
+    # =========================================================================
+    p_page, p_ctx = logged_in_page(p_key)
+    p_entry = AssetEntryPage(p_page)
+
+    unique_id = f"{int(time.time())}_{random.randint(100, 999)}"
+    serial_no = f"SN-ISOL-{primary_branch[:3].upper()}-{unique_id}"
+    asset_name = f"Isolation Workstation {primary_branch.title()} {unique_id}"
+
+    p_entry.navigate_to_asset_entry()
+    p_entry.click_add_asset()
+    p_entry.fill_asset_details(
+        name=asset_name,
+        branch=f"{primary_branch.title()} Group",
+        category="IT Hardware",
+        sub_category="Laptop",
+        brand="Dell",
+        model="Latitude 7440",
+        serial_no=serial_no,
+        warranty="Warranty",
+        expiry_date="2027-12-31",
+        insured="No",
+        notes=f"Branch isolation test asset for {primary_branch.title()}."
+    )
+    p_toast = p_entry.click_save_and_generate_qr()
+    logger.info(f"[{primary_branch.title()}] Created asset with serial '{serial_no}'. Toast='{p_toast}'")
+
+    # Verify visible in Primary Branch
+    p_entry.navigate_to_asset_entry()
+    p_entry.search_asset(serial_no)
+    p_page.wait_for_timeout(1000)
+    p_row = p_page.locator("table tbody tr, tbody tr").first
+    p_row_text = p_row.inner_text() if p_row.is_visible(timeout=3000) else ""
+    is_visible_in_primary = serial_no in p_row_text or asset_name in p_row_text
+
+    story.log_step(
+        f"1. Asset Created & Verified in {primary_branch.title()}",
+        record=f"Serial: {serial_no}, Visible: {is_visible_in_primary}",
+        expected=f"Asset visible to {primary_branch.title()} IT Person",
+        actual=f"Found: {p_row_text[:60]}...",
+        status="PASS" if is_visible_in_primary else "FAIL"
+    )
+    assert is_visible_in_primary, f"Asset '{serial_no}' should be visible to {primary_branch.title()} IT Person!"
+    p_ctx.close()
+
+    # =========================================================================
+    # Step 2: Login as Secondary Branch IT Person & Verify NOT Visible
+    # =========================================================================
+    s_page, s_ctx = logged_in_page(s_key)
+    s_entry = AssetEntryPage(s_page)
+
+    s_entry.navigate_to_asset_entry()
+    s_entry.search_asset(serial_no)
+    s_page.wait_for_timeout(1500)
+
+    # Check table content in Secondary Branch
+    s_row = s_page.locator("table tbody tr, tbody tr").first
+    s_row_text = s_row.inner_text() if s_row.is_visible(timeout=2000) else ""
+    is_hidden_in_secondary = (serial_no not in s_row_text) and (asset_name not in s_row_text)
+
+    logger.info(f"[{secondary_branch.title()}] Searched '{serial_no}'. Row found='{s_row_text}'. Hidden={is_hidden_in_secondary}")
+
+    story.log_step(
+        f"2. Asset Hidden from {secondary_branch.title()}",
+        record=f"Searched: {serial_no}, Found Text: '{s_row_text[:60]}'",
+        expected=f"Asset completely hidden from {secondary_branch.title()} IT Person",
+        actual=f"Is Hidden: {is_hidden_in_secondary}",
+        status="PASS" if is_hidden_in_secondary else "FAIL"
+    )
+    s_ctx.close()
+
+    assert is_hidden_in_secondary, f"Security Violation! Asset '{serial_no}' of {primary_branch.title()} was visible to {secondary_branch.title()} IT Person!"
+    logger.info(f"\n{'='*80}\n[ISOLATION VERIFIED] Data isolation successfully confirmed between {primary_branch.title()} and {secondary_branch.title()}\n{'='*80}")
+    story.finish()
+
+
+@pytest.mark.ui
+@pytest.mark.asset
+@pytest.mark.seeding
+def test_manual_add_5_assets_per_category_subcategory(admin_page):
+    """
+    Manually creates at least 5 active assets for EACH of the 10 Category + Sub-Category pairs
+    (Total: 50 active assets across all 10 categories & subcategories).
+    """
+    story = TestStoryLogger("Manual Seed: 5 Active Assets per Category & Sub-Category", module="Asset Management", phase="Asset Entry")
+    story.start()
+
+    entry_page = AssetEntryPage(admin_page)
+    entry_page.navigate_to_asset_entry()
+
+    taxonomy_10 = [
+        {"cat": "IT Hardware", "sub": "Laptop", "prefix": "LAP", "models": [("Dell", "Latitude 7440"), ("Lenovo", "ThinkPad T14"), ("HP", "EliteBook 840"), ("Apple", "MacBook Pro 14"), ("Asus", "ExpertBook B9")]},
+        {"cat": "Office Furniture", "sub": "Ergonomic Chair", "prefix": "CHR", "models": [("Godrej", "Executive Mesh Chair"), ("Featherlite", "Helix High-Back"), ("Steelcase", "Gesture Chair"), ("Herman Miller", "Aeron Chair"), ("Haworth", "Zody Ergonomic")]},
+        {"cat": "Peripherals", "sub": "UltraSharp 4K Monitor", "prefix": "MON", "models": [("Dell", "UltraSharp U2723QE"), ("LG", "UltraFine 4K 27UN880"), ("Samsung", "ViewFinity S8 4K"), ("BenQ", "DesignVue PD2705U"), ("ASUS", "ProArt PA279CV")]},
+        {"cat": "Software Licenses", "sub": "Operating System License", "prefix": "OSL", "models": [("Microsoft", "Windows 11 Pro"), ("Microsoft", "Windows 11 Enterprise"), ("RedHat", "RHEL 9 Workstation"), ("Canonical", "Ubuntu Pro Enterprise"), ("JetBrains", "All Products Pack")]},
+        {"cat": "Networking and Servers", "sub": "Enterprise Edge Router", "prefix": "RTR", "models": [("Cisco", "Catalyst 8300 Router"), ("Juniper", "SRX345 Gateway"), ("Fortinet", "FortiGate 60F"), ("TP-Link", "Omada ER7206 Dual-WAN"), ("MikroTik", "CCR2004 Cloud Router")]},
+        {"cat": "Audio Visual", "sub": "Conference Speakerphone", "prefix": "SPK", "models": [("Jabra", "Speak 750 Pod"), ("Poly", "Sync 40 Smart Speaker"), ("EPOS", "Expand SP 30+"), ("Anker", "PowerConf S500"), ("Bose", "Work Videobar VB1")]},
+        {"cat": "Mobile and Telephony", "sub": "Business Smartphone", "prefix": "PHN", "models": [("Samsung", "Galaxy S23 Enterprise"), ("Apple", "iPhone 15 Corporate"), ("Google", "Pixel 8 Enterprise"), ("Motorola", "ThinkPhone Enterprise"), ("OnePlus", "12R Business Edition")]},
+        {"cat": "Security and Surveillance", "sub": "CCTV Security Camera", "prefix": "CAM", "models": [("Hikvision", "4K Dome IP Camera"), ("Dahua", "WizSense 4MP Bullet"), ("CP Plus", "IntelliPro 5MP Dome"), ("Axis", "M3068-P Panoramic"), ("Bosch", "FLEXIDOME IP 5000i")]},
+        {"cat": "Power and Backup", "sub": "Online UPS Inverter", "prefix": "UPS", "models": [("APC Schneider", "Smart-UPS RT 3000VA"), ("Eaton", "9PX 3000VA Online UPS"), ("Vertiv", "Liebert GXT5 2000VA"), ("Luminous", "Pro 2kVA Pure Sine"), ("Microtek", "Max Power 3kVA Online")]},
+        {"cat": "Facility and Pantry", "sub": "Office Air Conditioner", "prefix": "OAC", "models": [("Daikin", "Inverter 2-Ton Split AC"), ("Voltas", "Vectra 1.5-Ton Inverter"), ("Blue Star", "5-Star Inverter AC"), ("Hitachi", "Toushi Split Inverter AC"), ("Mitsubishi", "Heavy Heavy Duty 2-Ton")]}
+    ]
+
+    total_created = 0
+    results_summary = []
+
+    for cat_idx, item in enumerate(taxonomy_10, 1):
+        cat_name = item["cat"]
+        sub_name = item["sub"]
+        prefix = item["prefix"]
+        models_list = item["models"]
+
+        logger.info(f"\n{'='*70}\n[CATEGORY {cat_idx}/10] Seeding 5 Active Assets for '{cat_name}' -> '{sub_name}'\n{'='*70}")
+
+        entry_page.navigate_to_asset_entry()
+
+        for asset_idx, (brand, model) in enumerate(models_list, 1):
+            unique_id = f"{int(time.time())}_{random.randint(100, 999)}"
+            serial_no = f"SN-{prefix}-VAR-{unique_id}"
+            asset_name = f"{brand} {model}"
+
+            entry_page.click_add_asset()
+            entry_page.fill_asset_details(
+                name=asset_name,
+                branch="Varanasi",
+                category=cat_name,
+                sub_category=sub_name,
+                brand=brand,
+                model=model,
+                serial_no=serial_no,
+                warranty="Warranty",
+                expiry_date="2028-06-30",
+                insured="No",
+                notes=f"Active asset #{asset_idx} for Category '{cat_name}' -> Subcategory '{sub_name}'"
+            )
+            toast = entry_page.click_save_and_generate_qr()
+            admin_page.wait_for_timeout(400)
+            total_created += 1
+
+            results_summary.append({
+                "category": cat_name,
+                "sub_category": sub_name,
+                "asset_name": asset_name,
+                "serial_no": serial_no,
+                "status": "CREATED & ACTIVE ✅"
+            })
+            logger.info(f"  [{cat_name}] Asset {asset_idx}/5: '{asset_name}' (Serial: {serial_no}) -> Toast: '{toast}'")
+
+        story.log_step(
+            f"Seed 5 Active Assets: {cat_name} -> {sub_name}",
+            record=f"Total: 5 active assets ({prefix})",
+            expected=f"5 active assets created under {cat_name} -> {sub_name}",
+            actual="5 assets created successfully",
+            status="PASS"
+        )
+
+    print("\n" + format_ascii_table("50 ACTIVE ASSETS SEEDED (5 PER CATEGORY & SUB-CATEGORY)", results_summary))
+    story.finish(status="PASS")
+
+

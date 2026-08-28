@@ -21,6 +21,10 @@ USERS = {
         "username": _get_env("ADMIN_USERNAME"),
         "password": _get_env("ADMIN_PASSWORD")
     },
+    "employee": {
+        "username": _get_env("SANIDHY_USERNAME") or _get_env("ADARSH_TIWARI"),
+        "password": _get_env("SANIDHY_PASSWORD") or _get_env("ADARSH_TIWARI_PASSWORD")
+    },
     "vivek": {
         "username": _get_env("VIVEK_USERNAME"),
         "password": _get_env("VIVEK_PASSWORD")

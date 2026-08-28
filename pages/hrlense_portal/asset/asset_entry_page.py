@@ -267,13 +267,14 @@ class AssetEntryPage(BasePage):
             sub_select = modal.get_by_label("Sub Category", exact=False).first
         sub_select.wait_for(state="visible", timeout=5000)
 
-        # Wait for dynamic Sub Category options to attach
-        try:
-            sub_select.locator("option:not([value=''])").first.wait_for(state="attached", timeout=5000)
-        except Exception:
-            pass
+        # Wait for dynamic Sub Category options to attach and populate
+        sub_options = []
+        for _ in range(10):
+            self.page.wait_for_timeout(300)
+            sub_options = [o.strip() for o in sub_select.locator("option").all_inner_texts() if o.strip() and not o.lower().startswith("select")]
+            if sub_options:
+                break
 
-        sub_options = [o.strip() for o in sub_select.locator("option").all_inner_texts() if o.strip() and not o.lower().startswith("select")]
         selected_sub_category = ""
         if sub_category and any(sub_category.lower() in o.lower() for o in sub_options):
             for opt in sub_options:
@@ -282,8 +283,7 @@ class AssetEntryPage(BasePage):
                     selected_sub_category = opt
                     break
         if not selected_sub_category and sub_options:
-            # Randomly select across any available subcategory under the chosen category
-            selected_sub_category = random.choice(sub_options)
+            selected_sub_category = sub_options[0]
             sub_select.select_option(label=selected_sub_category)
 
         logger.info(f"Selected Sub Category: '{selected_sub_category}'")
@@ -345,25 +345,37 @@ class AssetEntryPage(BasePage):
         selected_branch = ""
         try:
             b_select = modal.locator("//div[./label[contains(text(), 'Branch')]]//select").first
-            if not b_select.is_visible(timeout=200):
+            if not b_select.is_visible(timeout=500):
                 b_select = modal.locator("select").filter(has=self.page.locator("option", has_text=re.compile(r"Select branch", re.I))).first
-            if not b_select.is_visible(timeout=200):
+            if not b_select.is_visible(timeout=500):
                 b_select = modal.get_by_label("Branch", exact=False).first
-            if b_select.is_visible(timeout=500):
+            if b_select.is_visible(timeout=1000):
+                b_options = [o.strip() for o in b_select.locator("option").all_inner_texts() if o.strip() and not o.lower().startswith("select")]
                 if branch:
+                    matched_opt = next((o for o in b_options if (branch or "").lower() in o.lower()), None)
+                    if matched_opt:
+                        b_select.select_option(label=matched_opt)
+                        selected_branch = matched_opt
+                
+                # Check for React-Select / Chakra filter container if standard select didn't match:
+                if not selected_branch and branch:
                     try:
-                        b_select.select_option(label=re.compile(re.escape(branch), re.I), timeout=400)
-                        selected_branch = branch
+                        branch_combo = modal.locator("div[class*='control'], div[class*='container']").filter(has_text=re.compile(r"Group|Branch", re.I)).last
+                        if branch_combo.is_visible(timeout=500):
+                            branch_combo.click()
+                            self.page.keyboard.type(branch)
+                            self.page.wait_for_timeout(300)
+                            self.page.keyboard.press("Enter")
+                            selected_branch = branch
                     except Exception:
                         pass
-                if not selected_branch:
-                    opt_count = b_select.locator("option").count()
-                    rand_idx = random.randint(1, opt_count - 1) if opt_count > 1 else 0
-                    b_select.select_option(index=rand_idx)
-                    selected_branch = b_select.input_value()
+
+                if not selected_branch and b_options:
+                    selected_branch = b_options[0]
+                    b_select.select_option(label=selected_branch)
                 logger.info(f"Selected Branch: '{selected_branch}'")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Branch selection note: {e}")
 
         # 6. Payroll Company Selection (if present)
         selected_payroll_company = ""

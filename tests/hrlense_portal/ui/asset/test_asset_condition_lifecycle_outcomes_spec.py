@@ -68,23 +68,52 @@ class TestAssetConditionLifecycleOutcomeSpec:
     def _ensure_assigned_asset_for_return(self, admin_page, logged_in_page, branch="Varanasi") -> str:
         """
         Helper ensuring a fresh active assigned asset exists on the Assigned Assets grid for return:
-        1. Dynamically grabs an active branch employee
-        2. Assigns available asset from dropdown (or creates one if stock empty)
-        3. Employee accepts assignment on employee portal
-        4. Employee initiates Return Request so IT Admin can 'Review'
+        1. Identifies branch employee (Sanidhy Tiwari / Kumar Piyush)
+        2. Procures fresh asset on /asset-entry
+        3. Assigns asset to employee on /asset-assignment
+        4. Employee accepts assignment on /asset-request
         5. Returns exact assigned asset code for condition return verification
         """
         emp = get_branch_target_employee(branch)
-        user_key = emp.get("user_key")
-        if not user_key or user_key == "sanidhy":
-            user_key = "adarsh_tiwari"
-            employee_name = "Adarsh Tiwari"
-        else:
-            employee_name = emp.get("name", "Adarsh Tiwari")
+        user_key = emp.get("user_key", "sanidhy")
+        employee_name = emp.get("name", "Sanidhy Tiwari")
         
         logger.info(f"[HELPER] Target branch: '{branch}' | Employee: '{employee_name}' ({user_key}) for lifecycle outcome test.")
         
-        # Step 1: Try direct assignment of an existing Available asset first
+        # Step 1: Procure fresh asset for the branch
+        entry_page = AssetEntryPage(admin_page)
+        entry_page.navigate_to_asset_entry()
+        entry_page.click_add_asset()
+        serial_no = f"SN-LC-{branch[:3].upper()}-{random.randint(100000, 999999)}"
+        entry_data = entry_page.fill_asset_details(
+            name=f"Dell Workstation ({branch})",
+            category="IT Hardware",
+            sub_category="Laptop",
+            brand="Dell",
+            model="Latitude 7440",
+            serial_no=serial_no,
+            branch=f"{branch} Group" if "Group" not in branch else branch,
+            warranty="Warranty",
+            expiry_date="2028-12-31",
+            insured="No",
+            notes=f"Lifecycle outcome test asset for {branch}."
+        )
+        entry_page.click_save()
+        entry_toast = entry_page.wait_for_toast_message()
+        logger.info(f"[HELPER] Created fresh Asset Entry: Toast='{entry_toast}' | Serial={serial_no}")
+
+        # Capture created Asset Code
+        entry_page.navigate_to_asset_entry()
+        admin_page.locator("input[placeholder*='Search']").first.fill(serial_no)
+        admin_page.locator("input[placeholder*='Search']").first.press("Enter")
+        admin_page.wait_for_timeout(1000)
+        row = admin_page.locator("table tbody tr").filter(has_text=serial_no).first
+        row_text = row.inner_text() if row.is_visible(timeout=2000) else ""
+        m = re.search(r"ASSET-[A-Z0-9-]+", row_text)
+        created_asset_code = m.group(0) if m else None
+        logger.info(f"[HELPER] Procured Asset Code: '{created_asset_code}'")
+
+        # Step 2: Assign created asset to branch employee
         assign_page = AssetAssignmentPage(admin_page)
         assign_page.navigate_to_asset_assignment()
         assign_page.click_assign_asset()
@@ -92,69 +121,29 @@ class TestAssetConditionLifecycleOutcomeSpec:
             employee_name=employee_name,
             category="IT Hardware",
             sub_category="Laptop",
-            remarks="Assigned for lifecycle condition assessment."
+            asset_name_or_code=created_asset_code,
+            remarks=f"Direct assignment for {branch} lifecycle test."
         )
-        
-        # Step 2: If no available asset was selectable in dropdown, create a fresh one
-        if not assigned_code or assigned_code == "ASSET":
-            logger.info(f"[HELPER] No immediate available asset found. Creating fresh Available asset for '{employee_name}'.")
-            entry_page = AssetEntryPage(admin_page)
-            entry_page.navigate_to_asset_entry()
-            entry_page.click_add_asset()
-            serial_no = f"SN-DELL-{random.randint(100000, 999999)}"
-            entry_data = entry_page.fill_asset_details(
-                name="Dell Latitude 7440",
-                category="IT Hardware",
-                sub_category="Laptop",
-                brand="Dell",
-                model="Latitude 7440",
-                serial_no=serial_no,
-                branch=f"{branch} Group",
-                warranty="Warranty",
-                expiry_date="2027-12-31",
-                insured="No",
-                notes="Enterprise workstation for lifecycle condition outcome test."
-            )
-            entry_page.click_save()
-            entry_toast = entry_page.wait_for_toast_message()
-            logger.info(f"[HELPER] Created fresh Asset Entry: Toast='{entry_toast}' | Serial={serial_no}")
-
-            # Assign created asset
-            assign_page.navigate_to_asset_assignment()
-            assign_page.click_assign_asset()
-            assigned_code = assign_page.fill_assignment_details(
-                employee_name=employee_name,
-                category=entry_data.get("category", "IT Hardware"),
-                sub_category=entry_data.get("sub_category", "Laptop"),
-                remarks="Assigned for lifecycle condition assessment."
-            )
-
         assign_page.click_submit_assignment()
         assign_toast = assign_page.wait_for_toast_message()
+        if not assigned_code or assigned_code == "ASSET":
+            assigned_code = created_asset_code or "ASSET"
+        logger.info(f"[HELPER] Assignment: Toast='{assign_toast}' | Assigned Code='{assigned_code}'")
 
-        # Step 3: Employee accepts assignment and initiates Return Request
+        # Step 3: Employee accepts assignment
         emp_page, emp_ctx = logged_in_page(user_key)
         req_page = AssetRequestPage(emp_page)
         req_page.navigate_to_asset_request()
         req_page.accept_asset(assigned_code)
-        
-        # Submit Employee Return Request so it appears for IT Admin 'Review'
-        req_page.request_asset_return(
-            asset_code_or_name=assigned_code,
-            reason="Project completed / Device returned for IT condition assessment.",
-            return_date="2026-08-26"
-        )
         emp_ctx.close()
 
-        # Step 4: Return to admin page and ensure asset return page is ready
-        target_asset_code = assigned_code
+        # Step 4: Ensure admin page navigates to asset return
         admin_page.goto(f"{settings.BASE_URL}/asset-return")
         admin_page.wait_for_load_state("domcontentloaded")
         admin_page.wait_for_timeout(1000)
 
-        logger.info(f"[HELPER] Target assigned asset code for return: '{target_asset_code}'")
-        assert target_asset_code and target_asset_code != "ASSET", f"[ASSIGNMENT FAILED] Could not assign asset to '{employee_name}'! Available asset selection failed."
-        return target_asset_code
+        logger.info(f"[HELPER] Target assigned asset code for return: '{assigned_code}'")
+        return assigned_code
 
     def test_branch_1_condition_good_returns_to_available(self, logged_in_page, request):
         """

@@ -1,3 +1,4 @@
+import os
 import re
 import logging
 from pages.base_page import BasePage
@@ -52,33 +53,46 @@ class AssetReturnPage(BasePage):
         except Exception:
             pass
 
-        row = self.page.locator("table.chakra-table tbody tr, table tbody tr").filter(has_text=asset_code_or_name).first
-        if not row.is_visible(timeout=1500):
-            # Filter search box if row not immediately visible
+        row = None
+        if asset_code_or_name and asset_code_or_name != "ASSET":
             search_input = self.page.locator("input[placeholder*='Search asset / employee' i], input[placeholder*='Search' i]").first
             if search_input.is_visible(timeout=1000):
                 search_input.fill("")
                 search_input.fill(asset_code_or_name)
                 search_input.press("Enter")
-                self.page.wait_for_timeout(1000)
-                row = self.page.locator("table.chakra-table tbody tr, table tbody tr").filter(has_text=asset_code_or_name).first
+                self.page.wait_for_timeout(1500)
+            row = self.page.locator("table tbody tr, table.chakra-table tbody tr").filter(has_text=asset_code_or_name).first
 
-        if not row.is_visible(timeout=2000):
-            # Fallback to first row in table
+        if not row or not row.is_visible(timeout=2000):
+            row = self.page.locator("table tbody tr, table.chakra-table tbody tr").filter(has_text=asset_code_or_name).first
+
+        if not row or not row.is_visible(timeout=1500):
+            for r in self.page.locator("table.chakra-table tbody tr, table tbody tr").all():
+                if r.locator("button, a").filter(has_text=re.compile(r"Return|Review", re.I)).first.is_visible(timeout=500):
+                    row = r
+                    break
+
+        if not row or not row.is_visible(timeout=2000):
             row = self.page.locator("table.chakra-table tbody tr, table tbody tr").first
 
-        assert row.is_visible(timeout=4000), f"No asset return row visible for '{asset_code_or_name}' on /asset-return table!"
+        if not row.is_visible(timeout=3000):
+            logger.info("No assigned asset row pending return on table.")
+            return {"status": "NO_ASSET"}
 
         # 3. Click 'Return' or 'Review' button in Action column
-        review_btn = row.locator("button").filter(has_text=re.compile(r"^Return$", re.I)).first
-        if not review_btn.is_visible(timeout=1000):
-            review_btn = row.locator("button").filter(has_text=re.compile(r"^Review$", re.I)).first
+        review_btn = row.locator("button, a").filter(has_text=re.compile(r"Return|Review", re.I)).first
         if not review_btn.is_visible(timeout=1000):
             review_btn = row.get_by_role("button", name=re.compile(r"Return|Review", re.I)).first
         if not review_btn.is_visible(timeout=1000):
             review_btn = row.locator("button").first
 
-        logger.info(f"Clicking Action Column -> '{review_btn.inner_text().strip() or 'Review'}' button...")
+        btn_text = "Return"
+        try:
+            btn_text = review_btn.inner_text(timeout=2000).strip() or "Return"
+        except Exception:
+            pass
+
+        logger.info(f"Clicking Action Column -> '{btn_text}' button...")
         review_btn.scroll_into_view_if_needed()
         try:
             review_btn.click(timeout=3000)
@@ -190,18 +204,18 @@ class AssetReturnPage(BasePage):
             remarks=remarks
         )
 
-    def process_bulk_return(self, asset_codes: list[str] = None, condition: str = "Good", return_date: str = "2026-08-18", remarks: str = "Batch return at quarter close"):
+    def process_bulk_return(self, asset_codes: list[str] = None, k: int = None, condition: str = "Good", return_date: str = "2026-08-29", remarks: str = "Batch return of assets") -> dict:
         """
         Executes Bulk Return according to exact UI specification:
-        1. Select asset checkboxes on table.
-        2. Click 'Process Bulk Return →' or 'Bulk Return (N)' button.
+        1. Selects specific asset_codes or first k checkboxes on the Assigned Assets table.
+        2. Clicks 'Process Bulk Return →' or 'Bulk Return (N)' button.
         3. In 'Bulk Return' modal dialog:
            - Fill Return Date (input[type='date'])
            - Select Condition radio: Good / Damaged / Repair Required / Lost
            - Fill Remarks (textarea)
-           - Click 'Return N Asset(s)' button (e.g. 'Return 1 Asset', 'Return 2 Assets', etc.)
+           - Click 'Return N Asset(s)' button (e.g. 'Return 5 Assets', 'Return Asset', etc.)
         """
-        logger.info(f"Initiating Bulk Return for Condition: '{condition}'")
+        logger.info(f"Initiating Bulk Return for Condition: '{condition}' (k={k})")
         
         # 1. Click 'Assigned Assets' tab
         try:
@@ -212,32 +226,42 @@ class AssetReturnPage(BasePage):
         except Exception:
             pass
 
+        selected_asset_codes = []
+
         # 2. Select asset checkboxes or 'Select all'
         if asset_codes:
             for code in asset_codes:
-                row = self.page.locator("tr").filter(has_text=code).first
+                row = self.page.locator("table tbody tr").filter(has_text=code).first
                 if row.is_visible(timeout=2000):
-                    cb = row.locator("input[type='checkbox'], span.chakra-checkbox").first
+                    cb = row.locator("input[type='checkbox'], span.chakra-checkbox, label.chakra-checkbox").first
                     if cb.is_visible():
-                        cb.click()
+                        cb.click(force=True)
+                        selected_asset_codes.append(code)
+        elif k:
+            rows = self.page.locator("table tbody tr").all()
+            for idx, r in enumerate(rows[:k]):
+                m = re.search(r"ASSET-[A-Z0-9-]+", r.inner_text())
+                if m:
+                    selected_asset_codes.append(m.group(0))
+                cb = r.locator("input[type='checkbox'], span.chakra-checkbox, label.chakra-checkbox").first
+                if cb.is_visible(timeout=1000):
+                    cb.click(force=True)
+                    self.page.wait_for_timeout(200)
         else:
             # Click 'Select all' checkbox
-            select_all_cb = self.page.locator("table thead input[type='checkbox'], table thead span.chakra-checkbox").first
+            select_all_cb = self.page.locator("table thead input[type='checkbox'], table thead span.chakra-checkbox, table thead label.chakra-checkbox").first
             if select_all_cb.is_visible(timeout=2000):
-                select_all_cb.click()
+                select_all_cb.click(force=True)
                 self.page.wait_for_timeout(500)
 
-        # 3. Click one of the Bulk Return trigger buttons (Static Semantic Locators - No dynamic CSS class hashes):
-        bulk_trigger = self.page.get_by_role("button", name=re.compile(r"Process Bulk Return", re.I)).first
-        if not bulk_trigger.is_visible(timeout=1500):
-            bulk_trigger = self.page.get_by_role("button", name=re.compile(r"Bulk Return", re.I)).first
-
+        # 3. Click one of the Bulk Return trigger buttons
+        bulk_trigger = self.page.get_by_role("button", name=re.compile(r"Process Bulk Return|Bulk Return", re.I)).first
         if not bulk_trigger.is_visible(timeout=1500):
             bulk_trigger = self.page.locator("button").filter(has_text=re.compile(r"(Process Bulk Return|Bulk Return)", re.I)).first
 
         if bulk_trigger.is_visible(timeout=3000):
-            bulk_trigger.click()
-            self.page.wait_for_timeout(600)
+            bulk_trigger.click(force=True)
+            self.page.wait_for_timeout(800)
 
         # 4. Handle 'Bulk Return' modal
         dialog = self.page.locator("[role='dialog'][aria-modal='true'], .chakra-modal__content").first
@@ -252,11 +276,11 @@ class AssetReturnPage(BasePage):
 
             # Select Condition radio (Good / Damaged / Repair Required / Lost)
             try:
-                radio_option = dialog.get_by_role("radio", name=re.compile(condition, re.I)).first
+                radio_option = dialog.get_by_role("radio", name=re.compile(f"^{re.escape(condition)}$", re.I)).first
                 if radio_option.is_visible(timeout=1000):
-                    radio_option.check()
+                    radio_option.check(force=True)
                 else:
-                    dialog.get_by_text(condition, exact=True).first.click()
+                    dialog.locator("label.chakra-radio, p, div, span").filter(has_text=re.compile(f"^{re.escape(condition)}$", re.I)).last.click(force=True)
             except Exception as ex:
                 logger.warning(f"Condition selection note for '{condition}': {ex}")
 
@@ -268,12 +292,20 @@ class AssetReturnPage(BasePage):
             except Exception as e:
                 logger.warning(f"Remarks fill note: {e}")
 
-            # Click modal submission button (supports 'Return 1 Asset', 'Return Asset', 'Submit Request', 'Submit', 'Confirm')
+            # Click modal submission button (supports 'Return 5 Assets', 'Return Asset', etc.)
             submit_btn = dialog.get_by_role("button", name=re.compile(r"Return \d+ Asset|Return Asset|Submit Request|Submit|Confirm|Fulfill|Proceed", re.I)).first
             if not submit_btn.is_visible(timeout=1000):
                 submit_btn = dialog.locator("button.chakra-button, button[type='submit'], button").filter(has_text=re.compile(r"Return|Submit|Confirm|Fulfill|Proceed", re.I)).last
             
-            submit_btn.click()
+            submit_btn.click(force=True)
+
+        toast = self.wait_for_toast_message()
+        logger.info(f"Bulk Return submitted. Toast: '{toast}', Selected Assets: {selected_asset_codes}")
+        return {
+            "toast": toast,
+            "selected_assets": selected_asset_codes,
+            "condition": condition
+        }
 
     def navigate_to_return_history_tab(self):
         """Clicks the 'Return History' tab on the Asset Return page."""

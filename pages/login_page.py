@@ -79,6 +79,7 @@ class LoginPage(BasePage):
 
         self._fill_email(email)
         self._fill_password(password)
+        self.page.wait_for_timeout(500)
 
         try:
             self.page.get_by_role("button", name="Login").click()
@@ -88,12 +89,26 @@ class LoginPage(BasePage):
         # Wait for redirect away from /login
         login_succeeded = False
         try:
-            self.page.wait_for_url(lambda url: "/login" not in url, timeout=12000)
+            self.page.wait_for_url(lambda url: "/login" not in url, timeout=8000)
             self.page.wait_for_load_state("domcontentloaded")
             login_succeeded = True
             logger.info(f"[UI] Logged In As            : {email}")
         except Exception:
             login_succeeded = ("/login" not in self.page.url)
+
+        # Retry once if stayed on login due to transient CORS / network glitch
+        if not login_succeeded:
+            logger.warning(f"[LOGIN RETRY] Retrying login for '{email}' after transient network wait...")
+            self.page.wait_for_timeout(2000)
+            try:
+                self.page.get_by_role("button", name="Login").click()
+                self.page.wait_for_url(lambda url: "/login" not in url, timeout=8000)
+                self.page.wait_for_load_state("domcontentloaded")
+                login_succeeded = ("/login" not in self.page.url)
+                if login_succeeded:
+                    logger.info(f"[UI] Logged In As (Retry)    : {email}")
+            except Exception:
+                login_succeeded = ("/login" not in self.page.url)
 
         try:
             self.page.remove_listener("response", _on_response)

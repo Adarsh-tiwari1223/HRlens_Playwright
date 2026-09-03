@@ -35,8 +35,9 @@ BRANCH_RESPONSIBILITY_MAP = {
             {"name": "Sandeep Singh", "email": "sandeep.singh@tekinspirations.com", "user_key": "it_agra_sandeep"}
         ],
         "employees": [
-            {"name": "Adarsh Tiwari", "email": "adarsh.tiwari@tekinspirations.com", "user_key": "adarsh_tiwari"},
-            {"name": "Sanidhy Tiwari", "email": "sanidhy.tiwari@tekinspirations.com", "user_key": "sanidhy"}
+            {"name": "Sanjeev Rohatgi", "email": "srohatgi@tekinspirations.com", "user_key": "sanjeev_rohatgi"},
+            {"name": "Riyan Sharma", "email": "Riyan@tekinspirations.com", "user_key": "riyan_sharma"},
+            {"name": "Saurabh Kumar", "email": "saurabh.kumar@tekinspirations.com", "user_key": "saurabh_kumar"}
         ]
     },
     "Meerut": {
@@ -113,22 +114,11 @@ def get_branch_target_employee(branch: str = "Varanasi") -> dict:
     ]
     if valid_emps:
         return random.choice(valid_emps)
-    
-    fallback_pool = []
-    for key, name, email in [
-        ("sanidhy", "Sanidhy Tiwari", "sanidhy.tiwari@tekinspirations.com"),
-        ("adarsh_tiwari", "Adarsh Tiwari", "adarsh.tiwari@tekinspirations.com"),
-        ("kumar_piyush", "Kumar Piyush", "kumar.piyush@tekinspirations.com"),
-        ("abhishek_singh", "Abhishek Singh", "abhisheksingh@tekinspirations.com"),
-        ("uttam_kumar", "Uttam Kumar", "uttam.kumar@tekinspirations.com")
-    ]:
-        if settings.USERS.get(key, {}).get("password"):
-            fallback_pool.append({"name": name, "email": email, "user_key": key})
-            
-    if fallback_pool:
-        return random.choice(fallback_pool)
-        
-    return {"name": "Sanidhy Tiwari", "email": "sanidhy.tiwari@tekinspirations.com", "user_key": "sanidhy"}
+
+    if emp_list:
+        return random.choice(emp_list)
+
+    return {"name": "Adarsh Tiwari", "email": "adarsh.tiwari@tekinspirations.com", "user_key": "adarsh_tiwari"}
 
 def get_all_supported_branches() -> list[str]:
     """Returns list of all supported branch locations."""

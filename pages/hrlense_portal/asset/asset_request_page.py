@@ -1,3 +1,4 @@
+import os
 import logging
 import re
 from pages.base_page import BasePage
@@ -12,7 +13,10 @@ class AssetRequestPage(BasePage):
 
     def navigate_to_asset_request(self):
         logger.info("Navigating to Asset Request page directly")
-        self.page.goto(f"{settings.BASE_URL}/asset-request")
+        try:
+            self.page.goto(f"{settings.BASE_URL}/asset-request", timeout=30000, wait_until="domcontentloaded")
+        except Exception:
+            self.page.goto(f"{settings.BASE_URL}/asset-request", timeout=30000)
         self.page.wait_for_load_state("domcontentloaded")
 
     def accept_asset(self, asset_code_or_name: str = None) -> bool:

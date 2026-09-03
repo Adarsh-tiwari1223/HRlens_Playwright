@@ -1,67 +1,55 @@
 import logging
 import requests
 from core.config import settings
-from utils.api.base_api import BaseAPI
 
 logger = logging.getLogger(__name__)
 
+_token_cache: dict = {}
 
-class AssetAPI(BaseAPI):
-    """
-    API client for HRlens Asset Management operations:
-    - POST /api/Asset/assets (Direct Asset Ingestion)
-    - GET /api/Asset/categories
-    - GET /api/Asset/sub-categories
-    - GET /api/branch
-    """
 
-    def __init__(self, token: str = None):
-        super().__init__(token=token)
-        self.base_api_url = settings.API_BASE_URL.rstrip("/")
-
-    def create_asset(self, payload: dict) -> dict:
-        """
-        Creates an asset directly via POST /api/Asset/assets.
-        """
-        url = f"{self.base_api_url}/Asset/assets"
-        headers = self.get_headers()
-        resp = requests.post(url, json=payload, headers=headers, timeout=15)
-        if resp.status_code in [200, 201]:
-            try:
-                return resp.json()
-            except Exception:
-                return {"status": "SUCCESS", "status_code": resp.status_code}
+def get_api_token(user: str = "admin") -> str:
+    global _token_cache
+    if user not in _token_cache:
+        creds = settings.USERS[user]
+        login_url = f"{settings.API_BASE_URL}/user/login"
+        payload = {
+            "email": creds["username"],
+            "user": creds["username"],
+            "password": creds["password"]
+        }
+        resp = requests.post(login_url, json=payload, timeout=15)
+        if resp.status_code == 200:
+            _token_cache[user] = resp.json().get("token", "")
         else:
-            logger.error(f"Failed to create asset via API: {resp.status_code} - {resp.text}")
-            resp.raise_for_status()
+            logger.error(f"API Login failed: {resp.status_code} - {resp.text}")
+    return _token_cache.get(user, "")
 
-    def get_categories(self) -> list:
-        """Fetches all categories from backend API."""
-        candidates = [
-            f"{self.base_api_url}/Category",
-            f"{self.base_api_url}/Asset/categories",
-            f"{self.base_api_url}/AssetCategory"
-        ]
-        headers = self.get_headers()
-        for url in candidates:
-            try:
-                r = requests.get(url, headers=headers, timeout=10)
-                if r.status_code == 200:
-                    data = r.json()
-                    return data.get("data") or data.get("results") or data if isinstance(data, list) else []
-            except Exception:
-                continue
-        return []
 
-    def get_branches(self) -> list:
-        """Fetches branches from backend API."""
-        url = f"{self.base_api_url}/branch"
-        headers = self.get_headers()
-        try:
-            r = requests.get(url, headers=headers, timeout=10)
-            if r.status_code == 200:
-                data = r.json()
-                return data.get("data") or data.get("results") or data if isinstance(data, list) else []
-        except Exception:
-            pass
-        return []
+def get_stock_by_branch_assets(branch_id: int = 1, category_id: int = 1, status: str = "Available", first: int = 0, rows: int = 2000, user: str = "admin") -> list:
+    """
+    Fetches stock assets by branch, category and status from:
+    GET /api/Asset/stock-by-branch/assets?first=0&rows=2000&branchId={branch_id}&categoryId={category_id}&status={status}
+    """
+    url = f"{settings.API_BASE_URL}/Asset/stock-by-branch/assets"
+    params = {
+        "first": first,
+        "rows": rows,
+        "branchId": branch_id,
+        "categoryId": category_id,
+        "status": status
+    }
+    try:
+        token = get_api_token(user)
+        headers = {"Authorization": f"Bearer {token}"}
+        resp = requests.get(url, params=params, headers=headers, timeout=15)
+        if resp.status_code == 200:
+            data = resp.json()
+            if isinstance(data, dict):
+                return data.get("data") or data.get("results") or data.get("assets") or []
+            elif isinstance(data, list):
+                return data
+        else:
+            logger.error(f"Failed to fetch stock-by-branch assets: {resp.status_code} - {resp.text}")
+    except Exception as e:
+        logger.error(f"Error fetching stock-by-branch assets: {e}")
+    return []

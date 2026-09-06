@@ -27,27 +27,22 @@ class ItResignationWorkflow:
     def inspect_and_clear_employee_assets_workflow(
         self,
         employee_name: str,
-        asset_condition: str = "Good Condition"
+        asset_condition: str = "Good Condition",
+        remarks: str = "IT Asset clearance verified & completed"
     ) -> Dict[str, Union[bool, str]]:
         """
         Executes IT Person workflow to inspect employee's assigned assets and issue IT Clearance.
+        Handles both cases dynamically:
+        - If employee HAS assets: Processes asset inspection & return.
+        - If employee has NO assets: Verifies and completes clearance task directly.
         """
         logger.info("=" * 60)
-        logger.info(f"STARTING IT ASSET CLEARANCE WORKFLOW FOR: '{employee_name}' (Condition: '{asset_condition}')")
+        logger.info(f"STARTING DYNAMIC IT ASSET CLEARANCE WORKFLOW FOR: '{employee_name}'")
         logger.info("=" * 60)
 
-        self.navigate_to_it_clearance()
-        row = self.page.locator(f"tr:has-text('{employee_name}')").first
+        return self.res_page.process_it_person_asset_clearance(
+            employee_name=employee_name,
+            asset_condition=asset_condition,
+            remarks=remarks
+        )
 
-        is_found = row.is_visible(timeout=5000)
-        status_text = ""
-
-        if is_found:
-            badge = row.locator(".chakra-badge").first
-            if badge.is_visible(timeout=2000):
-                status_text = badge.inner_text().strip()
-
-        return {
-            "employee_found": is_found,
-            "it_clearance_status": status_text,
-        }

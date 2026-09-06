@@ -664,26 +664,166 @@ class ResignationPage(BasePage):
         remarks_field.wait_for(state="visible", timeout=3000)
         remarks_field.fill(remarks)
 
-        # Click Approve or Reject
+        # Click Approve or Reject inside modal container
+        modal_container = self.page.locator("section.chakra-modal__content, div[role='dialog']").first
+
         if approve:
-            btn = self.page.locator(".chakra-modal__content button:has-text('Approve'), footer button:has-text('Approve'), button:has-text('Approve'), button.css-h211ee").first
+            btn = modal_container.locator("button.chakra-button:has-text('Approve'), button.css-h211ee, button:has-text('Approve')").first
+            if not btn.is_visible(timeout=3000):
+                btn = self.page.locator("section.chakra-modal__content button.chakra-button:has-text('Approve'), button.css-h211ee").first
             btn.wait_for(state="visible", timeout=10000)
             btn.click()
             self.page.wait_for_timeout(500)
 
-            # Handle Confirmation Modal if opened
-            logger.info("UI Action: Confirming Accountant 'Approve Buyout' modal via 'Approve' button")
-            modal_header = self.page.locator("header:has-text('Approve Buyout'), header:has-text('Approve'), header:has-text('Confirm')").first
-            if modal_header.is_visible(timeout=3000):
-                confirm_btn = self.page.locator(".chakra-modal__footer button:has-text('Approve'), .chakra-modal__content button:has-text('Approve'), button:has-text('Yes'), button:has-text('Confirm')").first
-                if confirm_btn.is_visible(timeout=3000):
-                    confirm_btn.click()
+            # Handle Confirmation Modal ('Confirm Buyout Approval' -> click 'Confirm' button)
+            logger.info("UI Action: Confirming 'Confirm Buyout Approval' modal via 'Confirm' button")
+            confirm_modal_header = self.page.locator("header:has-text('Confirm Buyout Approval'), header:has-text('Confirm'), header:has-text('Approve')").first
+            if confirm_modal_header.is_visible(timeout=5000):
+                confirm_btn = self.page.locator(".chakra-modal__footer button:has-text('Confirm'), .chakra-modal__content button:has-text('Confirm'), button:has-text('Confirm'), button.css-ec34mi").first
+                confirm_btn.wait_for(state="visible", timeout=5000)
+                confirm_btn.click()
+
         else:
-            btn = self.page.locator(".chakra-modal__content button:has-text('Reject'), footer button:has-text('Reject'), button:has-text('Reject'), button.css-egkxlg").first
+            btn = modal_container.locator("button.chakra-button:has-text('Reject'), button.css-egkxlg, button:has-text('Reject')").first
             btn.wait_for(state="visible", timeout=10000)
             btn.click()
 
         return self.wait_for_toast(timeout=10000)
+
+    def navigate_to_exit_clearance(self) -> None:
+        """Navigates to /exit-clearance page for IT Person and waits for table headers."""
+        logger.info("UI Action: Navigating to Offboarding -> Exit Clearance (/exit-clearance)")
+        try:
+            self.page.bring_to_front()
+        except Exception:
+            pass
+
+        current_origin = "/".join(self.page.url.split("/")[:3])
+        target_url = f"{current_origin}/exit-clearance"
+        self.page.goto(target_url)
+        self.page.wait_for_load_state("networkidle")
+
+    def process_it_person_asset_clearance(
+        self,
+        employee_name: str,
+        asset_condition: str = "Good",
+        remarks: str = "IT Asset clearance verified & returned in good condition"
+    ) -> Dict[str, Union[bool, str]]:
+        """
+        IT Person Asset Clearance Execution (/exit-clearance):
+        1. Navigates directly to /exit-clearance.
+        2. Finds target employee row (e.g. 'Sanidhy Tiwari') with status (e.g. 'Accounts Approved Buyout').
+        3. Clicks 'Open Checklist (0/2)' button in Action column.
+        4. Modal opens with header 'Release Employee Checklist'.
+        5. DYNAMIC ASSET HANDLING:
+           - Checks if '<button class="chakra-button">Manage Asset Return</button>' is VISIBLE in modal.
+           - IF VISIBLE (Employee HAS Assets):
+             a. Clicks 'Manage Asset Return' -> Modal 'Assigned Assets' opens.
+             b. Finds assigned assets list and clicks 'Return' button next to asset.
+             c. Modal 'Return Asset' opens -> Selects Condition radio ('Good'), fills remarks, & submits Return.
+             d. Closes Assigned Assets modal.
+           - IF NOT VISIBLE (Employee HAS NO Assets):
+             Logs 'Manage Asset Return button not visible (No Assets)', marks IT task complete directly.
+        6. Captures toast message and verifies clearance completion.
+        """
+        logger.info(f"UI Action: IT Person processing exit asset clearance for '{employee_name}'")
+        self.navigate_to_exit_clearance()
+
+        # Locate employee row in /exit-clearance table
+        row = self.page.locator(f"tr:has-text('{employee_name}')").first
+        if not row.is_visible(timeout=5000):
+            search_input = self.page.locator("input[placeholder*='search' i], input[placeholder*='employee' i]").first
+            if search_input.is_visible(timeout=2000):
+                search_input.click()
+                search_input.fill(employee_name)
+                search_input.press("Enter")
+                self.page.wait_for_timeout(1500)
+                row = self.page.locator(f"tr:has-text('{employee_name}')").first
+
+        row.wait_for(state="visible", timeout=5000)
+
+        # Read Status badge text from row
+        status_badge = row.locator(".chakra-badge, span[class*='badge']").first.inner_text().strip() if row.locator(".chakra-badge, span[class*='badge']").first.is_visible(timeout=2000) else ""
+        logger.info(f"IT Exit Clearance Table -> Employee: '{employee_name}' | Status: '{status_badge}'")
+
+        # Step 1: Click Action button: <button class="chakra-button">Open Checklist (*)</button>
+        checklist_btn = row.locator("button:has-text('Open Checklist'), button:has-text('Checklist')").first
+        checklist_btn.wait_for(state="visible", timeout=5000)
+        checklist_btn.click()
+        self.page.wait_for_timeout(500)
+
+        # Step 2: Verify Modal Header: <header class="chakra-modal__header">Release Employee Checklist</header>
+        checklist_modal = self.page.locator("section.chakra-modal__content, div[role='dialog']").first
+        checklist_modal.wait_for(state="visible", timeout=5000)
+
+        # Check if 'Manage Asset Return' button is visible inside checklist modal
+        manage_asset_btn = checklist_modal.locator("button:has-text('Manage Asset Return'), button:has-text('Asset Return')").first
+        has_assets = manage_asset_btn.is_visible(timeout=3000)
+
+        if has_assets:
+            logger.info(f"[IT ASSET FLOW] 'Manage Asset Return' button IS VISIBLE for '{employee_name}' -> Employee HAS assigned assets")
+            manage_asset_btn.click()
+            self.page.wait_for_timeout(800)
+
+            # Step 3: Inside 'Assigned Assets' modal
+            assigned_assets_modal = self.page.locator("section.chakra-modal__content:has-text('Assigned Assets'), div[role='dialog']:has-text('Assigned Assets')").first
+            if not assigned_assets_modal.is_visible(timeout=3000):
+                assigned_assets_modal = self.page.locator("section.chakra-modal__content, div[role='dialog']").last
+
+            # Locate 'Return' button next to asset in list: <button type="button" class="chakra-button css-1yax204">Return</button>
+            return_btns = assigned_assets_modal.locator("button:has-text('Return')").all()
+            for r_btn in return_btns:
+                if r_btn.is_visible(timeout=2000):
+                    logger.info("Clicking 'Return' button on assigned asset in list...")
+                    r_btn.click()
+                    self.page.wait_for_timeout(800)
+
+                    # Step 4: Inside 'Return Asset' dialog modal
+                    return_dialog = self.page.locator("section.chakra-modal__content:has-text('Return Asset'), div[role='dialog']:has-text('Return Asset')").first
+                    if not return_dialog.is_visible(timeout=3000):
+                        return_dialog = self.page.locator("section.chakra-modal__content, div[role='dialog']").last
+
+                    if return_dialog.is_visible(timeout=3000):
+                        # Select Condition radio (Good / Damaged / Lost)
+                        radio = return_dialog.locator(f"input[type='radio'][value='{asset_condition}'], label:has-text('{asset_condition}')").first
+                        if radio.is_visible(timeout=2000):
+                            radio.click(force=True)
+
+                        # Fill Remarks textarea
+                        remarks_area = return_dialog.locator("textarea").first
+                        if remarks_area.is_visible(timeout=2000):
+                            remarks_area.fill(remarks)
+
+                        # Click Return Asset confirmation button
+                        confirm_return_btn = return_dialog.locator("button:has-text('Return Asset'), button:has-text('Return'), button:has-text('Submit')").first
+                        confirm_return_btn.wait_for(state="visible", timeout=5000)
+                        confirm_return_btn.click()
+                        self.page.wait_for_timeout(1000)
+
+            # Close Assigned Assets modal if still open
+            if assigned_assets_modal.is_visible(timeout=1000):
+                self.page.keyboard.press("Escape")
+                self.page.wait_for_timeout(500)
+
+        else:
+            logger.info(f"[IT ASSET FLOW] 'Manage Asset Return' button IS NOT VISIBLE for '{employee_name}' -> Employee HAS NO assigned assets")
+
+        # Step 5: Mark IT Task Complete in Release Employee Checklist modal if checkbox or complete button present
+        complete_task_btn = checklist_modal.locator("button:has-text('Complete'), button:has-text('Submit'), button:has-text('Confirm'), button:has-text('Approve')").first
+        if complete_task_btn.is_visible(timeout=2000):
+            complete_task_btn.click()
+
+        toast_msg = self.wait_for_toast(timeout=10000)
+        return {
+            "success": True,
+            "toast": toast_msg,
+            "has_assets": has_assets,
+            "status": status_badge
+        }
+
+
+
+
 
 
 

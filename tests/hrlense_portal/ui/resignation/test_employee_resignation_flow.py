@@ -283,15 +283,18 @@ def test_e2e_complete_buyout_lifecycle_adarsh(logged_in_page):
     logger.info("[PHASE 6] Accountant processing Buyout Request...")
     acc_res = acc_wf.process_accountant_buyout_workflow(
         employee_name=employee_full_name,
-        calculated_salary="0",
+        calculated_salary="1000",
         remarks="Buyout Approved & Cleared by Accountant E2E",
         confirm_recovery=True,
         approve=True
     )
 
     assert acc_res.get("success"), f"Accountant process buyout failed for '{employee_full_name}'"
-    acc_toast = str(acc_res.get("toast", ""))
+    acc_toast = str(acc_res.get("toast", "")).strip()
     assert acc_toast != "", "Accountant Buyout approval toast must be captured"
+    assert "required" not in acc_toast.lower(), f"Accountant Buyout approval failed with validation error: '{acc_toast}'"
+    assert "approved" in acc_toast.lower() or "success" in acc_toast.lower() or "processed" in acc_toast.lower(), \
+        f"Expected Accountant approval success toast, got: '{acc_toast}'"
 
     logger.info(f"[PASS E2E ADARSH] Complete Dynamic Buyout Lifecycle for Adarsh Tiwari PASSED 100%! Toast: '{acc_toast}'")
 
@@ -360,17 +363,21 @@ def test_e2e_complete_buyout_lifecycle_sanidhy(logged_in_page):
     logger.info("[PHASE 6] Accountant processing Buyout Request...")
     acc_res = acc_wf.process_accountant_buyout_workflow(
         employee_name=employee_full_name,
-        calculated_salary="0",
+        calculated_salary="1000",
         remarks="Buyout Approved & Cleared by Accountant E2E",
         confirm_recovery=True,
         approve=True
     )
 
     assert acc_res.get("success"), f"Accountant process buyout failed for '{employee_full_name}'"
-    acc_toast = str(acc_res.get("toast", ""))
+    acc_toast = str(acc_res.get("toast", "")).strip()
     assert acc_toast != "", "Accountant Buyout approval toast must be captured"
+    assert "required" not in acc_toast.lower(), f"Accountant Buyout approval failed with validation error: '{acc_toast}'"
+    assert "approved" in acc_toast.lower() or "success" in acc_toast.lower() or "processed" in acc_toast.lower(), \
+        f"Expected Accountant approval success toast, got: '{acc_toast}'"
 
     logger.info(f"[PASS E2E SANIDHY] Complete Dynamic Buyout Lifecycle for Sanidhy Tiwari PASSED 100%! Toast: '{acc_toast}'")
+
 
 
 

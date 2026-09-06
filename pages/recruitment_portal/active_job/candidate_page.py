@@ -19,21 +19,92 @@ class CandidatePage(BasePage):
             self.page.goto(f"{self._base_url()}/recruitment/active-jobs")
         self.page.wait_for_load_state("domcontentloaded")
 
+    def filter_job_openings_ui(self, company_name: str = "", branch_name: str = "", department_name: str = "") -> bool:
+        """
+        Dual Filter & Search Flow:
+        1. Open Filter Popover (img[alt='Filter']) -> Search & Select Department ONLY -> Click Apply.
+        2. Perform Search using Company Name in <input placeholder="Search Jobs">.
+        """
+        logger.info(f"[UI FILTER & SEARCH] Department filter='{department_name}' | Company search='{company_name}'...")
+
+        # Step 1: Filter by Department ONLY in Filter Popover Modal
+        if department_name:
+            filter_btn = self.page.locator("img[alt='Filter'], [id*='popover-trigger'], img.icon_btn").first
+            try:
+                if filter_btn.is_visible(timeout=5000):
+                    filter_btn.click()
+                    self.page.wait_for_timeout(600)
+
+                    dept_input = self.page.locator("input[placeholder='Search Department']").first
+                    if dept_input.is_visible(timeout=3000):
+                        dept_input.fill(department_name)
+                        self.page.wait_for_timeout(400)
+
+                        dept_option = self.page.locator(
+                            f"p.chakra-text.font-poppins.text_medium:has-text('{department_name}'), "
+                            f"p.chakra-text:has-text('{department_name}'), "
+                            f"p.chakra-text.font-poppins.text_medium"
+                        ).first
+                        try:
+                            dept_option.wait_for(state="visible", timeout=4000)
+                            chosen_dept = dept_option.inner_text().strip()
+                            dept_option.click()
+                            logger.info(f"[UI FILTER] Clicked visible Department option: '{chosen_dept}'")
+                            self.page.wait_for_timeout(500)
+                        except Exception as e:
+                            logger.warning(f"[UI FILTER] Department option not visible for '{department_name}': {e}")
+
+                    # Click Apply button
+                    apply_btn = self.page.locator("button:has-text('Apply'), button.btn_theme").first
+                    if apply_btn.is_visible(timeout=3000):
+                        apply_btn.click()
+                        logger.info("[UI FILTER] Clicked 'Apply' filter button.")
+                        self.page.wait_for_load_state("domcontentloaded")
+                        self.page.wait_for_timeout(1000)
+            except Exception as ex:
+                logger.warning(f"Failed Department UI filter popover: {ex}")
+
+        # Step 2: Search via Company Name in Search Jobs input box
+        if company_name:
+            search_input = self.page.locator("input[placeholder='Search Jobs'], input[placeholder*='Search']").first
+            try:
+                if search_input.is_visible(timeout=4000):
+                    logger.info(f"[UI SEARCH BOX] Searching Company Name '{company_name}' in Search Jobs input box...")
+                    search_input.click()
+                    search_input.fill(company_name)
+                    self.page.keyboard.press("Enter")
+                    self.page.wait_for_load_state("domcontentloaded")
+                    self.page.wait_for_timeout(1200)
+                    return True
+            except Exception as ex:
+                logger.warning(f"Failed to fill Search Jobs input box with company '{company_name}': {ex}")
+
+        return False
+
     def _base_url(self) -> str:
         from core.config import settings
         return settings.BASE_URL
 
-    def select_first_job(self) -> str:
-        """Clicks the first JOB_POSTING link/button and returns its code."""
-        job_btn = self.page.locator("button:has-text('JOB_POSTING'), [role='button']:has-text('JOB_POSTING'), a:has-text('JOB_POSTING')").first
-        job_btn.wait_for(state="visible", timeout=10000)
+    def select_first_job(self, job_code: str = "") -> str:
+        """Clicks the matching or first JOB_POSTING link/button and returns its code."""
+        if job_code:
+            job_btn = self.page.locator(
+                f"p:has-text('{job_code}'), a:has-text('{job_code}'), button:has-text('{job_code}'), [role='button']:has-text('{job_code}')"
+            ).first
+        else:
+            job_btn = self.page.locator(
+                "button:has-text('JOB_POSTING'), [role='button']:has-text('JOB_POSTING'), a:has-text('JOB_POSTING'), p:has-text('JOB_POSTING')"
+            ).first
+
+        job_btn.wait_for(state="visible", timeout=12000)
         full_text = job_btn.inner_text().strip()
         m = re.search(r"(JOB_POSTING-\d+)", full_text)
-        job_code = m.group(1) if m else full_text.splitlines()[0].strip()
-        logger.info(f"[JOB] Selected Job Opening: '{job_code}'")
+        selected_code = m.group(1) if m else (job_code or full_text.splitlines()[0].strip())
+        logger.info(f"[JOB] Selected Job Opening: '{selected_code}'")
         job_btn.click()
         self.page.wait_for_load_state("domcontentloaded")
-        return job_code
+        self.page.wait_for_timeout(1000)
+        return selected_code
 
     def find_job_opening_with_candidates(self, max_attempts: int = 5) -> tuple[str | None, int]:
         """

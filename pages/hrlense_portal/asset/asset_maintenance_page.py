@@ -12,7 +12,10 @@ class AssetMaintenancePage(BasePage):
 
     def navigate_to_asset_maintenance(self):
         logger.info("Navigating to Asset Maintenance page")
-        self.page.goto(f"{settings.BASE_URL}/asset-maintenance")
+        try:
+            self.page.goto(f"{settings.BASE_URL}/asset-maintenance", timeout=30000, wait_until="domcontentloaded")
+        except Exception:
+            self.page.goto(f"{settings.BASE_URL}/asset-maintenance", timeout=30000)
         self.page.wait_for_load_state("domcontentloaded")
 
     def click_create_maintenance(self):

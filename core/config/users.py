@@ -141,3 +141,38 @@ APPROVERS = {
     "Uttam Kumar": "uttam_kumar",
     "Abhishek Singh": "abhishek_singh",
 }
+
+# Varanasi Branch Employees (excluding Director Vivek, Branch HR Tejaswini/Shiva/Ritesh, and Admins)
+VARANASI_EMPLOYEE_USERS = [
+    "adarsh_tiwari",
+    "uttam_kumar",
+    "abhishek_singh",
+    "kumar_piyush",
+    "sanidhy",
+]
+
+# Management & Administrative roles to exclude from employee resignation selection
+EXCLUDED_MANAGEMENT_USERS = [
+    "admin",
+    "vivek",
+    "tejaswini",
+    "shiva",
+    "ritesh_singh",
+    "it_admin",
+    "it_admin_greaternoida",
+    "it_admin_jaipur",
+]
+
+import random
+
+def get_random_varanasi_employee(exclude_keys: list = None) -> str:
+    """
+    Selects a random Varanasi Branch employee from .env credentials, excluding Directors, Branch Heads, and Admins.
+    """
+    candidates = [
+        k for k in VARANASI_EMPLOYEE_USERS
+        if k not in EXCLUDED_MANAGEMENT_USERS and (not exclude_keys or k not in exclude_keys)
+    ]
+    return random.choice(candidates) if candidates else "abhishek_singh"
+
+

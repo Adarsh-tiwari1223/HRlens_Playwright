@@ -69,15 +69,18 @@ class TestBranchScopedITAssetLifecycleSpec:
         serial_no = f"SN-{branch_name[:3].upper()}-{random.randint(100000, 999999)}"
         entry_data = entry_page.fill_asset_details(
             name=f"Dell Workstation ({branch_name})",
+            category="IT Hardware",
+            sub_category="Laptop",
             brand="Dell",
             model="Latitude 7440",
             serial_no=serial_no,
+            branch=f"{branch_name} Group" if "Group" not in branch_name else branch_name,
             warranty="Warranty",
             expiry_date="2028-12-31",
             insured="No",
             notes=f"Procured by IT Person '{it_person['name']}' for {branch_name} branch."
         )
-        cat_name = entry_data.get("category") or "Hardware"
+        cat_name = entry_data.get("category") or "IT Hardware"
         sub_name = entry_data.get("sub_category") or "Laptop"
         entry_page.click_save()
         entry_toast = entry_page.wait_for_toast_message()

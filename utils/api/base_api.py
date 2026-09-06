@@ -160,4 +160,3 @@ def put(endpoint: str, user: str = "admin", payload: dict = None) -> dict:
     body = response.json()
     _log_response("PUT", endpoint, response.status, body)
     return body
-

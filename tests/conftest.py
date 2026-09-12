@@ -208,6 +208,7 @@ def logged_in_page(browser, request):
     Supports user_key selection (defaults to settings.EMPLOYEE_USER).
     Returns (page, context) tuple and automatically closes all pages/contexts on test completion.
     """
+    contexts = []
     record_har = request.config.getoption("--record-har", False)
 
     def _login(user_key: str = settings.EMPLOYEE_USER):

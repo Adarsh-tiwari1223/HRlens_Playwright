@@ -30,6 +30,10 @@ def pytest_addoption(parser):
         "--company", action="store", default="Code Crewzs Private Limited",
         help="Specify company to test against, or 'all' to run against all companies"
     )
+    parser.addoption(
+        "--record-har", action="store_true", default=False,
+        help="Record HAR (HTTP Archive) network logs into reports/network_<test_name>.har"
+    )
 
 
 def pytest_generate_tests(metafunc):
@@ -170,7 +174,10 @@ def page(browser, request):
     Function-scoped isolated browser context and page.
     Enables Playwright tracing and saves trace artifacts only on test failure.
     """
-    context = create_browser_context(browser)
+    record_har = request.config.getoption("--record-har", False)
+    har_path = f"reports/network_{request.node.name}.har" if record_har else None
+
+    context = create_browser_context(browser, har_path=har_path)
     start_tracing(context)
     page_instance = context.new_page()
 
@@ -201,10 +208,11 @@ def logged_in_page(browser, request):
     Supports user_key selection (defaults to settings.EMPLOYEE_USER).
     Returns (page, context) tuple and automatically closes all pages/contexts on test completion.
     """
-    contexts = []
+    record_har = request.config.getoption("--record-har", False)
 
     def _login(user_key: str = settings.EMPLOYEE_USER):
-        context = create_browser_context(browser)
+        har_path = f"reports/network_{request.node.name}_{user_key}.har" if record_har else None
+        context = create_browser_context(browser, har_path=har_path)
         start_tracing(context)
         page_instance = context.new_page()
 
@@ -237,7 +245,10 @@ def admin_page(browser, request):
     Function-scoped pre-authenticated Admin page fixture.
     Automatically closes context on test completion.
     """
-    context = create_browser_context(browser)
+    record_har = request.config.getoption("--record-har", False)
+    har_path = f"reports/network_{request.node.name}.har" if record_har else None
+
+    context = create_browser_context(browser, har_path=har_path)
     start_tracing(context)
     page_instance = context.new_page()
 

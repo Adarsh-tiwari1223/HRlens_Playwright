@@ -5,33 +5,260 @@ class SalarySettingsPage(BasePage):
 
     TOAST           = "div[id^='toast-'][id*='-title']"
     PF_TOGGLE_INPUT = "input[type='checkbox'][aria-label='Include PF']"
+    ESIC_TOGGLE_INPUT = "input[type='checkbox'][aria-label='Include ESIC']"
 
     # ── Step 1: Navigate to employee and grab company / branch / department ───
 
     def navigate_to_employee(self, employee_name: str) -> dict:
         """Navigate to employee profile and return company/branch/department."""
         from core.config import settings
-        self.page.goto(settings.BASE_URL)
+        self.page.goto(f"{settings.BASE_URL}/employees")
         self.page.wait_for_load_state("domcontentloaded")
-        self.page.get_by_role("link", name="Employees").click()
-        self.page.wait_for_load_state("domcontentloaded")
-        self.page.get_by_text(employee_name).first.click()
-        self.page.wait_for_load_state("domcontentloaded")
+        try:
+            self.page.wait_for_load_state("networkidle", timeout=5000)
+        except Exception:
+            pass
 
-        company    = self.page.locator("//p[normalize-space()='Company']/following-sibling::p[1]").first.inner_text().strip()
-        branch     = self.page.locator("//p[normalize-space()='Branch']/following-sibling::p[1]").first.inner_text().strip()
-        department = self.page.locator("//p[normalize-space()='Department']/following-sibling::p[1]").first.inner_text().strip()
+        # Search for employee to handle pagination
+        search = self.page.locator("input[placeholder*='Search employee name'], input[placeholder*='Search']").first
+        if search.is_visible():
+            search.fill(employee_name)
+            self.page.keyboard.press("Enter")
+            self.page.wait_for_timeout(2000)
+
+        # Locate employee card/link
+        emp_link = self.page.locator(f"p.chakra-text:has-text('{employee_name}')").first
+        if not emp_link.is_visible():
+            emp_link = self.page.get_by_text(employee_name).first
+        emp_link.wait_for(state="visible", timeout=15000)
+        emp_link.click()
+        self.page.wait_for_load_state("domcontentloaded")
+        try:
+            self.page.wait_for_load_state("networkidle", timeout=5000)
+        except Exception:
+            pass
+
+        company = ""
+        branch = ""
+        department = ""
+        try:
+            company_el = self.page.locator("//p[normalize-space()='Company']/following-sibling::p[1]").first
+            if company_el.is_visible():
+                company = company_el.inner_text().strip()
+            branch_el = self.page.locator("//p[normalize-space()='Branch']/following-sibling::p[1]").first
+            if branch_el.is_visible():
+                branch = branch_el.inner_text().strip()
+            dept_el = self.page.locator("//p[normalize-space()='Department']/following-sibling::p[1]").first
+            if dept_el.is_visible():
+                department = dept_el.inner_text().strip()
+        except Exception:
+            pass
+
         return {"company": company, "branch": branch, "department": department}
 
     # ── Step 2: Navigate to salary calc settings and read threshold values ────
 
     def navigate_to_salary_calc_settings(self) -> None:
+        """Navigates directly to /salary-calculation-setting."""
         from core.config import settings
-        self.page.goto(settings.BASE_URL)
+        target_url = f"{settings.BASE_URL}/salary-calculation-setting"
+        self.page.goto(target_url)
         self.page.wait_for_load_state("domcontentloaded")
-        self.page.get_by_role("link", name="Admin Control").click()
-        self.page.get_by_role("link", name="• Salary Calculation Setting").click()
+        try:
+            self.page.wait_for_load_state("networkidle", timeout=5000)
+        except Exception:
+            pass
+        # Ensure table rows with actual data are loaded
+        self.page.locator("table tbody tr td").first.wait_for(state="visible", timeout=15000)
+        self.page.wait_for_timeout(1000)
+
+    def filter_by_employment_type(self, condition: str = "Contains", value: str = "Employee") -> None:
+        """
+        Locates 'Employment Type' column header, clicks its Filter button,
+        selects condition (e.g. 'Contains'), fills the Value input with 'Employee',
+        and applies the filter to exclude Intern/Paid.
+        """
+        th = self.page.locator("//th[contains(., 'Employment Type') or contains(., 'EMPLOYMENT TYPE')]").first
+        th.wait_for(state="visible", timeout=10000)
+        th.scroll_into_view_if_needed()
+
+        filter_btn = th.locator("button[aria-label='Filter']").first
+        filter_btn.wait_for(state="visible", timeout=5000)
+        filter_btn.scroll_into_view_if_needed()
+
+        aria_controls = filter_btn.get_attribute("aria-controls")
+        filter_btn.click()
+        self.page.wait_for_timeout(600)
+
+        # Locate exact popover: prioritize by aria-controls ID, fallback to :visible section
+        if aria_controls:
+            popover = self.page.locator(f"#{aria_controls}")
+            if not popover.is_visible():
+                popover = self.page.locator("section.chakra-popover__content:visible, [role='dialog']:visible").first
+        else:
+            popover = self.page.locator("section.chakra-popover__content:visible, [role='dialog']:visible").first
+
+        popover.wait_for(state="visible", timeout=5000)
+
+        # Select condition if select element exists, or if dropdown needs opening
+        select_el = popover.locator("select").first
+        if select_el.count() > 0 and select_el.is_visible():
+            try:
+                select_el.select_option(label=condition)
+            except Exception:
+                try:
+                    select_el.select_option(value=condition.lower())
+                except Exception:
+                    pass
+        else:
+            cond_trigger = popover.locator("button, [role='button'], div.css-1tsdjac, div[class*='select']").first
+            if cond_trigger.is_visible() and condition.lower() not in cond_trigger.inner_text().lower():
+                cond_trigger.click()
+                self.page.wait_for_timeout(300)
+                self.page.locator(f"//div[normalize-space()='{condition}'] | //button[normalize-space()='{condition}'] | [role='option']:has-text('{condition}')").first.click()
+                self.page.wait_for_timeout(300)
+
+        # Fill filter Value input (Image 2 shows input with placeholder='Value')
+        val_input = popover.locator("input[placeholder='Value'], input[placeholder*='Value'], input[type='text']").first
+        val_input.wait_for(state="visible", timeout=5000)
+        val_input.click()
+        val_input.fill(value)
+        self.page.wait_for_timeout(300)
+        self.page.keyboard.press("Enter")
+        self.page.wait_for_timeout(500)
+
+        # Close popover
+        self.page.keyboard.press("Escape")
+        self.page.wait_for_timeout(1000)
         self.page.wait_for_load_state("domcontentloaded")
+
+    def get_all_visible_employment_types(self) -> list:
+        """Reads the 'Employment Type' column value from all visible table rows."""
+        headers = self.page.locator("table thead th").all_inner_texts()
+        idx = next((i for i, h in enumerate(headers) if "employment type" in h.lower()), None)
+        if idx is None:
+            return []
+        rows = self.page.locator("table tbody tr").all()
+        types = []
+        for r in rows:
+            cells = r.locator("td")
+            if cells.count() > idx:
+                types.append(cells.nth(idx).inner_text().strip())
+        return types
+
+    def get_employee_employment_type(self) -> str:
+        """Reads 'Employment Type' value from the employee profile 'Employer Details' tab."""
+        tab = self.page.get_by_role("tab", name="Employer Details")
+        if not tab.is_visible():
+            tab = self.page.locator("//button[@role='tab' and contains(., 'Employer')]").first
+        if tab.is_visible():
+            tab.click()
+            self.page.wait_for_timeout(500)
+        emp_type_el = self.page.locator("//p[normalize-space()='Employment Type']/following-sibling::p[1]").first
+        if not emp_type_el.is_visible():
+            emp_type_el = self.page.locator("p:has-text('Employment Type') + p").first
+        if emp_type_el.is_visible():
+            return emp_type_el.inner_text().strip()
+        return ""
+
+    def get_setting_row(self, company: str = "", branch: str = "", department: str = ""):
+        """Returns locator for table row matching company/branch/department, prioritizing regular EMPLOYEE rows."""
+        # 1. Exact match with EMPLOYEE filter
+        if company and branch and department:
+            row_xpath = f"//tr[td[contains(normalize-space(),'{company}')] and td[contains(normalize-space(),'{branch}')] and td[contains(normalize-space(),'{department}')] and td[contains(normalize-space(),'Employee') or contains(normalize-space(),'EMPLOYEE')]]"
+            row = self.page.locator(row_xpath).first
+            if row.count() > 0:
+                return row
+            row_xpath = f"//tr[td[contains(normalize-space(),'{company}')] and td[contains(normalize-space(),'{branch}')] and td[contains(normalize-space(),'{department}')]]"
+            row = self.page.locator(row_xpath).first
+            if row.count() > 0:
+                return row
+        if company and branch:
+            row_xpath = f"//tr[td[contains(normalize-space(),'{company}')] and td[contains(normalize-space(),'{branch}')] and (td[contains(normalize-space(),'Employee')] or td[contains(normalize-space(),'EMPLOYEE')])]"
+            row = self.page.locator(row_xpath).first
+            if row.count() > 0:
+                return row
+        if company:
+            row_xpath = f"//tr[td[contains(normalize-space(),'{company}')] and (td[contains(normalize-space(),'Employee')] or td[contains(normalize-space(),'EMPLOYEE')])]"
+            row = self.page.locator(row_xpath).first
+            if row.count() > 0:
+                return row
+        # Fallback: first row that is an Employee (not Intern)
+        emp_row = self.page.locator("//table/tbody/tr[td[contains(normalize-space(),'Employee') or contains(normalize-space(),'EMPLOYEE')]]").first
+        if emp_row.count() > 0:
+            return emp_row
+        return self.page.locator("table tbody tr").first
+
+
+    def get_table_esic_required_value(self, company: str = "", branch: str = "", department: str = "") -> str:
+        """Reads YES/NO from the 'ESIC Required' column for the given company/branch/department (or first row)."""
+        row = self.get_setting_row(company, branch, department)
+        row.first.wait_for(state="visible", timeout=10000)
+        try:
+            row.first.scroll_into_view_if_needed(timeout=3000)
+        except Exception:
+            pass
+
+        # Dynamically locate the column index for 'ESIC Required' from thead headers
+        headers = self.page.locator("table thead th").all_inner_texts()
+        idx = next((i for i, h in enumerate(headers) if "esic required" in h.lower()), None)
+        if idx is not None:
+            cell = row.locator("td").nth(idx)
+            return cell.inner_text().strip()
+
+        # Fallback: search row cells directly for YES / NO
+        cells = row.locator("td").all_inner_texts()
+        yn = [c.strip() for c in cells if c.strip().upper() in ["YES", "NO"]]
+        return yn[0] if yn else ""
+
+
+    def open_setting_edit_drawer(self, company: str = "", branch: str = "", department: str = "") -> None:
+        """Locates row and clicks Edit button to open the Edit Salary Calculation Setting drawer."""
+        row = self.get_setting_row(company, branch, department)
+        row.first.wait_for(state="visible", timeout=10000)
+        try:
+            row.first.scroll_into_view_if_needed(timeout=3000)
+        except Exception:
+            pass
+        edit_btn = row.locator("button[aria-label='Edit']").first
+        if edit_btn.is_visible():
+            edit_btn.click()
+        else:
+            row.locator("//p[normalize-space()='Edit']").click()
+        self.page.locator("header:has-text('Edit Salary Calculation Setting')").wait_for(state="visible", timeout=10000)
+
+
+    def is_setting_esic_required_checked(self) -> bool:
+        """Returns True if 'Is ESIC Required' checkbox in the drawer is checked."""
+        cb_container = self.page.locator("//label[normalize-space()='Is ESIC Required']/following-sibling::label[contains(@class,'chakra-checkbox')]")
+        return cb_container.get_attribute("data-checked") is not None or cb_container.locator("input").is_checked()
+
+    def toggle_setting_esic_required(self) -> None:
+        """Clicks the 'Is ESIC Required' checkbox in the drawer."""
+        cb = self.page.locator("//label[normalize-space()='Is ESIC Required']/following-sibling::label[contains(@class,'chakra-checkbox')]")
+        cb.click()
+
+    def set_setting_esic_wage_limit(self, amount: str) -> None:
+        """Fills ESIC Wage Limit in the drawer."""
+        field = self.page.locator("input[name='eSIC_Wage_Limit']")
+        field.click()
+        field.fill(amount)
+
+    def set_setting_esic_percentages(self, emp_pct: str, empr_pct: str) -> None:
+        """Fills ESIC Employee and Employer percentages in the drawer."""
+        f_emp = self.page.locator("input[name='eSIC_Employee_Percentage']")
+        f_emp.click()
+        f_emp.fill(emp_pct)
+
+        f_empr = self.page.locator("input[name='eSIC_Employer_Percentage']")
+        f_empr.click()
+        f_empr.fill(empr_pct)
+
+    def save_setting_edit(self) -> None:
+        """Clicks 'Update' in the drawer to save changes."""
+        self.page.locator("button[type='submit']:has-text('Update')").click()
+        self.page.wait_for_load_state("domcontentloaded")
+
 
     def read_salary_settings(self, company: str, branch: str, department: str = "") -> dict:
         """Select the matching company+branch+department row and read pf_threshold and percentages."""
@@ -96,18 +323,31 @@ class SalarySettingsPage(BasePage):
     # ── Step 3: Open salary edit form ────────────────────────────────────────
 
     def open_salary_edit(self) -> None:
-        self.page.get_by_role("tab", name="Employer Details").click()
+        tab = self.page.get_by_role("tab", name="Employer Details")
+        if not tab.is_visible():
+            tab = self.page.locator("//button[@role='tab' and contains(., 'Employer')]").first
+        tab.click()
         self.page.wait_for_load_state("domcontentloaded")
-        self.page.get_by_text("Salary", exact=True).click()
-        edit_btn = self.page.get_by_label("Edit").nth(4)
-        edit_btn.wait_for(state="visible")
+        self.page.wait_for_timeout(1000)
+
+        # Precise locator from user HTML: div with Salary paragraph containing the Edit button
+        edit_btn = self.page.locator("//div[div/p[normalize-space()='Salary']]//button[@aria-label='Edit']").first
+        if not edit_btn.is_visible():
+            edit_btn = self.page.locator("div:has(p:has-text('Salary')) button[aria-label='Edit']").first
+        if not edit_btn.is_visible():
+            edit_btn = self.page.get_by_label("Edit").nth(4)
+
+        edit_btn.wait_for(state="visible", timeout=10000)
         edit_btn.click()
+        self.page.wait_for_load_state("domcontentloaded")
 
     def set_gross_salary(self, amount: str) -> None:
         field = self.page.get_by_label("Gross Salary Per Month")
         field.wait_for(state="visible")
         field.click()
         field.fill(amount)
+        field.press("Tab")
+        self.page.wait_for_timeout(600)
 
     def submit_salary_update(self) -> None:
         self.page.get_by_role("button", name="Update Details").click()
@@ -138,5 +378,46 @@ class SalarySettingsPage(BasePage):
     def is_pf_toggle_checked(self) -> bool:
         return self.page.locator(self.PF_TOGGLE_INPUT).is_checked()
 
+    # ── ESIC toggle state ──────────────────────────────────────────────────────
+
+    def is_esic_toggle_visible(self, timeout_ms: int = 5000) -> bool:
+        """Returns True if 'Include ESIC' label/checkbox is visible in the modal within timeout."""
+        loc = self.page.locator("span.chakra-checkbox__label:has-text('Include ESIC'), span:has-text('Include ESIC'), label:has-text('Include ESIC')").first
+        try:
+            loc.wait_for(state="visible", timeout=timeout_ms)
+            return True
+        except Exception:
+            return False
+
+    def is_esic_toggle_checked(self) -> bool:
+        """Returns True if 'Include ESIC' checkbox is checked."""
+        # 1. Check parent label data-checked attribute
+        container = self.page.locator("label.chakra-checkbox:has(span:has-text('Include ESIC'))").first
+        if container.count() > 0:
+            return container.get_attribute("data-checked") is not None
+        # 2. Check input element
+        cb = self.page.locator("label:has(span:has-text('Include ESIC')) input[type='checkbox'], input[aria-label='Include ESIC']").first
+        if cb.count() > 0:
+            return cb.is_checked()
+        return False
+
+    def toggle_include_esic(self) -> None:
+        """Clicks 'Include ESIC' checkbox/label to toggle state."""
+        loc = self.page.locator("span.chakra-checkbox__label:has-text('Include ESIC'), span:has-text('Include ESIC'), label:has-text('Include ESIC')").first
+        loc.wait_for(state="visible", timeout=5000)
+        loc.click()
+
+    def get_modal_field_value(self, label_text: str) -> str:
+        """Reads input value for a given field label inside the active modal."""
+        field = self.page.get_by_label(label_text, exact=False).first
+        if field.is_visible():
+            return field.input_value().strip()
+        # Fallback to xpath by label text
+        loc = self.page.locator(f"//label[contains(normalize-space(),'{label_text}')]/following::input[1]")
+        if loc.is_visible():
+            return loc.input_value().strip()
+        return ""
+
     def get_toast(self) -> str:
         return self.wait_for_toast(self.TOAST)
+

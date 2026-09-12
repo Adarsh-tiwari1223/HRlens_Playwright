@@ -33,131 +33,6 @@ class AssetAssignmentPage(BasePage):
         modal.wait_for(state="visible", timeout=10000)
         self.page.wait_for_timeout(500)
 
-    def validate_available_assets_dropdown(self) -> dict:
-        """
-        Opens the available asset dropdown popover and reads the items.
-        Returns: {"populated": bool, "count": int, "items": list[str]}
-        """
-        logger.info("Validating Available Asset dropdown population...")
-        modal = self.page.locator("[role='dialog'], .chakra-modal__content, .chakra-drawer__content").first
-        if not modal.is_visible(timeout=1000):
-            modal = self.page
-
-        trigger = modal.locator(".chakra-menu__menubutton, button").filter(has_text=re.compile(r"Select assets to assign|Select asset|Select|Available|ASSET", re.I)).first
-        if not trigger.is_visible(timeout=2000):
-            trigger = modal.locator(".chakra-menu__menubutton").first
-
-        if not trigger.is_visible(timeout=3000):
-            logger.warning("Available Asset dropdown trigger button is not visible.")
-            return {"populated": False, "count": 0, "items": []}
-
-        try:
-            trigger.click(force=True)
-            self.page.wait_for_timeout(1200)
-
-            # Locate all items in open popover
-            items_loc = self.page.locator(".chakra-portal [role='menuitem'], .chakra-portal div.chakra-menu__menu-list div, div.chakra-menu__menu-list div, label.chakra-checkbox, div:has-text('ASSET-')").all()
-            items = []
-            for it in items_loc:
-                txt = it.inner_text().strip()
-                m = re.search(r"ASSET-[A-Z0-9-]+.*", txt)
-                if m:
-                    clean_txt = m.group(0).split("\n")[0].strip()
-                    if clean_txt not in items:
-                        items.append(clean_txt)
-
-            self.page.keyboard.press("Escape")
-            self.page.wait_for_timeout(300)
-
-            populated = len(items) > 0
-            logger.info(f"Available Asset Dropdown Populated={populated}, Count={len(items)}, Items={items}")
-            return {"populated": populated, "count": len(items), "items": items}
-        except Exception as ex:
-            logger.warning(f"Error checking available asset dropdown: {ex}")
-            return {"populated": False, "count": 0, "items": []}
-
-    def is_asset_in_available_dropdown(self, asset_code: str) -> bool:
-        """Checks if a specific asset code appears in the available asset dropdown."""
-        dropdown_info = self.validate_available_assets_dropdown()
-        items = dropdown_info.get("items", [])
-        return any(asset_code.lower() in item.lower() for item in items)
-
-    def search_and_select_employee(self, employee_name: str) -> bool:
-        """
-        Searches and selects an employee in the assignment modal:
-        1. Fills employee search input.
-        2. Clicks matching option card (<p class="chakra-text">Adarsh Tiwari-TEK (Varanasi) (1319)</p>).
-        """
-        logger.info(f"Searching and selecting employee: '{employee_name}'")
-        modal = self.page.locator("[role='dialog'], .chakra-modal__content, .chakra-drawer__content").first
-        modal.wait_for(state="visible", timeout=5000)
-
-        emp_search = modal.locator("input[placeholder*='Search employee' i], input[placeholder*='Search' i]").first
-        emp_search.click()
-        emp_search.fill("")
-        emp_search.type(employee_name, delay=40)
-        self.page.wait_for_timeout(1500)
-
-        # Universal robust locator without dynamic emotion hashes
-        emp_first_name = employee_name.split()[0]
-        opt = modal.locator("p, div, [role='option']").filter(has_text=re.compile(rf"{re.escape(emp_first_name)}.*\(", re.I)).first
-        if not opt.is_visible(timeout=1500):
-            opt = modal.locator("p, div").filter(has_text=re.compile(re.escape(emp_first_name), re.I)).last
-        if not opt.is_visible(timeout=1500):
-            opt = self.page.locator("p, div").filter(has_text=re.compile(re.escape(emp_first_name), re.I)).last
-
-        if opt.is_visible(timeout=3000):
-            txt = opt.inner_text().strip()
-            logger.info(f"[EMPLOYEE SELECTED] Clicking suggestion card: '{txt}'")
-            try:
-                opt.scroll_into_view_if_needed()
-                opt.click(timeout=2000)
-            except Exception:
-                opt.click(force=True)
-            self.page.wait_for_timeout(1000)
-            return True
-        else:
-            logger.warning(f"No suggestion card appeared for '{employee_name}'.")
-            return False
-
-    def select_category_and_subcategory(self, category: str = "IT Hardware", sub_category: str = "Laptop"):
-        """Selects Category and Sub Category dropdowns in the assignment modal."""
-        modal = self.page.locator("[role='dialog'], .chakra-modal__content, .chakra-drawer__content").first
-        if not modal.is_visible(timeout=1000):
-            modal = self.page
-
-        # Category
-        cat_select = modal.locator("//div[./label[contains(text(), 'Category')]]//select").first
-        if not cat_select.is_visible(timeout=1000):
-            cat_select = modal.get_by_label("Category*", exact=True).first
-        if not cat_select.is_visible(timeout=1000):
-            cat_select = modal.locator("select").first
-
-        try:
-            cat_select.select_option(label=category)
-        except Exception:
-            for idx, opt in enumerate(cat_select.locator("option").all_inner_texts()):
-                if category.lower() in opt.lower():
-                    cat_select.select_option(index=idx)
-                    break
-        self.page.wait_for_timeout(1000)
-
-        # Sub Category
-        sub_select = modal.locator("//div[./label[contains(text(), 'Sub Category')]]//select").first
-        if not sub_select.is_visible(timeout=1000):
-            sub_select = modal.get_by_label("Sub Category*", exact=True).first
-        if not sub_select.is_visible(timeout=1000):
-            sub_select = modal.locator("select").nth(1)
-
-        try:
-            sub_select.select_option(label=sub_category)
-        except Exception:
-            for idx, opt in enumerate(sub_select.locator("option").all_inner_texts()):
-                if sub_category.lower() in opt.lower():
-                    sub_select.select_option(index=idx)
-                    break
-        self.page.wait_for_timeout(1500)
-
     def fill_assignment_details(self, employee_name: str, category: str, sub_category: str, asset_name_or_code: str = None, expected_return_date: str = None, remarks: str = None) -> dict:
         logger.info(f"Filling assignment details: Employee={employee_name}, Category={category}, SubCategory={sub_category}")
         
@@ -347,6 +222,75 @@ class AssetAssignmentPage(BasePage):
         else:
             self.page.keyboard.press("Escape")
         self.page.wait_for_timeout(300)
+
+    def open_fulfillment_drawer(self, employee_name: str):
+        """
+        Switches to Requested Assignment tab, searches for employee, and clicks Fulfil to open the assignment drawer.
+        Returns the drawer locator or None.
+        """
+        logger.info(f"Opening fulfillment drawer for employee request: '{employee_name}'")
+        # 1. Switch to Requested Assignment tab
+        req_tab = self.page.get_by_role("tab", name=re.compile(r"Requested Assignment|Employee Requests", re.I)).first
+        if not req_tab.is_visible(timeout=2000):
+            req_tab = self.page.locator("[role='tab']").nth(1)
+        req_tab.click(force=True)
+        self.page.wait_for_timeout(1000)
+
+        # 2. Search employee
+        search_in = self.page.locator("input[placeholder*='Search' i]").first
+        if search_in.is_visible(timeout=2000):
+            search_in.fill("")
+            search_in.fill(employee_name)
+            search_in.press("Enter")
+            self.page.wait_for_timeout(1000)
+
+        # 3. Locate row & click Fulfil
+        emp_first_name = employee_name.split()[0]
+        row = self.page.locator("table tbody tr").filter(has_text=re.compile(re.escape(emp_first_name), re.I)).first
+        if not row.is_visible(timeout=2000):
+            row = self.page.locator("table tbody tr").first
+
+        fulfil_btn = row.locator("button").filter(has_text=re.compile(r"Fulfil|Assign|Action", re.I)).first
+        if not fulfil_btn.is_visible(timeout=2000):
+            logger.warning(f"No 'Fulfil' button found on row for '{employee_name}'.")
+            return None
+
+        fulfil_btn.click()
+        self.page.wait_for_timeout(1000)
+        drawer = self.page.locator("[role='dialog'], .chakra-drawer__content, .chakra-modal__content").first
+        drawer.wait_for(state="visible", timeout=5000)
+        return drawer
+
+    def get_fulfillment_available_assets(self, drawer=None) -> list[str]:
+        """Extracts all available asset codes listed in the Requested Assignment fulfillment drawer dropdown."""
+        form = drawer or self.page.locator("[role='dialog'], .chakra-drawer__content, .chakra-modal__content").first
+        trigger = form.locator(".chakra-menu__menubutton, button").filter(
+            has_text=re.compile(r"Select assets to assign|Select asset|Select|Available|ASSET", re.I)
+        ).first
+        if not trigger.is_visible(timeout=3000):
+            logger.warning("Fulfillment asset dropdown trigger button not found.")
+            return []
+
+        try:
+            trigger.click(force=True)
+            self.page.wait_for_timeout(600)
+            items = self.page.locator("[role='menuitem'], [role='menuitemcheckbox'], .chakra-menu__menuitem").all()
+            codes = []
+            for itm in items:
+                txt = itm.inner_text().strip()
+                if "not uploaded" in txt.lower() or not txt:
+                    continue
+                m = re.search(r"ASSET-[A-Z0-9-]+", txt)
+                code = m.group(0) if m else txt.split("\n")[0].strip()
+                if code and code not in codes:
+                    codes.append(code)
+            self.page.keyboard.press("Escape")
+            self.page.wait_for_timeout(300)
+            return codes
+        except Exception as ex:
+            logger.warning(f"Error extracting fulfillment available assets: {ex}")
+            self.page.keyboard.press("Escape")
+            return []
 
     def assign_requested_asset(self, employee_name: str, asset_code: str = None, assignment_type: str = "Permanent", expected_return_date: str = "2026-12-31", remarks: str = "Asset issued against request") -> dict:
         """

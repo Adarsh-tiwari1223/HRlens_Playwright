@@ -43,25 +43,53 @@ class JobOpeningWorkflow:
             loc.select_option(index=1)
         return f"Option #{idx}"
 
-    def fill_mandatory_fields_except_jd(self) -> dict:
+    def _select_dropdown_by_label_matching(self, selector: str, search_text: str) -> str:
+        loc = self.page.locator(selector).first
+        loc.wait_for(state="visible", timeout=8000)
+        if not search_text:
+            return self.select_random_dropdown_option(selector)
+        try:
+            loc.select_option(label=search_text)
+            return search_text
+        except Exception:
+            pass
+        try:
+            options = loc.locator("option").all()
+            for opt in options:
+                opt_text = opt.inner_text().strip()
+                if search_text.lower() in opt_text.lower():
+                    val = opt.get_attribute("value") or opt_text
+                    loc.select_option(value=val)
+                    return opt_text
+        except Exception:
+            pass
+        return self.select_random_dropdown_option(selector)
+
+    def fill_mandatory_fields_except_jd(
+        self,
+        company_name: str = "",
+        branch_name: str = "",
+        department_name: str = "",
+        employment_type: str = "Employee"
+    ) -> dict:
         """
         Opens a fresh Job Opening form and populates all mandatory fields dynamically
-        with random dropdown selections, leaving Job Summary empty.
+        with target or random dropdown selections, leaving Job Summary empty.
         """
         logger.info("[STEP] Open New Job Opening")
         self.job_page.open_create_job_form()
 
-        logger.info("[STEP] Fill mandatory fields")
+        logger.info(f"[STEP] Fill mandatory fields (Target: Comp='{company_name}', Branch='{branch_name}', Dept='{department_name}')")
 
         bp_opt = self.select_random_dropdown_option(self.job_page.BUSINESS_PROCESS)
-        payroll_opt = self.select_random_dropdown_option(self.job_page.PAYROLL_COMPANY)
-        branch_opt = self.select_random_dropdown_option(self.job_page.BRANCH)
+        payroll_opt = self._select_dropdown_by_label_matching(self.job_page.PAYROLL_COMPANY, company_name)
+        branch_opt = self._select_dropdown_by_label_matching(self.job_page.BRANCH, branch_name)
 
-        selected_dept = self.select_random_dropdown_option(self.job_page.DEPARTMENT)
+        selected_dept = self._select_dropdown_by_label_matching(self.job_page.DEPARTMENT, department_name)
         self.page.locator(self.job_page.JOB_TITLE).wait_for(state="visible", timeout=3000)
 
         selected_title = self.select_random_dropdown_option(self.job_page.JOB_TITLE)
-        emp_type_opt = self.select_random_dropdown_option(self.job_page.EMPLOYMENT_TYPE)
+        emp_type_opt = self._select_dropdown_by_label_matching(self.job_page.EMPLOYMENT_TYPE, employment_type)
 
         self.page.locator(self.job_page.NUM_OPENINGS).fill("1")
         self.page.locator(self.job_page.OPENING_DATE).fill(datetime.now().strftime("%Y-%m-%d"))
@@ -75,7 +103,7 @@ class JobOpeningWorkflow:
         work_mode_opt = self.select_random_dropdown_option(self.job_page.WORK_MODE)
 
         logger.info(
-            f"Dynamic Selections → BusinessProcess: {bp_opt}, PayrollCompany: {payroll_opt}, "
+            f"Selections → BusinessProcess: {bp_opt}, PayrollCompany: {payroll_opt}, "
             f"Branch: {branch_opt}, Dept: {selected_dept}, JobTitle: {selected_title}, "
             f"EmpType: {emp_type_opt}, Urgency: {urgency_opt}, WorkMode: {work_mode_opt}"
         )

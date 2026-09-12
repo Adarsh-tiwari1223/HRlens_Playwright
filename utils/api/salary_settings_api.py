@@ -327,26 +327,69 @@ def search_job_openings_api(search_term: str = "", user: str = "admin") -> List[
 
 def find_matching_job_opening_api(company_name: str, branch_name: str = "", department_name: str = "", user: str = "admin") -> Dict[str, Any] | None:
     """
-    Queries GET /JobOpening via API filtered by company_name, branch_name, department_name.
-    Returns matched job dict containing 'job_Code', or None if not found.
+    Queries GET /JobOpening?search={company_name} via API.
+    Returns matched active job opening dict containing 'job_Code', or None if no jobs exist.
     """
     records = search_job_openings_api(search_term=company_name, user=user)
     if not records and company_name:
         records = search_job_openings_api(search_term="", user=user)
 
-    for job in records:
-        j_comp = job.get("payroll_Company_Name") or job.get("company_Name") or job.get("companyName") or ""
-        j_branch = job.get("branch_Name") or job.get("branchName") or ""
-        j_dept = job.get("department_Name") or job.get("departmentName") or ""
-
-        comp_match = not company_name or company_name.lower() in j_comp.lower()
-        branch_match = not branch_name or branch_name.lower() in j_branch.lower()
-        dept_match = not department_name or department_name.lower() in j_dept.lower()
-
-        if comp_match and (branch_match or dept_match or not branch_name):
-            return job
-
     if records:
+        for job in records:
+            j_comp = job.get("payroll_Company_Name") or job.get("company_Name") or job.get("companyName") or ""
+            if not company_name or company_name.lower() in j_comp.lower():
+                return job
         return records[0]
 
     return None
+
+
+def update_esic_status(setting_id: int, is_esic_required: bool, user: str = "admin") -> Dict[str, Any]:
+    """
+    PUT /SalaryCalculationSettings/{setting_id}/esic-status
+    Toggles is_ESIC_Required boolean for a specific salary calculation setting.
+    """
+    url = f"{settings.API_BASE_URL}/SalaryCalculationSettings/{setting_id}/esic-status"
+    token = _get_api_token(user)
+    hdrs = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    } if token else {"Content-Type": "application/json"}
+
+    try:
+        resp = requests.put(url, headers=hdrs, json={"is_ESIC_Required": is_esic_required}, timeout=15)
+        if resp.ok:
+            logger.info(f"[API] Updated ESIC status for setting_id={setting_id} to {is_esic_required}")
+            return resp.json() if resp.text else {"success": True}
+        else:
+            logger.warning(f"[API FAILED] PUT esic-status id={setting_id} status {resp.status_code}: {resp.text}")
+    except Exception as ex:
+        logger.warning(f"Error updating ESIC status for id={setting_id}: {ex}")
+
+    return {}
+
+
+def update_employee_salary_api(emp_id: int, payload: Dict[str, Any], user: str = "admin") -> bool:
+    """
+    PUT /Hrlense_Employee/empSalary/{emp_id}
+    Updates an employee's salary structure with full ViewModel parameters.
+    """
+    url = f"{settings.API_BASE_URL}/Hrlense_Employee/empSalary/{emp_id}"
+    token = _get_api_token(user)
+    hdrs = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    } if token else {"Content-Type": "application/json"}
+
+    try:
+        resp = requests.put(url, headers=hdrs, json=payload, timeout=20)
+        if resp.ok:
+            logger.info(f"[API] Updated employee salary for emp_id={emp_id}")
+            return True
+        else:
+            logger.warning(f"[API FAILED] PUT empSalary id={emp_id} status {resp.status_code}: {resp.text}")
+    except Exception as ex:
+        logger.warning(f"Error updating employee salary for id={emp_id}: {ex}")
+
+    return False
+

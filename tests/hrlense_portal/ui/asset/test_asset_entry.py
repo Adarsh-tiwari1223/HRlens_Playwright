@@ -11,6 +11,7 @@ import pytest
 import logging
 from pages.base_page import TestStoryLogger, format_ascii_table
 from pages.hrlense_portal.asset.asset_entry_page import AssetEntryPage
+from testdata.dynamic.business_test_data import ASSET_TAXONOMY_15, TAXONOMY_10, BusinessTestData
 
 logger = logging.getLogger(__name__)
 
@@ -223,36 +224,6 @@ def test_manual_add_asset_workflow(admin_page):
     story.finish()
 
 
-ASSET_TAXONOMY_15 = [
-    # 1-3. IT Hardware (Laptops)
-    {"name": "Dell Latitude 7440", "brand": "Dell", "model": "Latitude 7440", "cat": "IT Hardware", "sub": "Laptop"},
-    {"name": "Lenovo ThinkPad T14 Gen 4", "brand": "Lenovo", "model": "ThinkPad T14", "cat": "IT Hardware", "sub": "Laptop"},
-    {"name": "HP EliteBook 840 G9", "brand": "HP", "model": "EliteBook 840", "cat": "IT Hardware", "sub": "Laptop"},
-    
-    # 4-5. Display (Monitors)
-    {"name": "Dell UltraSharp 27 4K", "brand": "Dell", "model": "U2723QE", "cat": "Display", "sub": "Monitor"},
-    {"name": "LG UltraGear 27 Gaming Monitor", "brand": "LG", "model": "27GP850-B", "cat": "Display", "sub": "Monitor"},
-    
-    # 6-7. Audio Visual (Headsets)
-    {"name": "Sony WH-1000XM5 Noise Cancelling", "brand": "Sony", "model": "WH-1000XM5", "cat": "Audio Visual", "sub": "Headset"},
-    {"name": "JBL Tune 760NC Headset", "brand": "JBL", "model": "Tune 760NC", "cat": "Audio Visual", "sub": "Headset"},
-    
-    # 8-10. Office Furniture (Chairs & Desks)
-    {"name": "Godrej Ergonomic Mesh Chair", "brand": "Godrej", "model": "Motion Executive", "cat": "Office Furniture", "sub": "Ergonomic Chair"},
-    {"name": "Featherlite Helix Mesh Chair", "brand": "Featherlite", "model": "Helix High-Back", "cat": "Office Furniture", "sub": "Ergonomic Chair"},
-    {"name": "Steelcase Ergonomic Office Desk", "brand": "Steelcase", "model": "Migration SE", "cat": "Office Furniture", "sub": "Executive Desk"},
-    
-    # 11-12. Peripherals & Accessories (Keyboards & Mice)
-    {"name": "Logitech MX Master 3S Mouse", "brand": "Logitech", "model": "MX Master 3S", "cat": "Peripherals and Accessories", "sub": "Mouse"},
-    {"name": "Keychron K2 Mechanical Keyboard", "brand": "Keychron", "model": "K2 Mechanical", "cat": "Peripherals and Accessories", "sub": "Keyboard"},
-    
-    # 13-14. Networking and Servers (Routers & Switches)
-    {"name": "Cisco Catalyst 1000 Switch", "brand": "Cisco", "model": "C1000-24T-4G-L", "cat": "Networking and Servers", "sub": "Switch"},
-    {"name": "TP-Link Omada Multi-WAN Router", "brand": "TP-Link", "model": "ER7206", "cat": "Networking and Servers", "sub": "Router"},
-    
-    # 15. Facility and Pantry (Air Conditioner)
-    {"name": "Voltas 1.5 Ton Split AC", "brand": "Voltas", "model": "Vectra 183V", "cat": "Facility and Pantry", "sub": "Air Conditioner"}
-]
 
 
 @pytest.mark.ui
@@ -479,23 +450,10 @@ def test_manual_add_5_assets_per_category_subcategory(admin_page):
     entry_page = AssetEntryPage(admin_page)
     entry_page.navigate_to_asset_entry()
 
-    taxonomy_10 = [
-        {"cat": "IT Hardware", "sub": "Laptop", "prefix": "LAP", "models": [("Dell", "Latitude 7440"), ("Lenovo", "ThinkPad T14"), ("HP", "EliteBook 840"), ("Apple", "MacBook Pro 14"), ("Asus", "ExpertBook B9")]},
-        {"cat": "Office Furniture", "sub": "Ergonomic Chair", "prefix": "CHR", "models": [("Godrej", "Executive Mesh Chair"), ("Featherlite", "Helix High-Back"), ("Steelcase", "Gesture Chair"), ("Herman Miller", "Aeron Chair"), ("Haworth", "Zody Ergonomic")]},
-        {"cat": "Peripherals", "sub": "UltraSharp 4K Monitor", "prefix": "MON", "models": [("Dell", "UltraSharp U2723QE"), ("LG", "UltraFine 4K 27UN880"), ("Samsung", "ViewFinity S8 4K"), ("BenQ", "DesignVue PD2705U"), ("ASUS", "ProArt PA279CV")]},
-        {"cat": "Software Licenses", "sub": "Operating System License", "prefix": "OSL", "models": [("Microsoft", "Windows 11 Pro"), ("Microsoft", "Windows 11 Enterprise"), ("RedHat", "RHEL 9 Workstation"), ("Canonical", "Ubuntu Pro Enterprise"), ("JetBrains", "All Products Pack")]},
-        {"cat": "Networking and Servers", "sub": "Enterprise Edge Router", "prefix": "RTR", "models": [("Cisco", "Catalyst 8300 Router"), ("Juniper", "SRX345 Gateway"), ("Fortinet", "FortiGate 60F"), ("TP-Link", "Omada ER7206 Dual-WAN"), ("MikroTik", "CCR2004 Cloud Router")]},
-        {"cat": "Audio Visual", "sub": "Conference Speakerphone", "prefix": "SPK", "models": [("Jabra", "Speak 750 Pod"), ("Poly", "Sync 40 Smart Speaker"), ("EPOS", "Expand SP 30+"), ("Anker", "PowerConf S500"), ("Bose", "Work Videobar VB1")]},
-        {"cat": "Mobile and Telephony", "sub": "Business Smartphone", "prefix": "PHN", "models": [("Samsung", "Galaxy S23 Enterprise"), ("Apple", "iPhone 15 Corporate"), ("Google", "Pixel 8 Enterprise"), ("Motorola", "ThinkPhone Enterprise"), ("OnePlus", "12R Business Edition")]},
-        {"cat": "Security and Surveillance", "sub": "CCTV Security Camera", "prefix": "CAM", "models": [("Hikvision", "4K Dome IP Camera"), ("Dahua", "WizSense 4MP Bullet"), ("CP Plus", "IntelliPro 5MP Dome"), ("Axis", "M3068-P Panoramic"), ("Bosch", "FLEXIDOME IP 5000i")]},
-        {"cat": "Power and Backup", "sub": "Online UPS Inverter", "prefix": "UPS", "models": [("APC Schneider", "Smart-UPS RT 3000VA"), ("Eaton", "9PX 3000VA Online UPS"), ("Vertiv", "Liebert GXT5 2000VA"), ("Luminous", "Pro 2kVA Pure Sine"), ("Microtek", "Max Power 3kVA Online")]},
-        {"cat": "Facility and Pantry", "sub": "Office Air Conditioner", "prefix": "OAC", "models": [("Daikin", "Inverter 2-Ton Split AC"), ("Voltas", "Vectra 1.5-Ton Inverter"), ("Blue Star", "5-Star Inverter AC"), ("Hitachi", "Toushi Split Inverter AC"), ("Mitsubishi", "Heavy Heavy Duty 2-Ton")]}
-    ]
-
     total_created = 0
     results_summary = []
 
-    for cat_idx, item in enumerate(taxonomy_10, 1):
+    for cat_idx, item in enumerate(TAXONOMY_10, 1):
         cat_name = item["cat"]
         sub_name = item["sub"]
         prefix = item["prefix"]
@@ -533,7 +491,7 @@ def test_manual_add_5_assets_per_category_subcategory(admin_page):
                 "sub_category": sub_name,
                 "asset_name": asset_name,
                 "serial_no": serial_no,
-                "status": "CREATED & ACTIVE ✅"
+                "status": "CREATED & ACTIVE"
             })
             logger.info(f"  [{cat_name}] Asset {asset_idx}/5: '{asset_name}' (Serial: {serial_no}) -> Toast: '{toast}'")
 

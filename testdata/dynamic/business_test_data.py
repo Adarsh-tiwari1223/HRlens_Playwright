@@ -325,12 +325,206 @@ class AssetData:
         return asdict(self)
 
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ENTERPRISE ASSET TAXONOMIES (CENTRALIZED TEST DATA)
+# ══════════════════════════════════════════════════════════════════════════════
+
+ASSET_TAXONOMY_15 = [
+    # 1-3. IT Hardware (Laptops)
+    {"name": "Dell Latitude 7440", "brand": "Dell", "model": "Latitude 7440", "cat": "IT Hardware", "sub": "Laptop"},
+    {"name": "Lenovo ThinkPad T14 Gen 4", "brand": "Lenovo", "model": "ThinkPad T14", "cat": "IT Hardware", "sub": "Laptop"},
+    {"name": "HP EliteBook 840 G9", "brand": "HP", "model": "EliteBook 840", "cat": "IT Hardware", "sub": "Laptop"},
+    
+    # 4-5. Display (Monitors)
+    {"name": "Dell UltraSharp 27 4K", "brand": "Dell", "model": "U2723QE", "cat": "Display", "sub": "Monitor"},
+    {"name": "LG UltraGear 27 Gaming Monitor", "brand": "LG", "model": "27GP850-B", "cat": "Display", "sub": "Monitor"},
+    
+    # 6-7. Audio Visual (Headsets)
+    {"name": "Sony WH-1000XM5 Noise Cancelling", "brand": "Sony", "model": "WH-1000XM5", "cat": "Audio Visual", "sub": "Headset"},
+    {"name": "JBL Tune 760NC Headset", "brand": "JBL", "model": "Tune 760NC", "cat": "Audio Visual", "sub": "Headset"},
+    
+    # 8-10. Office Furniture (Chairs & Desks)
+    {"name": "Godrej Ergonomic Mesh Chair", "brand": "Godrej", "model": "Motion Executive", "cat": "Office Furniture", "sub": "Ergonomic Chair"},
+    {"name": "Featherlite Helix Mesh Chair", "brand": "Featherlite", "model": "Helix High-Back", "cat": "Office Furniture", "sub": "Ergonomic Chair"},
+    {"name": "Steelcase Ergonomic Office Desk", "brand": "Steelcase", "model": "Migration SE", "cat": "Office Furniture", "sub": "Executive Desk"},
+    
+    # 11-12. Peripherals & Accessories (Keyboards & Mice)
+    {"name": "Logitech MX Master 3S Mouse", "brand": "Logitech", "model": "MX Master 3S", "cat": "Peripherals and Accessories", "sub": "Mouse"},
+    {"name": "Keychron K2 Mechanical Keyboard", "brand": "Keychron", "model": "K2 Mechanical", "cat": "Peripherals and Accessories", "sub": "Keyboard"},
+    
+    # 13-14. Networking and Servers (Routers & Switches)
+    {"name": "Cisco Catalyst 1000 Switch", "brand": "Cisco", "model": "C1000-24T-4G-L", "cat": "Networking and Servers", "sub": "Switch"},
+    {"name": "TP-Link Omada Multi-WAN Router", "brand": "TP-Link", "model": "ER7206", "cat": "Networking and Servers", "sub": "Router"},
+    
+    # 15. Facility and Pantry (Air Conditioner)
+    {"name": "Voltas 1.5 Ton Split AC", "brand": "Voltas", "model": "Vectra 183V", "cat": "Facility and Pantry", "sub": "Air Conditioner"}
+]
+
+TAXONOMY_10 = [
+    {"cat": "IT Hardware", "sub": "Laptop", "prefix": "LAP", "models": [("Dell", "Latitude 7440"), ("Lenovo", "ThinkPad T14"), ("HP", "EliteBook 840"), ("Apple", "MacBook Pro 14"), ("Asus", "ExpertBook B9")]},
+    {"cat": "Office Furniture", "sub": "Ergonomic Chair", "prefix": "CHR", "models": [("Godrej", "Executive Mesh Chair"), ("Featherlite", "Helix High-Back"), ("Steelcase", "Gesture Chair"), ("Herman Miller", "Aeron Chair"), ("Haworth", "Zody Ergonomic")]},
+    {"cat": "Peripherals", "sub": "UltraSharp 4K Monitor", "prefix": "MON", "models": [("Dell", "UltraSharp U2723QE"), ("LG", "UltraFine 4K 27UN880"), ("Samsung", "ViewFinity S8 4K"), ("BenQ", "DesignVue PD2705U"), ("ASUS", "ProArt PA279CV")]},
+    {"cat": "Software Licenses", "sub": "Operating System License", "prefix": "OSL", "models": [("Microsoft", "Windows 11 Pro"), ("Microsoft", "Windows 11 Enterprise"), ("RedHat", "RHEL 9 Workstation"), ("Canonical", "Ubuntu Pro Enterprise"), ("JetBrains", "All Products Pack")]},
+    {"cat": "Networking and Servers", "sub": "Enterprise Edge Router", "prefix": "RTR", "models": [("Cisco", "Catalyst 8300 Router"), ("Juniper", "SRX345 Gateway"), ("Fortinet", "FortiGate 60F"), ("TP-Link", "Omada ER7206 Dual-WAN"), ("MikroTik", "CCR2004 Cloud Router")]},
+    {"cat": "Audio Visual", "sub": "Conference Speakerphone", "prefix": "SPK", "models": [("Jabra", "Speak 750 Pod"), ("Poly", "Sync 40 Smart Speaker"), ("EPOS", "Expand SP 30+"), ("Anker", "PowerConf S500"), ("Bose", "Work Videobar VB1")]},
+    {"cat": "Mobile and Telephony", "sub": "Business Smartphone", "prefix": "PHN", "models": [("Samsung", "Galaxy S23 Enterprise"), ("Apple", "iPhone 15 Corporate"), ("Google", "Pixel 8 Enterprise"), ("Motorola", "ThinkPhone Enterprise"), ("OnePlus", "12R Business Edition")]},
+    {"cat": "Security and Surveillance", "sub": "CCTV Security Camera", "prefix": "CAM", "models": [("Hikvision", "4K Dome IP Camera"), ("Dahua", "WizSense 4MP Bullet"), ("CP Plus", "IntelliPro 5MP Dome"), ("Axis", "M3068-P Panoramic"), ("Bosch", "FLEXIDOME IP 5000i")]},
+    {"cat": "Power and Backup", "sub": "Online UPS Inverter", "prefix": "UPS", "models": [("APC Schneider", "Smart-UPS RT 3000VA"), ("Eaton", "9PX 3000VA Online UPS"), ("Vertiv", "Liebert GXT5 2000VA"), ("Luminous", "Pro 2kVA Pure Sine"), ("Microtek", "Max Power 3kVA Online")]},
+    {"cat": "Facility and Pantry", "sub": "Office Air Conditioner", "prefix": "OAC", "models": [("Daikin", "Inverter 2-Ton Split AC"), ("Voltas", "Vectra 1.5-Ton Inverter"), ("Blue Star", "5-Star Inverter AC"), ("Hitachi", "Toushi Split Inverter AC"), ("Mitsubishi", "Heavy Heavy Duty 2-Ton")]}
+]
+
+SEED_CATEGORIES = [
+    {"name": "IT Hardware", "description": "Enterprise compute hardware and workstations"},
+    {"name": "Office Furniture", "description": "Ergonomic seating, desks, and office fixtures"},
+    {"name": "Peripherals", "description": "Monitors, keyboards, mice, and desk accessories"},
+    {"name": "Software Licenses", "description": "Enterprise OS, productivity suites, and IDE licenses"},
+    {"name": "Networking and Servers", "description": "Routers, switches, access points, and rack servers"},
+    {"name": "Audio Visual", "description": "Conference speakerphones, headsets, and projectors"},
+    {"name": "Mobile and Telephony", "description": "Corporate smartphones, tablets, and VoIP desk phones"},
+    {"name": "Security and Surveillance", "description": "CCTV cameras, biometric scanners, and access cards"},
+    {"name": "Power and Backup", "description": "Online UPS systems, battery backups, and surge protectors"},
+    {"name": "Facility and Pantry", "description": "Air conditioners, water dispensers, and office appliances"}
+]
+
+SEED_SUBCATEGORIES = [
+    {"category": "IT Hardware", "name": "Laptop", "prefix": "LAP", "description": "Developer & Business Laptops"},
+    {"category": "Office Furniture", "name": "Ergonomic Chair", "prefix": "CHR", "description": "Mesh Back High-Adjustable Chairs"},
+    {"category": "Peripherals", "name": "UltraSharp 4K Monitor", "prefix": "MON", "description": "27-inch 4K IPS Developer Displays"},
+    {"category": "Software Licenses", "name": "Operating System License", "prefix": "OSL", "description": "Windows 11 Pro / Enterprise OS Keys"},
+    {"category": "Networking and Servers", "name": "Enterprise Edge Router", "prefix": "RTR", "description": "Gigabit Dual-WAN Edge Gateway Routers"},
+    {"category": "Audio Visual", "name": "Conference Speakerphone", "prefix": "SPK", "description": "Noise-Cancelling Conference Room Pods"},
+    {"category": "Mobile and Telephony", "name": "Business Smartphone", "prefix": "PHN", "description": "Secured Corporate Android / iOS Devices"},
+    {"category": "Security and Surveillance", "name": "CCTV Security Camera", "prefix": "CAM", "description": "High-Definition 4K Security Surveillance Cameras"},
+    {"category": "Power and Backup", "name": "Online UPS Inverter", "prefix": "UPS", "description": "High-capacity Pure Sine Wave Online UPS Systems"},
+    {"category": "Facility and Pantry", "name": "Office Air Conditioner", "prefix": "OAC", "description": "Inverter Energy-Efficient Climate Control Units"}
+]
+
+SEED_VENDORS = [
+    {
+        "name": "Dell Technologies India Pvt Ltd",
+        "contact_person": "Rajesh Sharma",
+        "phone": "9810123456",
+        "email": "rajesh.sharma@dell-india.com",
+        "address": "Divyasree Greens, 4/1 Challenger Tower, Inner Ring Road, Bengaluru",
+        "gst": "29AABCD1234E1Z5",
+        "supports_amc": True
+    },
+    {
+        "name": "Lenovo India Enterprise Solutions",
+        "contact_person": "Pooja Verma",
+        "phone": "9820123456",
+        "email": "pverma@lenovo-enterprise.in",
+        "address": "Ferns Icon, Level 2, Outer Ring Road, Marathahalli, Bengaluru",
+        "gst": "29AABCL5678F2Z8",
+        "supports_amc": True
+    },
+    {
+        "name": "HP India Sales Private Limited",
+        "contact_person": "Vikram Malhotra",
+        "phone": "9830123456",
+        "email": "vikram.m@hp-india.com",
+        "address": "Building 2, DLF Cyber City, Sector 24, Gurugram, Haryana",
+        "gst": "06AABCH9012G3Z1",
+        "supports_amc": True
+    },
+    {
+        "name": "Godrej & Boyce Manufacturing Co",
+        "contact_person": "Sunil Godrej",
+        "phone": "9840123456",
+        "email": "contact@godrej-furniture.com",
+        "address": "Pirojshanagar, Vikhroli East, Mumbai, Maharashtra",
+        "gst": "27AABCG3456H4Z4",
+        "supports_amc": False
+    },
+    {
+        "name": "Featherlite Office Furniture Ltd",
+        "contact_person": "Anil Kumar",
+        "phone": "9850123456",
+        "email": "sales@featherlite-furniture.in",
+        "address": "16A, Millers Road, Vasanth Nagar, Bengaluru, Karnataka",
+        "gst": "29AABCF7890I5Z7",
+        "supports_amc": False
+    },
+    {
+        "name": "Cisco Systems India Pvt Ltd",
+        "contact_person": "Rohan Mehra",
+        "phone": "9860123456",
+        "email": "rohan.mehra@cisco-systems.in",
+        "address": "SEZ Unit, Cessna Business Park, Kadubeesanahalli, Bengaluru",
+        "gst": "29AABCC1234J6Z0",
+        "supports_amc": True
+    },
+    {
+        "name": "Samsung India Electronics Ltd",
+        "contact_person": "Neha Kapoor",
+        "phone": "9870123456",
+        "email": "neha.k@samsung-enterprise.in",
+        "address": "Two Horizon Center, Golf Course Road, Sector 43, Gurugram",
+        "gst": "06AABCS5678K7Z3",
+        "supports_amc": True
+    },
+    {
+        "name": "Jabra India Audio Solutions",
+        "contact_person": "Deepak Joshi",
+        "phone": "9880123456",
+        "email": "support@jabra-audio.in",
+        "address": "Level 6, Wing B, Smartworks Cyber Park, Sector 62, Noida",
+        "gst": "09AABCJ9012L8Z6",
+        "supports_amc": True
+    },
+    {
+        "name": "APC Schneider Electric India",
+        "contact_person": "Alok Srivastava",
+        "phone": "9890123456",
+        "email": "alok.s@schneider-apc.in",
+        "address": "44P, Electronic City, Phase 2, Hosur Road, Bengaluru",
+        "gst": "29AABCA3456M9Z9",
+        "supports_amc": True
+    },
+    {
+        "name": "Logitech Electronics India Pvt Ltd",
+        "contact_person": "Siddharth Roy",
+        "phone": "9811123456",
+        "email": "siddharth.r@logitech-india.com",
+        "address": "Unit 802, Alpha Tower, Sector 48, Sohna Road, Gurugram",
+        "gst": "06AABCL7890N1Z2",
+        "supports_amc": False
+    }
+]
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # DATA GENERATION FACTORY
 # ══════════════════════════════════════════════════════════════════════════════
 
 class BusinessTestData:
     """Enterprise-Quality, valid, non-robotic dynamic test data generator."""
+
+    @classmethod
+    def get_asset_taxonomy_15(cls) -> list[dict]:
+        """Returns the centralized 15 enterprise asset specifications."""
+        return ASSET_TAXONOMY_15
+
+    @classmethod
+    def get_asset_taxonomy_10(cls) -> list[dict]:
+        """Returns the centralized 10 category x 5 model asset specifications."""
+        return TAXONOMY_10
+
+    @classmethod
+    def get_seed_categories(cls) -> list[dict]:
+        """Returns the centralized 10 enterprise asset categories."""
+        return SEED_CATEGORIES
+
+    @classmethod
+    def get_seed_subcategories(cls) -> list[dict]:
+        """Returns the centralized 10 enterprise subcategories."""
+        return SEED_SUBCATEGORIES
+
+    @classmethod
+    def get_seed_vendors(cls) -> list[dict]:
+        """Returns the centralized 10 enterprise vendors."""
+        return SEED_VENDORS
 
     @staticmethod
     def get_unique_suffix() -> int:

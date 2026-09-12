@@ -20,26 +20,38 @@ env:
 jobs:
   create-pr:
     if: github.event_name == 'push' && github.ref_name != 'main' && github.ref_name != 'develop'
+
     runs-on: ubuntu-latest
+
     permissions:
       contents: write
       pull-requests: write
+
     steps:
       - uses: actions/checkout@v4.2.2
+
       - name: Compare & Create PR Automatically
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_EXISTS=$(gh pr list --head "${{ github.ref_name }}" --json number -q '.[0].number')
+
           if [ -z "$PR_EXISTS" ]; then
             echo "Creating automated PR comparing branch '${{ github.ref_name }}' with 'main'..."
-            gh pr create --base main --head "${{ github.ref_name }}" --title "Auto PR: ${{ github.ref_name }} -> main" --body "Automated Pull Request generated on branch push for \`${{ github.ref_name }}\`." || echo "::warning::To enable auto PR creation, check 'Allow GitHub Actions to create and approve pull requests' in Repository Settings -> Actions -> General -> Workflow permissions."
+
+            gh pr create \
+              --base main \
+              --head "${{ github.ref_name }}" \
+              --title "Auto PR: ${{ github.ref_name }} -> main" \
+              --body "Automated Pull Request generated on branch push for \`${{ github.ref_name }}\`." \
+              || echo "::warning::To enable auto PR creation, check 'Allow GitHub Actions to create and approve pull requests' in Repository Settings -> Actions -> General -> Workflow permissions."
           else
             echo "PR #${PR_EXISTS} already exists for branch '${{ github.ref_name }}'."
           fi
 
   test:
     runs-on: ubuntu-latest
+
     container:
       image: mcr.microsoft.com/playwright/python:v1.49.0-jammy
 
@@ -47,7 +59,7 @@ jobs:
       contents: read
 
     steps:
-    - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v4.2.2
 
     - name: Create .env file
       env:
@@ -56,18 +68,21 @@ jobs:
         echo "Creating .env environment file..."
         printf "%s\n" "$ENV_SECRET" > .env
 
-    # 1. Install dependencies inside pre-built Playwright container (Quiet Output)
-    - name: Install Python dependencies
-      run: |
-        echo "::group::Installing Python Dependencies"
-        python -m pip install --quiet --upgrade pip
-        if [ -f requirements.txt ]; then pip install --quiet --no-cache-dir -r requirements.txt; fi
-        echo "::endgroup::"
+      # 1. Install dependencies inside pre-built Playwright container
+      - name: Install Python dependencies
+        run: |
+          echo "::group::Installing Python Dependencies"
+          python -m pip install --quiet --upgrade pip
 
-    # 2. Run Dynamic Parallel Test Suites (-n auto)
-    - name: Determine Test Marker & Run Tests
-      run: |
-        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          if [ -f requirements.txt ]; then
+            pip install --quiet --no-cache-dir -r requirements.txt
+          fi
+
+          echo "::endgroup::"
+
+      # 2. Run Smoke Test Suite
+      - name: Run Smoke Tests
+        run: |
           MARKER="smoke"
         elif [ "${{ github.ref_name }}" = "develop" ]; then
           MARKER="smoke or sanity"
@@ -79,34 +94,50 @@ jobs:
         echo "Executing parallel test suite (-n auto) with marker: $MARKER"
         pytest -m "$MARKER" -n auto --reruns 2 --reruns-delay 2 --html=reports/report.html --self-contained-html --maxfail=1 --disable-warnings --tb=short
 
-    # 3. Add GitHub Step Summary
-    - name: Add Execution Summary
-      if: always()
-      run: |
-        echo "### 🧪 HRlens Playwright Test Execution Summary" >> $GITHUB_STEP_SUMMARY
-        echo "- **Target Environment**: \`$ENV\`" >> $GITHUB_STEP_SUMMARY
-        echo "- **Trigger Event**: \`${{ github.event_name }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "- **HTML Report & Traces**: Download artifact \`pytest-report\` to inspect execution results and Playwright \`.zip\` traces." >> $GITHUB_STEP_SUMMARY
+          echo "Executing smoke test suite (-n auto)"
+          echo "Marker: $MARKER"
 
-    # 4. Upload HTML Test Report, Logs, and Traces
-    - name: Upload Test Report & Traces
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: pytest-report
-        path: |
-          reports/
-          logs/
-          .pytest_cache/
-          test-results/
+          pytest -m "$MARKER" \
+            -n auto \
+            --reruns 2 \
+            --reruns-delay 1 \
+            --html=reports/report.html \
+            --self-contained-html \
+            --maxfail=1 \
+            --disable-warnings \
+            --tb=short
 
+      # 3. Add GitHub Step Summary
+      - name: Add Execution Summary
+        if: always()
+        run: |
+          echo "### 🧪 HRlens Playwright Smoke Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target Environment**: \`$ENV\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Test Marker**: \`smoke\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Execution Mode**: Parallel (-n auto)" >> $GITHUB_STEP_SUMMARY
+          echo "- **HTML Report & Traces**: Download artifact \`pytest-report\` to inspect execution results and Playwright \`.zip\` traces." >> $GITHUB_STEP_SUMMARY
+
+      # 4. Upload HTML Test Report, Logs, and Traces
+      - name: Upload Test Report & Traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-report
+          path: |
+            reports/
+            logs/
+            .pytest_cache/
+            test-results/
 
   merge:
     needs: test
+
     runs-on: ubuntu-latest
+
     permissions:
       contents: write
       pull-requests: write
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -129,6 +160,7 @@ jobs:
               git merge FETCH_HEAD --no-ff -m "Merge PR #${{ github.event.pull_request.number }} into ${{ github.base_ref }} [skip ci]"
               git push origin ${{ github.base_ref }}
             }
+
           else
             echo "Push event on '${{ github.ref_name }}': Tests verified. Keeping feature branch active for additional commits."
           fi

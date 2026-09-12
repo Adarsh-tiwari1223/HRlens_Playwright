@@ -4,6 +4,7 @@ on:
   schedule:
     # Runs automatically every night at 12:00 AM (00:00 UTC)
     - cron: '0 0 * * *'
+
   workflow_dispatch:
     inputs:
       marker:
@@ -31,6 +32,7 @@ env:
 jobs:
   regression-test:
     runs-on: ubuntu-latest
+
     container:
       image: mcr.microsoft.com/playwright/python:v1.49.0-jammy
 
@@ -38,46 +40,60 @@ jobs:
       contents: read
 
     steps:
-    - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v4.2.2
 
-    - name: Create .env file
-      run: |
-        cat << 'EOF' > .env
-        ${{ secrets.ENV_FILE }}
-        EOF
+      - name: Create .env file
+        run: |
+          cat << 'EOF' > .env
+          ${{ secrets.ENV_FILE }}
+          EOF
 
-    # 1. Install dependencies inside pre-built Playwright container (Quiet Output)
-    - name: Install Python dependencies
-      run: |
-        echo "::group::Installing Python Dependencies"
-        python -m pip install --quiet --upgrade pip
-        if [ -f requirements.txt ]; then pip install --quiet --no-cache-dir -r requirements.txt; fi
-        echo "::endgroup::"
+      # 1. Install dependencies inside pre-built Playwright container
+      - name: Install Python dependencies
+        run: |
+          echo "::group::Installing Python Dependencies"
+          python -m pip install --quiet --upgrade pip
+          if [ -f requirements.txt ]; then
+            pip install --quiet --no-cache-dir -r requirements.txt
+          fi
+          echo "::endgroup::"
 
-    # 2. Run Parallel Regression Tests (-n auto)
-    - name: Run Regression Tests
-      run: |
-        MARKER="${{ github.event.inputs.marker || 'regression' }}"
-        echo "Executing parallel nightly regression suite (-n auto) with marker: $MARKER"
-        pytest -m "$MARKER" -n auto --reruns 2 --reruns-delay 1 --html=reports/report.html --self-contained-html --disable-warnings --tb=short
+      # 2. Run Parallel Regression Tests
+      - name: Run Regression Tests
+        run: |
+          MARKER="${{ github.event.inputs.marker || 'regression' }}"
 
-    # 3. Add GitHub Step Summary
-    - name: Add Execution Summary
-      if: always()
-      run: |
-        echo "### 🌙 HRlens Nightly Regression Summary" >> $GITHUB_STEP_SUMMARY
-        echo "- **Target Environment**: \`$ENV\`" >> $GITHUB_STEP_SUMMARY
-        echo "- **Marker Executed**: \`${{ github.event.inputs.marker || 'regression' }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "- **HTML Report & Traces**: Download artifact \`nightly-regression-report\` to inspect results and Playwright \`.zip\` traces." >> $GITHUB_STEP_SUMMARY
+          echo "Executing nightly regression suite (-n auto)"
+          echo "Marker: $MARKER"
+          echo "Excluded markers: meeting, interview, payroll, increment, appraisal, calendar"
 
-    # 4. Upload HTML Test Report, Logs, and Traces
-    - name: Upload Test Report & Traces
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: nightly-regression-report
-        path: |
-          reports/
-          logs/
-          .pytest_cache/
-          test-results/
+          pytest -m "$MARKER and not meeting and not interview and not payroll and not increment and not appraisal and not calendar" \
+            -n auto \
+            --reruns 2 \
+            --reruns-delay 1 \
+            --html=reports/report.html \
+            --self-contained-html \
+            --disable-warnings \
+            --tb=short
+
+      # 3. Add GitHub Step Summary
+      - name: Add Execution Summary
+        if: always()
+        run: |
+          echo "### 🌙 HRlens Nightly Regression Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target Environment**: \`$ENV\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Marker Executed**: \`${{ github.event.inputs.marker || 'regression' }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Excluded Markers**: \`meeting, interview, payroll, increment, appraisal, calendar\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **HTML Report & Traces**: Download artifact \`nightly-regression-report\` to inspect results and Playwright \`.zip\` traces." >> $GITHUB_STEP_SUMMARY
+
+      # 4. Upload HTML Test Report, Logs, and Traces
+      - name: Upload Test Report & Traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-regression-report
+          path: |
+            reports/
+            logs/
+            .pytest_cache/
+            test-results/

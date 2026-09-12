@@ -121,21 +121,21 @@ These scripts interact with the system APIs to extract data, compare it, and gen
 ### Blocker Reports (Missing parameters blocking payroll generation)
 * **Scan All Branches:**
   ```bash
-  python generate_all_blockers.py
+  python scripts/generate_all_blockers.py
   ```
 * **Scan Specific Branches only:**
   ```bash
-  python generate_all_blockers.py --branches="Agra,Varanasi,Noida"
+  python scripts/generate_all_blockers.py --branches="Agra,Varanasi,Noida"
   ```
 * **Re-build Excel files from latest cached text report:**
   ```bash
-  python generate_all_blockers.py --convert-existing
+  python scripts/generate_all_blockers.py --convert-existing
   ```
 
 ### Validation/Reconciliation Reports (Comparing Excel data vs. API data)
 * **Run Reconciliation for All Companies:**
   ```bash
-  python generate_all_validations.py
+  python scripts/generate_all_validations.py
   ```
 
 ---

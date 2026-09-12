@@ -50,10 +50,11 @@ jobs:
     - uses: actions/checkout@v4.2.2
 
     - name: Create .env file
+      env:
+        ENV_SECRET: ${{ secrets.ENV_FILE }}
       run: |
-        cat << 'EOF' > .env
-        ${{ secrets.ENV_FILE }}
-        EOF
+        echo "Creating .env environment file..."
+        printf "%s\n" "$ENV_SECRET" > .env
 
     # 1. Install dependencies inside pre-built Playwright container (Quiet Output)
     - name: Install Python dependencies

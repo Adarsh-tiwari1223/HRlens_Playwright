@@ -73,10 +73,22 @@ HRlens_Playwright/
 │   │   │   ├── master/               # Company master configurations
 │   │   │   ├── meeting/              # Calendar & meeting scheduling tests
 │   │   │   └── payroll/              # Salary settings & UI payroll tests
-│   │   ├── api/                      # REST API contract & absence validation tests
+│   │   ├── api/                      # REST API contract & backend validation tests
+│   │   │   ├── asset/                # Asset API contract tests
+│   │   │   ├── attendance/           # Leave, attendance & absence API tests
+│   │   │   └── payroll/              # Payroll & ESIC calculation API tests
 │   │   └── test_payroll_comparison.py# Dynamic Excel vs API payroll reconciliation
 │   └── recruitment_portal/           # Recruitment Portal Test Suites
 │       └── ui/active_job/            # Drafts, creation, candidate & offer E2E flows
+├── utils/                            # Helper Utilities & API Clients
+│   └── api/                          # Domain API Clients
+│       ├── asset/                    # Asset management API client
+│       ├── attendance/               # Attendance, leave & absence API clients
+│       ├── employee/                 # Candidate & director API clients
+│       ├── increment/                # Increment API client
+│       ├── master/                   # Company & role master API clients
+│       └── payroll/                  # Payroll & salary settings API clients
+├── scripts/                          # Standalone Reporting & Seeding Scripts
 ├── logs/                             # Automatic Per-Test Execution Logs
 │   ├── hrlense_portal/               # Dedicated logs for HRlens portal tests
 │   └── recruitment_portal/           # Dedicated logs for Recruitment portal tests

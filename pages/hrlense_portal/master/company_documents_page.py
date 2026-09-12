@@ -35,7 +35,7 @@ class CompanyDocumentsPage(BasePage):
         Retrieves dynamic validation rules (can_expire, accept_duplicate, branch_wise)
         exclusively for Company Document uploads and management.
         """
-        from utils.api.company_api import get_document_validation_rules_api
+        from utils.api.master.company_api import get_document_validation_rules_api
         logger.info(f"Retrieving Company Document Module validation rules for '{doc_name}'...")
         return get_document_validation_rules_api(doc_name=doc_name, category_id=category_id)
 

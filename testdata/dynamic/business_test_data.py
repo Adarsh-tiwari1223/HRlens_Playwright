@@ -810,7 +810,7 @@ class BusinessTestData:
     def get_branch_dictionary_by_name(cls, city_name: str = "Agra") -> list[dict]:
         """Grab all branch dictionaries matching a city name from the branch API."""
         try:
-            from utils.api.payroll_api import get_branches
+            from utils.api.payroll.payroll_api import get_branches
             all_branches = get_branches()
             matched = [
                 {
@@ -832,7 +832,7 @@ class BusinessTestData:
         Extracts city name from inside parentheses (e.g. 'VIZ- (AGRA)' -> 'Agra', 'NEX- (GREATER NOIDA)' -> 'Greater Noida').
         """
         try:
-            from utils.api.payroll_api import get_branches
+            from utils.api.payroll.payroll_api import get_branches
             all_branches = get_branches()
             branch_map = {}
             for b in all_branches:
@@ -867,7 +867,7 @@ class BusinessTestData:
     def get_employees_by_department(cls, department_filter_ids: list[int] = None) -> list[dict]:
         """Fetch employees filtered by department ID(s) from the Employee API (daily disk cached)."""
         try:
-            from utils.api.payroll_api import get_employees_by_department
+            from utils.api.payroll.payroll_api import get_employees_by_department
             from testdata.dynamic.daily_cache import get_daily_cached_data
             dept_ids = department_filter_ids or [4]
             key = f"employees_dept_{'_'.join(map(str, dept_ids))}"
@@ -879,7 +879,7 @@ class BusinessTestData:
     def get_companies(cls) -> list[dict]:
         """Fetch company master records from the Company API (daily disk cached)."""
         try:
-            from utils.api.payroll_api import get_companies
+            from utils.api.payroll.payroll_api import get_companies
             from testdata.dynamic.daily_cache import get_daily_cached_data
             return get_daily_cached_data("us_companies_master", get_companies)
         except Exception:
@@ -889,7 +889,7 @@ class BusinessTestData:
     def get_payroll_companies(cls) -> list[dict]:
         """Fetch payroll company master records from the Payroll Company API (daily disk cached)."""
         try:
-            from utils.api.payroll_api import get_payroll_companies
+            from utils.api.payroll.payroll_api import get_payroll_companies
             from testdata.dynamic.daily_cache import get_daily_cached_data
             return get_daily_cached_data("payroll_companies_master", get_payroll_companies)
         except Exception:

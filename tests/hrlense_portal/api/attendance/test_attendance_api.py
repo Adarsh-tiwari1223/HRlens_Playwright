@@ -3,8 +3,8 @@ import requests
 import pytest
 from core.config import settings
 
-from utils.api.attendance_api import get_attendance_summary
-from utils.api.payroll_api import get_payroll_list, find_branch_id
+from utils.api.attendance.attendance_api import get_attendance_summary
+from utils.api.payroll.payroll_api import get_payroll_list, find_branch_id
 
 YEAR         = 2026
 MONTH        = 4
@@ -156,7 +156,7 @@ def test_net_salary_formula(payroll_records):
 @pytest.mark.attendance
 def test_net_salary_matches_employee_detail(payroll_records):
     """payroll.netSalary == employeeDetail.netTakeHomeSalary"""
-    from utils.api.payroll_api import get_employee_detail
+    from utils.api.payroll.payroll_api import get_employee_detail
     for p in payroll_records:
         detail = get_employee_detail(p["employeeId"])
         net_take_home = detail.get("netTakeHomeSalary") or 0

@@ -7,7 +7,7 @@ from datetime import datetime
 # Append workspace path
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
-from utils.api.payroll_api import get_payroll_companies, get_released_payroll
+from utils.api.payroll.payroll_api import get_payroll_companies, get_released_payroll
 from tests.api.test_payroll_validation import (
     read_excel,
     build_api_lookup,

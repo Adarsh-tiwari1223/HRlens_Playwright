@@ -27,7 +27,7 @@ def ensure_branch_esic_enabled():
     Ensures that the target branch setting (Setting ID: 1208 for GVR Infotek LLC / Noida / US Account)
     has is_ESIC_Required = True so that employee profile renders the 'Include ESIC' controls.
     """
-    from utils.api.salary_settings_api import update_esic_status
+    from utils.api.payroll.salary_settings_api import update_esic_status
     logger.info("================================================================================")
     logger.info("[SETUP] Pre-configuring Setting ID 1208 (GVR Infotek / Noida): is_ESIC_Required = True")
     logger.info("================================================================================")

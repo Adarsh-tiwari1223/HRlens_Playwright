@@ -185,7 +185,7 @@ class CandidateWorkflow:
         - Approach 1: Queries backend API to find existing candidate created > 30 days ago with status 'Applied'.
         - Approach 3: If not found, seeds backdated candidate via API (created 35 days ago).
         """
-        from utils.api.candidate_api import find_or_seed_old_candidate_hybrid
+        from utils.api.employee.candidate_api import find_or_seed_old_candidate_hybrid
         logger.info(f"[WORKFLOW] Executing Approach 1 + 3 Hybrid Candidate Discovery (min_days_old={min_days_old})...")
         candidate_record = find_or_seed_old_candidate_hybrid(min_days_old=min_days_old)
         logger.info(f"[WORKFLOW] Hybrid Discovery Result: '{candidate_record.get('fullName') or candidate_record.get('name')}' (Days Old={candidate_record.get('days_old')})")

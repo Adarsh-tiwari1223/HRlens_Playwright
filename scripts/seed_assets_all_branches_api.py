@@ -8,7 +8,7 @@ import requests
 from core.config import settings
 from pages.base_page import format_ascii_table
 from playwright.sync_api import sync_playwright
-from utils.api.asset_api import get_categories, get_subcategories
+from utils.api.asset.asset_api import get_categories, get_subcategories
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)

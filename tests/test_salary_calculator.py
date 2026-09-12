@@ -1,6 +1,6 @@
 import pytest
 from utils.salary_calculator import calculate_salary_structure
-from utils.api.salary_settings_api import get_salary_settings_for_company
+from utils.api.payroll.salary_settings_api import get_salary_settings_for_company
 
 
 @pytest.fixture(scope="module")

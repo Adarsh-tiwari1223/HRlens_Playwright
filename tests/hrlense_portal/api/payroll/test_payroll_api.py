@@ -3,7 +3,7 @@ import pytest
 from core.config import settings
 
 from utils.api.base_api import headers
-from utils.api.payroll_api import get_payroll_list, get_payroll_status, wait_for_payroll_complete, get_employee_detail, find_branch_id
+from utils.api.payroll.payroll_api import get_payroll_list, get_payroll_status, wait_for_payroll_complete, get_employee_detail, find_branch_id
 from pages.hrlense_portal.payroll.payroll_page import PayrollPage
 
 YEAR = 2026

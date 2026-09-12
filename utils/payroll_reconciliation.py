@@ -8,7 +8,7 @@ import openpyxl
 import pandas as pd
 from datetime import datetime
 from collections import defaultdict
-from utils.api.payroll_api import get_branches
+from utils.api.payroll.payroll_api import get_branches
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
@@ -675,7 +675,7 @@ class PayrollReconciliationAgent:
                 # Special handling for field names if they differ in API response
                 if logical_field == "balance_Leave":
                     try:
-                        from utils.api.payroll_api import get_balance_leave
+                        from utils.api.payroll.payroll_api import get_balance_leave
                         leave_resp = get_balance_leave(api_rec["employeeId"])
                         leaves_list = leave_resp.get("balanceLeaves", [])
                         if leaves_list:

@@ -374,7 +374,7 @@ class TestBranchAssetVisibilityIsolationSpec:
         5. Assert UI dropdown assets match the available assets for that branch from the API.
         """
         from pages.hrlense_portal.asset.asset_assignment_page import AssetAssignmentPage
-        from utils.api.asset_api import get_stock_by_branch_assets
+        from utils.api.asset.asset_api import get_stock_by_branch_assets
 
         story = TestStoryLogger("Branch Scoped Asset Assignment Scoping", module="Asset", phase="Branch Isolation")
         story.start()

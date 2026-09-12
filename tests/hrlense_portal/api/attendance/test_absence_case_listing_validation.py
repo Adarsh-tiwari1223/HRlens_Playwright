@@ -18,7 +18,7 @@ import pytest
 import pandas as pd
 from core.config import settings
 from utils.api.base_api import get
-from utils.api.absence_api import get_absence_case_list, get_absence_case_by_id
+from utils.api.attendance.absence_api import get_absence_case_list, get_absence_case_by_id
 
 logger = logging.getLogger(__name__)
 

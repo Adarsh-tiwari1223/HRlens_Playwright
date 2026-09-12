@@ -23,7 +23,7 @@ import pytest
 import pandas as pd
 from collections import defaultdict
 from datetime import datetime
-from utils.api.payroll_api import get_released_payroll
+from utils.api.payroll.payroll_api import get_released_payroll
 
 # ---------------------------------------------------------------------------
 # CONFIG
@@ -150,7 +150,7 @@ _profile_cache = {}
 def get_cached_profile(emp_id: int) -> dict:
     if emp_id not in _profile_cache:
         try:
-            from utils.api.payroll_api import get_employee_detail
+            from utils.api.payroll.payroll_api import get_employee_detail
             _profile_cache[emp_id] = get_employee_detail(emp_id)
         except Exception:
             _profile_cache[emp_id] = {}

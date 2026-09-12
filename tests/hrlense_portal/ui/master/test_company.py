@@ -583,7 +583,7 @@ def test_create_company_manual_director_full_form_submission(admin_page):
 
     # Step 2: Validate that newly created manual director is returned in Director API list (Department [4])
     logger.info(f"[API STEP] Calling Get Director API (Hrlense_Employee with filter={{\"Department\":[4]}}) to validate '{manual_director_name}'...")
-    from utils.api.payroll_api import get_directors_list
+    from utils.api.payroll.payroll_api import get_directors_list
     api_directors = get_directors_list(page=admin_page, search_name=manual_director_name, user="admin")
     logger.info(f"API Returned Directors for search='{manual_director_name}': {api_directors}")
     assert any(manual_director_name.lower() in d.lower() for d in api_directors), (

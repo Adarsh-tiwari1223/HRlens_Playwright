@@ -18,7 +18,7 @@ import logging
 import requests
 import pytest
 from core.config import settings
-from utils.api.asset_api import (
+from utils.api.asset.asset_api import (
     get_auth_headers,
     get_categories,
     get_subcategories,

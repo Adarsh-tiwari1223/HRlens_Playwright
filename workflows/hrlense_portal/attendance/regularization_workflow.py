@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from playwright.sync_api import Page
 from pages.hrlense_portal.attendance.regularization_page import RegularizationPage
 from utils.logger import log_step, log_debug
-from utils.api.attendance_api import (
+from utils.api.attendance.attendance_api import (
     determine_approval_hierarchy,
     get_regularization_approval_setting_api,
     get_eligible_regularization_dates_api

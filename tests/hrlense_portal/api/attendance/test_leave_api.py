@@ -3,7 +3,7 @@ from datetime import date, timedelta
 
 from core.config import settings
 from utils.api.base_api import headers, get_request_context
-from utils.api.leave_api import apply_leave, reject_leave, get_pending_leaves, get_my_leaves
+from utils.api.attendance.leave_api import apply_leave, reject_leave, get_pending_leaves, get_my_leaves
 
 
 @pytest.fixture(scope="module")

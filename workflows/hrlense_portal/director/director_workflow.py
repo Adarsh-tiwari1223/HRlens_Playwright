@@ -179,7 +179,7 @@ class DirectorWorkflow:
         """API Verification: Verifies newly created director is listed under backend API response."""
         log_step("Verify Director API", value=director_name)
         try:
-            from utils.api.director_api import get_directors_api
+            from utils.api.employee.director_api import get_directors_api
             records = get_directors_api()
             for r in records:
                 name = r.get("fullName") or r.get("directorName") or r.get("name") or f"{r.get('firstName', '')} {r.get('lastName', '')}".strip()

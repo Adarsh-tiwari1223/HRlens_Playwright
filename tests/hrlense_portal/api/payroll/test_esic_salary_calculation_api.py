@@ -17,13 +17,13 @@ import logging
 import pytest
 from typing import Dict, Any, Tuple
 from core.config import settings
-from utils.api.salary_settings_api import (
+from utils.api.payroll.salary_settings_api import (
     get_salary_calculation_settings,
     update_esic_status,
     update_employee_salary_api,
     _get_api_token
 )
-from utils.api.payroll_api import get_employee_detail, get
+from utils.api.payroll.payroll_api import get_employee_detail, get
 
 logger = logging.getLogger(__name__)
 

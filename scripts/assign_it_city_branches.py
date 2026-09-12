@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.abspath("."))
 from core.config import settings
 from utils.api.base_api import get, put, post
 from pages.base_page import format_ascii_table
-from utils.api.role_api import get_user_by_email_or_username
+from utils.api.master.role_api import get_user_by_email_or_username
 from utils.branch_it_selector import BRANCH_RESPONSIBILITY_MAP
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -39,7 +39,7 @@ def run_assign_it_city_branches():
 
     # 1. Fetch All Branches from API
     logger.info("Step 1: Fetching all company branches via GET /Hrlense_Branch...")
-    from utils.api.payroll_api import get_branches
+    from utils.api.payroll.payroll_api import get_branches
     all_branches = get_branches()
     logger.info(f"Total branches fetched: {len(all_branches)}")
 

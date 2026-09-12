@@ -7,7 +7,7 @@ from pages.recruitment_portal.active_job.candidate_page import CandidatePage
 from pages.recruitment_portal.active_job.job_opening_page import JobOpeningPage
 from workflows.recruitment_portal.active_job.job_opening_workflow import JobOpeningWorkflow
 from testdata.dynamic.candidate_data import generate_candidate_data
-from utils.api.salary_settings_api import (
+from utils.api.payroll.salary_settings_api import (
     get_salary_settings_for_company,
     update_company_salary_settings,
     get_top_10_salary_settings,

@@ -1,6 +1,6 @@
 services:
   tests:
-    image: docker-tests:latest
+    image: adarsh7777/hrlense_playwright:latest
     build:
       context: ..
       dockerfile: docker/Dockerfile
@@ -12,6 +12,10 @@ services:
       - ENV=stg
       - HEADLESS=true
     volumes:
+      - ..:/app
+      - /app/.pytest_cache
       - ../reports:/app/reports
       - ../logs:/app/logs
+    ports:
+      - "6080:6080"
     command: ["pytest"]

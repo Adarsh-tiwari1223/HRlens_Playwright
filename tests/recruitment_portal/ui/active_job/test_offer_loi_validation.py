@@ -113,7 +113,11 @@ def _prepare_candidate_for_offer_with_api_setting(page, cand_page: CandidatePage
         job_workflow = JobOpeningWorkflow(page)
         job_page = JobOpeningPage(page)
 
-        job_workflow.fill_mandatory_fields_except_jd()
+        job_workflow.fill_mandatory_fields_except_jd(
+            company_name=company_name,
+            branch_name=branch_name,
+            department_name=department_name
+        )
         job_page.set_job_summary(f"LOI Validation JD for {company_name} - {branch_name}")
         job_workflow.publish_with_confirm()
         page.wait_for_timeout(3000)

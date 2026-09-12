@@ -64,6 +64,7 @@ def pytest_collection_modifyitems(items):
     items[:] = login_items + other_items
 
 
+@pytest.hookimpl(optionalhook=True)
 def pytest_xdist_auto_num_workers(config):
     """
     Parallel Worker Allocation:

@@ -1,3 +1,15 @@
+"""
+Asset Management API Query Utility (HRlens Portal).
+
+Provides high-speed, read-only data queries for:
+- Asset Master Categories       (GET /api/AssesstsMaster/categories)
+- Asset Master Sub-Categories   (GET /api/AssesstsMaster/subCategory)
+- Asset Master Vendors          (GET /api/AssesstsMaster/vendors)
+- Branch Stock Asset Inventory  (GET /api/Asset/stock-by-branch/assets)
+
+Used by UI test suites and seeding scripts to query current database state.
+"""
+
 import logging
 import requests
 from core.config import settings
@@ -7,7 +19,12 @@ logger = logging.getLogger(__name__)
 _token_cache: dict = {}
 
 
+# ============================================================================
+# AUTHENTICATION & HEADERS
+# ============================================================================
+
 def get_api_token(user: str = "admin") -> str:
+    """Authenticates via /user/login and returns cached Bearer JWT token."""
     global _token_cache
     if user not in _token_cache:
         creds = settings.USERS[user]
@@ -25,10 +42,65 @@ def get_api_token(user: str = "admin") -> str:
     return _token_cache.get(user, "")
 
 
-def get_stock_by_branch_assets(branch_id: int = 1, category_id: int = 1, status: str = "Available", first: int = 0, rows: int = 2000, user: str = "admin") -> list:
+def get_auth_headers(user: str = "admin") -> dict:
+    """Returns standard authorization headers with Bearer token."""
+    token = get_api_token(user)
+    return {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+
+
+# ============================================================================
+# READ-ONLY MASTER DATA QUERIES
+# ============================================================================
+
+def get_categories(user: str = "admin") -> requests.Response:
     """
-    Fetches stock assets by branch, category and status from:
-    GET /api/Asset/stock-by-branch/assets?first=0&rows=2000&branchId={branch_id}&categoryId={category_id}&status={status}
+    GET /api/AssesstsMaster/categories
+    Returns requests.Response containing all active asset categories.
+    """
+    url = f"{settings.API_BASE_URL}/AssesstsMaster/categories"
+    return requests.get(url, headers=get_auth_headers(user), timeout=15)
+
+
+def get_subcategories(user: str = "admin") -> requests.Response:
+    """
+    GET /api/AssesstsMaster/subCategory
+    Returns requests.Response containing all active asset subcategories.
+    """
+    url = f"{settings.API_BASE_URL}/AssesstsMaster/subCategory"
+    return requests.get(url, headers=get_auth_headers(user), timeout=15)
+
+
+def get_vendors(user: str = "admin") -> requests.Response:
+    """
+    GET /api/AssesstsMaster/vendors
+    Returns requests.Response containing all registered asset vendors.
+    """
+    url = f"{settings.API_BASE_URL}/AssesstsMaster/vendors"
+    resp = requests.get(url, headers=get_auth_headers(user), timeout=15)
+    if resp.status_code == 404:
+        resp = requests.get(f"{settings.API_BASE_URL}/AssesstsMaster/vendor", headers=get_auth_headers(user), timeout=15)
+    return resp
+
+
+# ============================================================================
+# BRANCH STOCK & INVENTORY QUERIES
+# ============================================================================
+
+def get_stock_by_branch_assets(
+    branch_id: int = 1,
+    category_id: int = 1,
+    status: str = "Available",
+    first: int = 0,
+    rows: int = 2000,
+    user: str = "admin"
+) -> list:
+    """
+    GET /api/Asset/stock-by-branch/assets
+    Fetches stock asset records by branch, category, and status.
+    Used by UI scoping validation tests to verify database inventory counts.
     """
     url = f"{settings.API_BASE_URL}/Asset/stock-by-branch/assets"
     params = {
@@ -39,9 +111,7 @@ def get_stock_by_branch_assets(branch_id: int = 1, category_id: int = 1, status:
         "status": status
     }
     try:
-        token = get_api_token(user)
-        headers = {"Authorization": f"Bearer {token}"}
-        resp = requests.get(url, params=params, headers=headers, timeout=15)
+        resp = requests.get(url, params=params, headers=get_auth_headers(user), timeout=15)
         if resp.status_code == 200:
             data = resp.json()
             if isinstance(data, dict):

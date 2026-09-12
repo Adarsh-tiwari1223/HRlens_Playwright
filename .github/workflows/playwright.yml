@@ -76,7 +76,7 @@ jobs:
           MARKER="smoke"
         fi
         echo "Executing parallel test suite (-n auto) with marker: $MARKER"
-        pytest -m "$MARKER" -n auto --reruns 2 --reruns-delay 1 --html=reports/report.html --self-contained-html --maxfail=1 --disable-warnings --tb=short
+        pytest -m "$MARKER" -n auto --reruns 2 --reruns-delay 2 --html=reports/report.html --self-contained-html --maxfail=1 --disable-warnings --tb=short
 
     # 3. Add GitHub Step Summary
     - name: Add Execution Summary

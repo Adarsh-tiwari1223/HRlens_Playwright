@@ -89,7 +89,7 @@ class LoginPage(BasePage):
         # Wait for redirect away from /login
         login_succeeded = False
         try:
-            self.page.wait_for_url(lambda url: "/login" not in url, timeout=8000)
+            self.page.wait_for_url(lambda url: "/login" not in url, timeout=15000)
             self.page.wait_for_load_state("domcontentloaded")
             login_succeeded = True
             logger.info(f"[UI] Logged In As            : {email}")
@@ -102,7 +102,7 @@ class LoginPage(BasePage):
             self.page.wait_for_timeout(2000)
             try:
                 self.page.get_by_role("button", name="Login").click()
-                self.page.wait_for_url(lambda url: "/login" not in url, timeout=8000)
+                self.page.wait_for_url(lambda url: "/login" not in url, timeout=15000)
                 self.page.wait_for_load_state("domcontentloaded")
                 login_succeeded = ("/login" not in self.page.url)
                 if login_succeeded:

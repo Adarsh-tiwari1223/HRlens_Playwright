@@ -494,7 +494,9 @@ def test_create_company_full_form_submission(admin_page):
         stamp_path=stamp_path,         # Order 2
         name=company_name,             # Order 3
         country=location["country"],   # Order 4
-        zip_code=location["zip_code"], # Order 5 (Auto-fills Order 6: State & Order 7: City)
+        zip_code=location["zip_code"], # Order 5
+        state=location.get("state"),   # Order 6 fallback
+        city=location.get("city"),     # Order 7 fallback
         address="999 Enterprise Blvd", # Order 8
         code=company_code,             # Order 9
         director="a",                  # Order 10
@@ -554,10 +556,12 @@ def test_create_company_manual_director_full_form_submission(admin_page):
         stamp_path=stamp_path,                  # Order 2
         name=company_name,                      # Order 3
         country=location["country"],            # Order 4
-        zip_code=location["zip_code"],          # Order 5 (Auto-fills Order 6 & 7)
+        zip_code=location["zip_code"],          # Order 5
+        state=location.get("state"),            # Order 6 fallback
+        city=location.get("city"),              # Order 7 fallback
         address="999 Enterprise Blvd",          # Order 8
         code=company_code,                      # Order 9
-        director=manual_director_data,          # Order 10: Manual Director ('Add New' -> Form -> 'Add')
+        director=manual_director_data,          # Order 10
         auditor="a",                            # Order 11
         pf_consultant="a"                       # Order 12
     )

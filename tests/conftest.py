@@ -11,7 +11,7 @@ from playwright.sync_api import sync_playwright
 from core.config import settings
 from core.browser.browser_manager import get_context_options, launch_browser, create_browser_context
 from core.reporting.trace_manager import start_tracing, stop_tracing
-from core.auth.auth_manager import authenticate_user
+from core.auth.auth_manager import authenticate_user, get_authenticated_context
 from testdata.static.companies import COMPANIES
 
 logger = logging.getLogger(__name__)
@@ -204,7 +204,7 @@ def page(browser, request):
 @pytest.fixture(scope="function")
 def logged_in_page(browser, request):
     """
-    Function-scoped login factory fixture.
+    Function-scoped login factory fixture with storage state caching.
     Supports user_key selection (defaults to settings.EMPLOYEE_USER).
     Returns (page, context) tuple and automatically closes all pages/contexts on test completion.
     """
@@ -213,11 +213,8 @@ def logged_in_page(browser, request):
 
     def _login(user_key: str = settings.EMPLOYEE_USER):
         har_path = f"reports/network_{request.node.name}_{user_key}.har" if record_har else None
-        context = create_browser_context(browser, har_path=har_path)
+        page_instance, context = get_authenticated_context(browser, user_key=user_key, har_path=har_path)
         start_tracing(context)
-        page_instance = context.new_page()
-
-        authenticate_user(page_instance, user_key=user_key)
         contexts.append((context, user_key))
         return page_instance, context
 
@@ -243,17 +240,14 @@ def logged_in_page(browser, request):
 @pytest.fixture(scope="function")
 def admin_page(browser, request):
     """
-    Function-scoped pre-authenticated Admin page fixture.
+    Function-scoped pre-authenticated Admin page fixture with storage state caching.
     Automatically closes context on test completion.
     """
     record_har = request.config.getoption("--record-har", False)
     har_path = f"reports/network_{request.node.name}.har" if record_har else None
 
-    context = create_browser_context(browser, har_path=har_path)
+    page_instance, context = get_authenticated_context(browser, user_key="admin", har_path=har_path)
     start_tracing(context)
-    page_instance = context.new_page()
-
-    authenticate_user(page_instance, user_key="admin")
 
     yield page_instance
 

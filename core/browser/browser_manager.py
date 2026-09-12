@@ -66,7 +66,9 @@ def create_browser_context(browser: Browser, custom_options: dict = None, har_pa
     Creates an isolated BrowserContext with default timeout configured.
     Optionally records HAR (HTTP Archive) network traffic if har_path is specified.
     """
-    options = dict(custom_options if custom_options is not None else get_context_options())
+    options = get_context_options()
+    if custom_options is not None:
+        options.update(custom_options)
     if har_path:
         options["record_har_path"] = har_path
         options["record_har_mode"] = "full"
@@ -80,3 +82,4 @@ def create_browser_context(browser: Browser, custom_options: dict = None, har_pa
 
     context.set_default_timeout(settings.DEFAULT_TIMEOUT)
     return context
+

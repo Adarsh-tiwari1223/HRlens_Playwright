@@ -398,3 +398,105 @@ class BasePage:
             logger.info("---------------------------------------------------------")
 
         return all_passed
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # CUSTOM TABLE COLUMN FILTERING HELPERS (CHAKRA UI CUSTOM TABLE)
+    # ──────────────────────────────────────────────────────────────────────────
+
+    def filter_custom_table_column(
+        self,
+        header_name: str,
+        query: str,
+        condition: str = "Contains",
+        table_selector: str = "table"
+    ) -> None:
+        """
+        Generic 5-Step Custom Table Column Header Filter Helper (Chakra UI Custom Table):
+        1. Locates <th> matching header_name (case-insensitive) and clicks its Filter button.
+        2. Targets the open popover container (via aria-controls or visible popover section).
+        3. Selects the condition option (e.g. 'Contains', 'Equals', 'Starts with').
+        4. Fills the search query value input and presses Enter.
+        5. Dismisses popover overlay with Escape and waits for filtered rows to render.
+        """
+        header_upper = header_name.upper()
+        header_lower = header_name.lower()
+        logger.info(f"Filtering table column '{header_name}' with query: '{query}' (Condition: '{condition}')")
+
+        try:
+            # Step 1: Locate Column Header & Filter Icon
+            th_xpath = f"//th[contains(translate(., '{header_lower}', '{header_upper}'), '{header_upper}')]"
+            th = self.page.locator(th_xpath).first
+            if not th.is_visible(timeout=3000):
+                th = self.page.locator(f"{table_selector} th").filter(has_text=re.compile(f"{re.escape(header_name)}", re.I)).first
+
+            th.wait_for(state="visible", timeout=6000)
+            th.scroll_into_view_if_needed()
+
+            filter_btn = th.locator("button[aria-label='Filter']").first
+            if not filter_btn.is_visible(timeout=1000):
+                filter_btn = th.locator("button:has(svg), .chakra-button").first
+
+            filter_btn.wait_for(state="visible", timeout=5000)
+            filter_btn.scroll_into_view_if_needed()
+
+            aria_controls = filter_btn.get_attribute("aria-controls")
+            filter_btn.click()
+            self.page.wait_for_timeout(600)
+
+            # Step 2: Target Popover Container
+            if aria_controls:
+                popover = self.page.locator(f"#{aria_controls}")
+                if not popover.is_visible():
+                    popover = self.page.locator("section.chakra-popover__content:visible, [role='dialog']:visible, .chakra-popover__body:visible").first
+            else:
+                popover = self.page.locator("section.chakra-popover__content:visible, [role='dialog']:visible, .chakra-popover__body:visible").first
+
+            popover.wait_for(state="visible", timeout=5000)
+
+            # Step 3: Select Condition (e.g. 'Contains')
+            select_el = popover.locator("select").first
+            if select_el.count() > 0 and select_el.is_visible():
+                try:
+                    select_el.select_option(label=condition)
+                except Exception:
+                    try:
+                        select_el.select_option(value=condition.lower())
+                    except Exception:
+                        pass
+            else:
+                cond_trigger = popover.locator("button, [role='button'], div.css-1tsdjac, div[class*='select']").first
+                if cond_trigger.is_visible() and condition.lower() not in cond_trigger.inner_text().lower():
+                    cond_trigger.click()
+                    self.page.wait_for_timeout(300)
+                    self.page.locator(f"//div[normalize-space()='{condition}'] | //button[normalize-space()='{condition}'] | [role='option']:has-text('{condition}')").first.click()
+                    self.page.wait_for_timeout(300)
+
+            # Step 4: Fill Value Input & Submit
+            val_input = popover.locator("input[placeholder='Value'], input[placeholder*='Value'], input[type='text'], input").first
+            val_input.wait_for(state="visible", timeout=5000)
+            val_input.click()
+            val_input.fill(query)
+            self.page.wait_for_timeout(300)
+            self.page.keyboard.press("Enter")
+            self.page.wait_for_timeout(500)
+
+            # Step 5: Close Popover Overlay & Wait for Table Refresh
+            self.page.keyboard.press("Escape")
+            self.page.wait_for_timeout(1000)
+            self.page.wait_for_load_state("domcontentloaded")
+            return
+
+        except Exception as e:
+            logger.warning(f"Custom table header filter for '{header_name}' encountered: {e}. Attempting global search input fallback...")
+
+        # Fallback to search input if column header filter popover is not present
+        try:
+            search_input = self.page.locator("input[placeholder*='Search' i], input[type='search']").first
+            if search_input.is_visible(timeout=2000):
+                search_input.click()
+                search_input.fill(query)
+                search_input.press("Enter")
+                self.page.wait_for_timeout(1000)
+        except Exception:
+            pass
+

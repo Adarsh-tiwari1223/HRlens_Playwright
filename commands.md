@@ -70,7 +70,11 @@ On PowerShell, you can temporarily override the environment for a single command
 
 ## 🧪 3. Running Tests
 
-Before running tests, ensure your virtual environment is active (`.\venv\Scripts\activate`).
+### ⚡ Live Test Watcher (TDD Mode)
+Run pytest automatically whenever code files are saved:
+```bash
+ptw .
+```
 
 ### Run Specific Test Categories (via Pytest Markers)
 * **Smoke Tests:**

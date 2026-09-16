@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "google-sheets": {
+      "command": "C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "args": [
+        "c:\\Users\\User\\Desktop\\Tekinspirations\\HRlens_Playwright\\scripts\\mcp_sheets_server.py"
+      ],
+      "env": {
+        "PYTHONPATH": "c:\\Users\\User\\Desktop\\Tekinspirations\\HRlens_Playwright",
+        "GDRIVE_CREDENTIALS_PATH": "c:\\Users\\User\\Desktop\\Tekinspirations\\HRlens_Playwright\\credentials.json"
+      }
+    }
+  }
+}

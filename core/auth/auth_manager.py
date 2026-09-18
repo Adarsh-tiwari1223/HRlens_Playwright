@@ -7,6 +7,7 @@ and Playwright storage state (including sessionStorage) caching per user role.
 import os
 import json
 import logging
+from datetime import datetime
 from playwright.sync_api import Browser, BrowserContext, Page
 from core.config import settings
 from core.browser.browser_manager import create_browser_context
@@ -76,7 +77,11 @@ def authenticate_user(page: Page, user_key: str = "admin", save_state: bool = Tr
     """
     creds = get_user_credentials(user_key)
 
-    page.goto(settings.BASE_URL, timeout=60000)
+    try:
+        page.goto(settings.BASE_URL, timeout=30000, wait_until="domcontentloaded")
+    except Exception:
+        page.goto(settings.BASE_URL, timeout=30000, wait_until="commit")
+
     try:
         page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="visible", timeout=30000)
     except Exception:
@@ -101,10 +106,34 @@ def authenticate_user(page: Page, user_key: str = "admin", save_state: bool = Tr
     except Exception:
         pass
 
-    if save_state and page.context:
+    if save_state and user_key == "admin" and page.context:
         save_storage_state(page.context, user_key)
 
     return page
+
+
+def is_auth_state_fresh(auth_path: str, max_age_hours: int = 12) -> bool:
+    """
+    Validates if cached auth state is from today and not expired due to daily session timeout.
+    A new day requires a fresh initial authentication.
+    """
+    if not os.path.exists(auth_path) or os.path.getsize(auth_path) == 0:
+        return False
+    try:
+        mtime = os.path.getmtime(auth_path)
+        file_dt = datetime.fromtimestamp(mtime)
+        now = datetime.now()
+        # Session timeout across days: require new day initial login
+        if file_dt.date() != now.date():
+            logger.info(f"Cached auth state for '{os.path.basename(auth_path)}' is from a previous day ({file_dt.strftime('%Y-%m-%d')}). New day initial login required.")
+            return False
+        if (now - file_dt).total_seconds() > max_age_hours * 3600:
+            logger.info(f"Cached auth state for '{os.path.basename(auth_path)}' exceeded {max_age_hours}h session limit. Fresh login required.")
+            return False
+        return True
+    except Exception as e:
+        logger.warning(f"Error checking cache freshness for '{auth_path}': {e}")
+        return False
 
 
 def get_authenticated_context(
@@ -113,61 +142,69 @@ def get_authenticated_context(
     har_path: str = None
 ) -> tuple[Page, BrowserContext]:
     """
-    Retrieves or creates a browser context with cached session storage state and sessionStorage injection.
-    If storage state is missing or expired, performs UI authentication and updates the cache.
+    Retrieves or creates a browser context.
+    - 'admin': Reuses cached session storage state if fresh.
+    - Normal employees & IT persons: Always perform full UI authentication without cached session state.
     Returns (page, context) tuple.
     """
-    auth_path = get_auth_state_path(user_key)
-    state_exists = os.path.exists(auth_path) and os.path.getsize(auth_path) > 0
+    # Only admin is permitted to use cached session storage state
+    if user_key == "admin":
+        auth_path = get_auth_state_path(user_key)
+        state_exists = is_auth_state_fresh(auth_path)
 
-    if state_exists:
-        try:
-            with open(auth_path, "r", encoding="utf-8") as f:
-                saved_data = json.load(f)
-
-            session_storage_data = saved_data.get("sessionStorage", {})
-
-            logger.info(f"Reusing cached storage state for '{user_key}' from {auth_path}")
-            context = create_browser_context(browser, custom_options={"storage_state": auth_path}, har_path=har_path)
-
-            if session_storage_data:
-                ss_json = json.dumps(session_storage_data)
-                context.add_init_script(f"""
-                    try {{
-                        const data = {ss_json};
-                        for (const [k, v] of Object.entries(data)) {{
-                            sessionStorage.setItem(k, v);
-                        }}
-                    }} catch (e) {{}}
-                """)
-
-            page = context.new_page()
-            page.goto(settings.BASE_URL, timeout=60000)
-
-            # Check if browser was automatically redirected away from /login (valid state)
-            is_logged_in = False
+        if state_exists:
             try:
-                page.wait_for_url(lambda url: "/login" not in url, timeout=5000)
-                is_logged_in = True
-            except Exception:
-                is_logged_in = ("/login" not in page.url)
+                with open(auth_path, "r", encoding="utf-8") as f:
+                    saved_data = json.load(f)
 
-            if is_logged_in:
-                logger.info(f"Cached session state for '{user_key}' is active (URL: {page.url}).")
-                return page, context
+                session_storage_data = saved_data.get("sessionStorage", {})
 
-            logger.info(f"Cached session for '{user_key}' expired/invalid. Performing full UI re-authentication...")
-            try:
-                context.close()
-            except Exception:
-                pass
-        except Exception as err:
-            logger.warning(f"Error loading auth state for '{user_key}': {err}")
+                logger.info(f"Reusing cached storage state for '{user_key}' from {auth_path}")
+                context = create_browser_context(browser, custom_options={"storage_state": auth_path}, har_path=har_path)
 
-    # Fallback or first-time authentication: perform full login & save state
+                if session_storage_data:
+                    ss_json = json.dumps(session_storage_data)
+                    context.add_init_script(f"""
+                        try {{
+                            const data = {ss_json};
+                            for (const [k, v] of Object.entries(data)) {{
+                                sessionStorage.setItem(k, v);
+                            }}
+                        }} catch (e) {{}}
+                    """)
+
+                page = context.new_page()
+                try:
+                    page.goto(settings.BASE_URL, timeout=30000, wait_until="domcontentloaded")
+                except Exception:
+                    page.goto(settings.BASE_URL, timeout=30000, wait_until="commit")
+
+                # Check if login modal/prompt is present or URL has /login
+                has_login_modal = False
+                try:
+                    has_login_modal = page.get_by_text("Please enter your Login Details", exact=True).is_visible(timeout=2500)
+                except Exception:
+                    pass
+
+                is_logged_in = ("/login" not in page.url) and not has_login_modal
+
+                if is_logged_in:
+                    logger.info(f"Cached session state for '{user_key}' is active (URL: {page.url}).")
+                    return page, context
+
+                logger.info(f"Cached session for '{user_key}' expired/invalid. Performing full UI re-authentication...")
+                try:
+                    context.close()
+                except Exception:
+                    pass
+            except Exception as err:
+                logger.warning(f"Error loading auth state for '{user_key}': {err}")
+
+    # For normal employees, IT persons, or admin cache miss: perform full UI authentication
+    logger.info(f"Performing direct UI login for user: '{user_key}' (cached session disabled)")
     context = create_browser_context(browser, har_path=har_path)
     page = context.new_page()
-    authenticate_user(page, user_key=user_key, save_state=True)
+    authenticate_user(page, user_key=user_key, save_state=(user_key == "admin"))
     return page, context
 
 

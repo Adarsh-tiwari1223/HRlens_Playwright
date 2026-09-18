@@ -61,19 +61,25 @@ class TestAssetDualRoleGovernanceMatrix:
         logger.info(f"[EMPLOYEE RULE 1 - REQUEST 1 TOAST]: '{toast1}'")
         emp_page.wait_for_timeout(1000)
 
-        # Step 2: If Request 1 created a pending state, attempt duplicate Request 2
-        logger.info("[EMPLOYEE RULE 1 - STEP 2] Attempting Duplicate 2nd Asset Request for same Category.SubCategory...")
-        req2_res = req_page.create_new_request(
-            reason="Duplicate request attempt while first is pending.",
-            category="IT Hardware",
-            sub_category="Laptop"
-        )
-        toast2 = req2_res.get("toast", "")
-        logger.info(f"[EMPLOYEE RULE 1 - REQUEST 2 TOAST]: '{toast2}'")
+        is_already_blocked = any(kw in toast1.lower() for kw in ["already", "pending", "duplicate", "exist", "cannot", "prohibited", "not allowed"])
 
-        # Either Request 1 was already pending or Request 2 was blocked
-        is_blocked = any(kw in (toast2 or toast1).lower() for kw in ["already", "pending", "duplicate", "exist", "cannot", "prohibited", "not allowed"])
-        eval_toast = toast2 if toast2 else toast1
+        if is_already_blocked:
+            logger.info(f"[GOVERNANCE RULE 1 VERIFIED ON ATTEMPT 1] Employee already has pending request and new request was properly blocked: '{toast1}'")
+            eval_toast = toast1
+            is_blocked = True
+        else:
+            # Step 2: If Request 1 created a pending state, attempt duplicate Request 2
+            logger.info("[EMPLOYEE RULE 1 - STEP 2] Attempting Duplicate 2nd Asset Request for same Category.SubCategory...")
+            req2_res = req_page.create_new_request(
+                reason="Duplicate request attempt while first is pending.",
+                category="IT Hardware",
+                sub_category="Laptop"
+            )
+            toast2 = req2_res.get("toast", "")
+            logger.info(f"[EMPLOYEE RULE 1 - REQUEST 2 TOAST]: '{toast2}'")
+            eval_toast = toast2
+            is_blocked = any(kw in toast2.lower() for kw in ["already", "pending", "duplicate", "exist", "cannot", "prohibited", "not allowed"])
+
         logger.info(f"[EMPLOYEE RULE 1 VERDICT] Duplicate Request Blocked = {is_blocked} (Toast: '{eval_toast}')")
 
         story.log_step(

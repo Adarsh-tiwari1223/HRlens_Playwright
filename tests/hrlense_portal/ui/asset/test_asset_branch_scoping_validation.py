@@ -221,6 +221,12 @@ class TestAssetBranchScopingValidation:
 
         # Step 3: Agra Employee -> Category -> Sub Category -> Available Assets
         logger.info(f"\n[STEP 3] Re-scoping for Agra Employee: '{agra_emp['name']}'")
+        assign_page.click_cancel()
+        admin_page.wait_for_timeout(500)
+        assign_page.click_assign_asset()
+        modal = admin_page.locator("[role='dialog'], .chakra-modal__content, .chakra-drawer__content").first
+        modal.wait_for(state="visible", timeout=5000)
+
         self._select_employee_in_modal(admin_page, modal, agra_emp["name"])
         cat2, sub2 = self._select_category_and_subcategory(admin_page, modal, category_name="IT Hardware", subcategory_name="Laptop")
         
@@ -317,8 +323,26 @@ class TestAssetBranchScopingValidation:
         req_tab.click(force=True)
         admin_page.wait_for_timeout(1000)
 
-        # Step 2: Check for existing pending requests in table
+        # Step 2: Check for existing pending requests in table, create if none exists
         rows = admin_page.locator("table tbody tr").all()
+        has_requests = len(rows) > 0 and "no " not in rows[0].inner_text().lower() and "empty" not in rows[0].inner_text().lower()
+        if not has_requests:
+            logger.info("No pending request in queue. Creating request as Varanasi Employee...")
+            varanasi_emp = get_branch_target_employee("Varanasi")
+            emp_page, emp_ctx = logged_in_page(varanasi_emp["user_key"])
+            req_page = AssetRequestPage(emp_page)
+            req_page.navigate_to_asset_request()
+            req_page.create_new_request(category="IT Hardware", sub_category="Laptop", reason="Required for project development.")
+            emp_ctx.close()
+
+            # Return to admin Requested Assignment tab
+            assign_page.navigate_to_asset_assignment()
+            req_tab = admin_page.get_by_role("tab", name=re.compile(r"Requested Assignment|Employee Requests", re.I)).first
+            if req_tab.is_visible(timeout=2000):
+                req_tab.click()
+                admin_page.wait_for_timeout(1000)
+            rows = admin_page.locator("table tbody tr").all()
+
         logger.info(f"Discovered {len(rows)} request rows in Requested Assignment table.")
 
         if len(rows) > 0:
@@ -333,12 +357,16 @@ class TestAssetBranchScopingValidation:
                 assets = assign_page.get_fulfillment_available_assets(drawer)
                 logger.info(f"[REQUEST FULFILLMENT ASSETS] Admin drawer revealed {len(assets)} assets: {assets[:5]}")
 
+                # Check cross-branch leak: do any Agra assets appear in Varanasi employee request fulfillment?
+                agra_leaked = [a for a in assets if "AGRA" in a.upper()]
+                logger.info(f"[CROSS-BRANCH LEAK CHECK] Agra assets visible in drawer: {agra_leaked}")
+
                 story.log_step(
                     "Admin Request Fulfillment Drawer Inspection",
                     record=f"Row: {first_row.inner_text().strip()[:60]}...",
                     expected="Fulfillment drawer dynamically filters stock to the requesting employee's branch",
-                    actual=f"Revealed {len(assets)} available assets",
-                    status="PASS" if len(assets) > 0 else "INFO"
+                    actual=f"Revealed {len(assets)} available assets (Agra leaked: {len(agra_leaked)})",
+                    status="PASS" if len(assets) > 0 and len(agra_leaked) == 0 else "FAIL"
                 )
                 assign_page.click_cancel()
 

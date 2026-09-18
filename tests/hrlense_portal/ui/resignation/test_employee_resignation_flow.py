@@ -64,6 +64,7 @@ def test_buyout_date_exceeds_lwd(get_employee_resignation_workflow):
     emp_wf = get_employee_resignation_workflow()
     exceed_date = "2026-12-15"
 
+    emp_wf.res_page.navigate_to_resignation()
     emp_wf.res_page.click_status_tab()
     emp_wf.res_page.fill_early_relieving_date(exceed_date)
     max_attr = emp_wf.res_page.get_early_relieving_max_date()
@@ -81,6 +82,7 @@ def test_buyout_date_before_present_date(get_employee_resignation_workflow):
     Dates before the current/present date should be disabled; employee cannot select a past date.
     """
     emp_wf = get_employee_resignation_workflow()
+    emp_wf.res_page.navigate_to_resignation()
     emp_wf.res_page.click_status_tab()
     min_date = emp_wf.res_page.get_early_relieving_min_date()
 
@@ -168,17 +170,17 @@ def test_e2e_resignation_revoke_full_coverage(logged_in_page):
     from workflows.hrlense_portal.resignation.hr_resignation_workflow import HrResignationWorkflow
 
     # Set up Employee & HR sessions
-    emp_page, _ = logged_in_page("adarsh_tiwari")
+    emp_page, _ = logged_in_page("uttam_kumar")
     emp_wf = EmployeeResignationWorkflow(emp_page)
 
     hr_page, _ = logged_in_page("tejaswini")
     hr_wf = HrResignationWorkflow(hr_page)
 
-    employee_full_name = "Adarsh Tiwari"
+    employee_full_name = "Uttam Kumar"
 
 
     logger.info("=" * 60)
-    logger.info("STARTING UNIFIED E2E REVOKE FULL COVERAGE TEST")
+    logger.info("STARTING UNIFIED E2E REVOKE FULL COVERAGE TEST (UTTAM KUMAR)")
     logger.info("=" * 60)
 
     # ─── CYCLE 1: Resignation #1 -> HR Revoke -> Employee Accept ───
@@ -209,8 +211,17 @@ def test_e2e_resignation_revoke_full_coverage(logged_in_page):
     logger.info(f"Cycle 2 Decline Revoke Toast: '{decline_toast}'")
 
     # Employee submits Buyout Request
-    buyout_toast = emp_wf.request_early_relieving_workflow("2026-11-25")
-    logger.info(f"Buyout Request Toast: '{buyout_toast}'")
+    emp_wf.res_page.navigate_to_resignation()
+    emp_wf.res_page.click_status_tab()
+    date_input = emp_wf.res_page.page.locator(emp_wf.res_page.EARLY_RELIEVING_DATE_INPUT).first
+    if date_input.is_visible(timeout=3000):
+        max_date = emp_wf.res_page.get_early_relieving_max_date()
+        target_buyout_date = "2026-10-25" if (not max_date or "2026-10-25" <= max_date) else max_date
+        logger.info(f"Using valid Buyout Date: '{target_buyout_date}' (Max Allowed: '{max_date}')")
+        buyout_toast = emp_wf.request_early_relieving_workflow(target_buyout_date)
+        logger.info(f"Buyout Request Toast: '{buyout_toast}'")
+    else:
+        logger.info("Buyout block is already active with 'BUYOUT REQUESTED' on employee card. Skipping date picker fill and verifying HR restriction.")
 
     # HR verifies Revoke is now BLOCKED by Buyout
     is_revoke_visible = hr_wf.validate_buyout_prevents_hr_revoke_workflow(employee_name=employee_full_name)

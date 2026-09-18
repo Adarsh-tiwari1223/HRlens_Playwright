@@ -4,6 +4,7 @@ sys.path.insert(0, os.path.abspath("."))
 import time
 import random
 import logging
+import datetime
 import requests
 from core.config import settings
 from pages.base_page import format_ascii_table
@@ -148,27 +149,39 @@ def seed_assets_for_all_branches_api(assets_per_subcategory: int = 1):
         logger.error("[SEEDING ABORTED] Could not resolve active taxonomy from database!")
         return
 
-    # 3. Fetch Branches via REST API
+    # 3. Fetch Branches via REST API (First check Asset stock branch dropdown)
     branches = []
     try:
-        b_resp = requests.get(f"{settings.API_BASE_URL}/Hrlense_Branch", headers=headers, params={"rows": 1000}, timeout=15)
-        if b_resp.status_code == 200:
-            b_data = b_resp.json()
-            branches = b_data if isinstance(b_data, list) else (b_data.get("data", []) if isinstance(b_data, dict) else [])
+        b_drop_resp = requests.get(f"{settings.API_BASE_URL}/Asset/stock-by-branch/branch-dropdown", headers=headers, timeout=15)
+        if b_drop_resp.status_code == 200:
+            b_data = b_drop_resp.json()
+            if isinstance(b_data, list) and b_data:
+                branches = [{"id": item["value"], "branch_Name": item["label"]} for item in b_data if item.get("value") and item.get("label")]
     except Exception as e:
-        logger.warning(f"Error fetching branches via API: {e}")
+        logger.warning(f"Branch dropdown query note: {e}")
+
+    if not branches:
+        try:
+            b_resp = requests.get(f"{settings.API_BASE_URL}/Hrlense_Branch", headers=headers, params={"rows": 1000}, timeout=15)
+            if b_resp.status_code == 200:
+                b_data = b_resp.json()
+                raw_list = b_data.get("data", []) if isinstance(b_data, dict) else (b_data if isinstance(b_data, list) else [])
+                branches = [{"id": item["id"], "branch_Name": item["branch_Name"]} for item in raw_list if item.get("id")]
+        except Exception as e:
+            logger.warning(f"Error fetching branches via Hrlense_Branch API: {e}")
 
     if not branches:
         branches = [
-            {"id": 1, "branch_Name": "JOB- (VARANASI)"},
-            {"id": 2, "branch_Name": "VIZ- (AGRA)"},
-            {"id": 3, "branch_Name": "TEK- (NOIDA)"},
-            {"id": 4, "branch_Name": "NEX- (GREATER NOIDA)"},
-            {"id": 5, "branch_Name": "TEC- (JAIPUR)"},
-            {"id": 6, "branch_Name": "TEK- (LUCKNOW)"},
-            {"id": 7, "branch_Name": "VYZ- (MEERUT)"},
-            {"id": 8, "branch_Name": "JOB- (RANCHI)"},
-            {"id": 9, "branch_Name": "TEK- (BHUBANESWAR)"}
+            {"id": 1, "branch_Name": "Varanasi"},
+            {"id": 2, "branch_Name": "Agra"},
+            {"id": 3, "branch_Name": "Meerut"},
+            {"id": 4, "branch_Name": "Lucknow"},
+            {"id": 5, "branch_Name": "Ranchi"},
+            {"id": 6, "branch_Name": "Bhubaneswar"},
+            {"id": 7, "branch_Name": "Jaipur"},
+            {"id": 8, "branch_Name": "Noida"},
+            {"id": 9, "branch_Name": "Noida NX-One"},
+            {"id": 10, "branch_Name": "Greater Noida"}
         ]
 
     logger.info(f"\nResolved {len(branches)} Branches across organization for asset stock generation.")
@@ -193,30 +206,35 @@ def seed_assets_for_all_branches_api(assets_per_subcategory: int = 1):
                 sub_name = sub["sub_name"]
                 prefix = sub_name[:3].upper()
 
+                today = datetime.date.today()
+                start_date_str = today.strftime("%Y-%m-%d")
+                expiry_30d_str = (today + datetime.timedelta(days=30)).strftime("%Y-%m-%d")
+
                 for k in range(assets_per_subcategory):
                     unique_suffix = f"{int(time.time())}_{random.randint(100, 999)}"
                     serial_no = f"SN-{prefix}-{branch_code}-{unique_suffix}"
-                    asset_name = f"Enterprise {sub_name} #{k+1}"
+                    asset_name = f"{branch_name} {sub_name} #{k+1}"
 
                     payload = {
                         "asset_Name": asset_name,
                         "category_Id": cat_id,
                         "sub_Category_Id": sub_id,
                         "branch_Id": branch_id,
-                        "payroll_Company_Id": 1,
+                        "payroll_Company_Id": 35,
+                        "unit_Price": 45000.0,
                         "brand": "Enterprise Standard",
                         "model_No": f"Model-{sub_name[:5]}",
                         "serial_No": serial_no,
                         "warranty_Type": "Warranty",
                         "warranty_Expiry": "2028-12-31",
-                        "notes": f"Bulk Stock Ingestion for {branch_name}",
-                        "has_Insurance": False,
-                        "insurance_Provider": None,
-                        "insurance_Policy_No": None,
-                        "insurance_Premium_Amount": None,
-                        "insurance_Premium_Frequency": None,
-                        "insurance_Start_Date": None,
-                        "insurance_Expiry_Date": None
+                        "notes": f"Bulk Stock Ingestion for {branch_name} (Insured 30 Days)",
+                        "has_Insurance": True,
+                        "insurance_Provider": "ICICI Lombard",
+                        "insurance_Policy_No": f"POL-{unique_suffix}",
+                        "insurance_Premium_Amount": 1200.0,
+                        "insurance_Premium_Frequency": "Yearly",
+                        "insurance_Start_Date": start_date_str,
+                        "insurance_Expiry_Date": expiry_30d_str
                     }
 
                     try:
@@ -224,7 +242,7 @@ def seed_assets_for_all_branches_api(assets_per_subcategory: int = 1):
                         if res.status_code in (200, 201):
                             total_created += 1
                             branch_count += 1
-                            logger.info(f"  [SUCCESS] {branch_name} | {asset_name} ({serial_no})")
+                            logger.info(f"  [SUCCESS] {branch_name} | {asset_name} ({serial_no}) -> Insured (Expiry: {expiry_30d_str})")
                         else:
                             logger.warning(f"  [FAILED] {branch_name} | {asset_name} ({serial_no}): Status {res.status_code} - {res.text[:100]}")
                             total_failed += 1
@@ -244,5 +262,5 @@ def seed_assets_for_all_branches_api(assets_per_subcategory: int = 1):
 
 
 if __name__ == "__main__":
-    count = int(sys.argv[1]) if len(sys.argv) > 1 else 1
+    count = int(sys.argv[1]) if len(sys.argv) > 1 else 2
     seed_assets_for_all_branches_api(count)

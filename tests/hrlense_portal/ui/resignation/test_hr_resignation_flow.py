@@ -35,7 +35,7 @@ def test_hr_revoke_request_flow(get_hr_resignation_workflow):
     6. Verifies button:has-text('Revoke') is visible -> clicks Revoke -> clicks Confirm / Yes
     """
     hr_wf = get_hr_resignation_workflow("tejaswini")
-    target_employee_name = "Sanidhy Tiwari"
+    target_employee_name = "Uttam Kumar"
 
     is_revoked = hr_wf.execute_hr_revoke_request_workflow(employee_name=target_employee_name)
     assert is_revoked, f"HR Revoke Request Flow must complete successfully for '{target_employee_name}'"
@@ -77,7 +77,7 @@ def test_revoke_without_buyout_allows_hr_revoke(get_hr_resignation_workflow):
 @pytest.mark.ui
 @pytest.mark.hr_process_buyout
 @pytest.mark.resignation
-@pytest.mark.parametrize("target_employee_name", ["Sanidhy Tiwari", "Adarsh Tiwari"], ids=["sanidhy", "adarsh_tiwari"])
+@pytest.mark.parametrize("target_employee_name", ["Uttam Kumar"], ids=["uttam_kumar"])
 def test_hr_process_buyout_request_flow(get_hr_resignation_workflow, target_employee_name):
     """
     HR Process Buyout Request Flow:

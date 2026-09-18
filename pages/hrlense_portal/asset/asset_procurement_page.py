@@ -236,6 +236,13 @@ class AssetProcurementPage(BasePage):
                     amt_val = str(amount_before_gst or "50000")
                     amt_input.fill(amt_val)
                     logger.info(f"Filled missing Amount Before GST: ₹{amt_val}")
+                    self.step1_amount_before_gst = float(amt_val)
+                else:
+                    try:
+                        clean_v = re.sub(r"[^\d.]", "", val)
+                        self.step1_amount_before_gst = float(clean_v) if clean_v else 50000.0
+                    except Exception:
+                        self.step1_amount_before_gst = 50000.0
         except Exception:
             pass
 
@@ -369,45 +376,39 @@ class AssetProcurementPage(BasePage):
         Populates all 5 cards with distinct Categories, dependent SubCategories,
         contextual Brands & Models, realistic Quantities, and balanced Unit Prices.
         """
-        logger.info("Filling missing values and reconciling card amounts to match Grand Total...")
+        logger.info("Filling missing values and reconciling card amounts to match Amount Before GST...")
         modal = self.page.locator("[role='dialog'], .chakra-modal__content").first
         if not modal.is_visible(timeout=500):
             modal = self.page
 
-        # 1. Read Target Total Amount (Grand Total)
+        # 1. Target Base Amount = Amount Before GST (Line items must sum up to Amount Before GST)
         total_amount = 0.0
         if target_total is not None and float(target_total) > 0:
             total_amount = float(target_total)
-            logger.info(f"Target Grand Total Amount (Explicit): ₹{total_amount:,.2f}")
+            logger.info(f"Target Base Amount (Explicit): ₹{total_amount:,.2f}")
 
         if total_amount <= 0:
-            stored_total = getattr(self, "step1_total_amount", "")
-            if stored_total:
-                try:
-                    clean_str = re.sub(r"[^\d.]", "", stored_total)
-                    if clean_str:
-                        val = float(clean_str)
-                        if val > 0:
-                            total_amount = val
-                            logger.info(f"Target Grand Total Amount (from Step 1): ₹{total_amount:,.2f}")
-                except Exception:
-                    pass
+            stored_before_gst = getattr(self, "step1_amount_before_gst", 0.0)
+            if stored_before_gst > 0:
+                total_amount = float(stored_before_gst)
+                logger.info(f"Target Base Amount (from Step 1 Amount Before GST): ₹{total_amount:,.2f}")
 
         if total_amount <= 0:
             try:
-                amt_val = self.get_total_amount_value()
-                if amt_val:
-                    clean_str = re.sub(r"[^\d.]", "", amt_val)
+                amt_input = self.page.get_by_label("Amount Before GST", exact=False).first
+                if amt_input.is_visible(timeout=300):
+                    clean_str = re.sub(r"[^\d.]", "", amt_input.input_value().strip())
                     if clean_str:
                         val = float(clean_str)
                         if val > 0:
                             total_amount = val
-                            logger.info(f"Target Grand Total Amount (from Current View): ₹{total_amount:,.2f}")
+                            logger.info(f"Target Base Amount (from Current Amount Before GST): ₹{total_amount:,.2f}")
             except Exception:
                 pass
 
         if total_amount <= 0:
-            total_amount = 59000.0
+            total_amount = 50000.0
+            logger.info(f"Target Base Amount (Default Amount Before GST): ₹{total_amount:,.2f}")
 
         # 2. Add Item cards until 5 cards exist
         add_item_btn = modal.get_by_role("button", name=re.compile(r"\+ Add Item|Add Item|Add Another Item", re.I)).first
@@ -543,9 +544,9 @@ class AssetProcurementPage(BasePage):
                 pass
             card_qtys.append(q_val)
 
-        # 5. Reconcile Unit Prices across all cards with Step 1 Grand Total
+        # 5. Reconcile Unit Prices across all cards with Step 1 Amount Before GST
         target_amount_per_card = total_amount / max(total_cards, 1)
-        logger.info(f"Reconciling {total_cards} cards: Grand Total = ₹{total_amount:,.2f} (~₹{target_amount_per_card:,.2f} each)")
+        logger.info(f"Reconciling {total_cards} cards: Amount Before GST = ₹{total_amount:,.2f} (~₹{target_amount_per_card:,.2f} each)")
 
         running_sum = 0.0
         for idx, card in enumerate(cards):
@@ -568,7 +569,7 @@ class AssetProcurementPage(BasePage):
             except Exception as e:
                 logger.warning(f"Failed to fill price on Card #{idx+1}: {e}")
 
-        logger.info(f"[RECONCILIATION SUCCESS] All {total_cards} cards balanced to Grand Total ₹{total_amount:,.2f}")
+        logger.info(f"[RECONCILIATION SUCCESS] All {total_cards} cards balanced to Amount Before GST ₹{total_amount:,.2f}")
 
     def click_create(self):
         """Saves procurement request."""

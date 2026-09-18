@@ -61,12 +61,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4.2.2
 
-    - name: Create .env file
-      env:
-        ENV_SECRET: ${{ secrets.ENV_FILE }}
-      run: |
-        echo "Creating .env environment file..."
-        printf "%s\n" "$ENV_SECRET" > .env
+      - name: Create .env file
+        env:
+          ENV_SECRET: ${{ secrets.ENV_FILE }}
+        run: |
+          echo "Creating .env environment file..."
+          printf "%s\n" "$ENV_SECRET" > .env
 
       # 1. Install dependencies inside pre-built Playwright container
       - name: Install Python dependencies
@@ -80,23 +80,18 @@ jobs:
 
           echo "::endgroup::"
 
-      # 2. Run Smoke Test Suite
+      # 2. Run Test Suite
       - name: Run Smoke Tests
         run: |
-          MARKER="smoke"
-        elif [ "${{ github.ref_name }}" = "develop" ]; then
-          MARKER="smoke or sanity"
-        elif [ "${{ github.ref_name }}" = "main" ]; then
-          MARKER="smoke or regression"
-        else
-          MARKER="smoke"
-        fi
-        echo "Executing parallel test suite (-n auto) with marker: $MARKER"
-        pytest -m "$MARKER" -n auto --reruns 2 --reruns-delay 2 --html=reports/report.html --self-contained-html --maxfail=1 --disable-warnings --tb=short
+          if [ "${{ github.ref_name }}" = "develop" ]; then
+            MARKER="smoke or sanity"
+          elif [ "${{ github.ref_name }}" = "main" ]; then
+            MARKER="smoke or regression"
+          else
+            MARKER="smoke"
+          fi
 
-          echo "Executing smoke test suite (-n auto)"
-          echo "Marker: $MARKER"
-
+          echo "Executing test suite (-n auto) with marker: $MARKER"
           pytest -m "$MARKER" \
             -n auto \
             --reruns 2 \

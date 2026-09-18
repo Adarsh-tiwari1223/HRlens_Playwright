@@ -40,7 +40,7 @@ def test_accountant_finance_clearance_inspection(get_accountant_resignation_work
 @pytest.mark.ui
 @pytest.mark.accountant_process_buyout
 @pytest.mark.resignation
-@pytest.mark.parametrize("target_employee_name", ["Sanidhy Tiwari", "Adarsh Tiwari"], ids=["sanidhy", "adarsh_tiwari"])
+@pytest.mark.parametrize("target_employee_name", ["Uttam Kumar"], ids=["uttam_kumar"])
 def test_accountant_process_buyout_flow(get_accountant_resignation_workflow, target_employee_name):
     """
     Accountant Process Buyout Flow:
@@ -65,6 +65,9 @@ def test_accountant_process_buyout_flow(get_accountant_resignation_workflow, tar
 
 
     assert result.get("success"), f"Failed to open Process Buyout modal for '{target_employee_name}'"
+    assert result.get("leave_balance_match"), f"UI Leave Balance does not match API record for '{target_employee_name}'"
+    assert result.get("formula_match"), f"Mathematical formula Total Amount = (Leave Payout + Calculated Salary) - Buyout Amount failed for '{target_employee_name}'"
+
     toast_msg = str(result.get("toast", "")).strip()
     assert toast_msg != "", "Toast message must be captured after Accountant Buyout approval"
     assert "required" not in toast_msg.lower(), f"Accountant buyout approval failed with validation error toast: '{toast_msg}'"

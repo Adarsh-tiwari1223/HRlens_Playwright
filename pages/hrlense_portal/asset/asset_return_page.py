@@ -101,7 +101,7 @@ class AssetReturnPage(BasePage):
         self.page.wait_for_timeout(1000)
 
         # 5. Handle Modal Dialog (Review Return / Request Asset Return / Condition Assessment)
-        dialog = self.page.locator("[role='dialog'][aria-modal='true'], .chakra-modal__content, div:has(> header:visible), div:has(> p:text('Request Asset Return'))").first
+        dialog = self.page.locator("[role='dialog'][aria-modal='true'], [role='dialog'], .chakra-modal__content").first
         if not dialog.is_visible(timeout=3000):
             dialog = self.page.locator("div.chakra-modal__content, [role='dialog']").first
 
@@ -175,20 +175,22 @@ class AssetReturnPage(BasePage):
                 pass
 
             # Click 'Return Asset' button
-            confirm_btn = dialog.get_by_role("button", name=re.compile(r"^Return Asset$", re.I)).first
-            if not confirm_btn.is_visible(timeout=500):
-                confirm_btn = self.page.get_by_role("button", name="Return Asset").first
-            if not confirm_btn.is_visible(timeout=500):
-                confirm_btn = dialog.get_by_role("button", name=re.compile(r"Return Asset|Submit Request|Submit|Complete Return|Accept Return|Confirm", re.I)).first
-            if not confirm_btn.is_visible(timeout=500):
-                confirm_btn = dialog.locator("button.chakra-button, button[type='submit']").filter(has_text=re.compile(r"Return Asset|Submit|Confirm|Complete", re.I)).first
+            confirm_btn = dialog.locator("footer button, button.chakra-button, button[type='submit']").filter(has_text=re.compile(r"Return Asset|Return|Submit|Confirm|Complete", re.I)).last
+            if not confirm_btn.is_visible(timeout=1000):
+                confirm_btn = dialog.get_by_role("button", name=re.compile(r"Return Asset", re.I)).first
             
-            logger.info(f"Clicking modal confirmation button: '{confirm_btn.inner_text().strip() if confirm_btn.is_visible() else 'Return Asset'}'...")
-            confirm_btn.scroll_into_view_if_needed()
+            logger.info("Clicking modal confirmation button: 'Return Asset'...")
             try:
+                confirm_btn.scroll_into_view_if_needed(timeout=2000)
                 confirm_btn.click(timeout=3000)
-            except Exception:
-                confirm_btn.click(force=True)
+            except Exception as e:
+                logger.info(f"Click confirmation notice: {e}")
+                modal_active = self.page.locator("[role='dialog'], .chakra-modal__content").first
+                if modal_active.is_visible(timeout=1000):
+                    try:
+                        confirm_btn.click(force=True, timeout=2000)
+                    except Exception:
+                        pass
 
             toast = self.wait_for_toast_message()
             logger.info(f"Return confirmation toast: '{toast}'")

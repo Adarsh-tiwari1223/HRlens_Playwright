@@ -60,10 +60,17 @@ class AssetAssignmentPage(BasePage):
             self.page.keyboard.press("ArrowDown")
             self.page.keyboard.press("Enter")
         
+        # Modal scope
+        modal = self.page.locator("[role='dialog'], .chakra-modal__content, .chakra-drawer__content").first
+        if not modal.is_visible(timeout=1000):
+            modal = self.page
+
         # Category dropdown
-        cat_select = self.page.get_by_label("Category*", exact=True)
+        cat_select = modal.locator("//div[./label[contains(text(), 'Category') and not(contains(text(), 'Sub'))]]//select").first
         if not cat_select.is_visible(timeout=1000):
-            cat_select = self.page.locator("select").first
+            cat_select = modal.get_by_label("Category*", exact=True).first
+        if not cat_select.is_visible(timeout=1000):
+            cat_select = modal.locator("select").first
 
         cat_options = [o.strip() for o in cat_select.locator("option").all_inner_texts() if o.strip() and not o.lower().startswith("select")]
         target_cat = category if category and any(category.lower() in o.lower() for o in cat_options) else (cat_options[0] if cat_options else None)
@@ -83,10 +90,6 @@ class AssetAssignmentPage(BasePage):
         _select_cat(target_cat)
         
         # Sub Category dropdown
-        modal = self.page.locator("[role='dialog'], .chakra-modal__content, .chakra-drawer__content").first
-        if not modal.is_visible(timeout=1000):
-            modal = self.page
-
         sub_select = modal.locator("//div[./label[contains(text(), 'Sub Category')]]//select").first
         if not sub_select.is_visible(timeout=1000):
             sub_select = modal.get_by_label("Sub Category*", exact=True).first
@@ -172,6 +175,7 @@ class AssetAssignmentPage(BasePage):
             for alt_cat in cat_options:
                 if alt_cat != target_cat:
                     _select_cat(alt_cat)
+                    self.page.wait_for_timeout(500)
                     alt_subs = [o.strip() for o in sub_select.locator("option").all_inner_texts() if o.strip() and not o.lower().startswith("select")]
                     for alt_s in alt_subs:
                         selected_code = _try_select_asset(alt_s)
@@ -222,6 +226,98 @@ class AssetAssignmentPage(BasePage):
         else:
             self.page.keyboard.press("Escape")
         self.page.wait_for_timeout(300)
+
+    def is_asset_in_available_dropdown(self, asset_code: str) -> bool:
+        """
+        Checks whether the specified asset code is visible in the available assets dropdown.
+        Opens the asset dropdown popover, inspects menu items, and presses Escape to close.
+        """
+        modal = self.page.locator("[role='dialog'], .chakra-modal__content, .chakra-drawer__content").first
+        if not modal.is_visible(timeout=1000):
+            modal = self.page
+
+        trigger = modal.locator(".chakra-menu__menubutton, button").filter(
+            has_text=re.compile(r"Select asset|Select|Available|ASSET", re.I)
+        ).first
+        if not trigger.is_visible(timeout=2000):
+            trigger = modal.locator(".chakra-menu__menubutton").first
+
+        if trigger.is_visible(timeout=2000):
+            trigger.click(force=True)
+            self.page.wait_for_timeout(500)
+            
+            # Target specifically the ASSET search box (placeholder='Search...'), NEVER employee search box ('Search employee name…')
+            clean_code = (asset_code or "").strip()
+            try:
+                search_box = self.page.locator("input[placeholder='Search...'], input:not([placeholder*='employee' i])[placeholder*='Search' i]").first
+                if search_box.is_visible(timeout=1000):
+                    search_box.fill("")
+                    search_box.fill(clean_code)
+                    self.page.wait_for_timeout(400)
+            except Exception:
+                pass
+
+            found = False
+            try:
+                popover_target = self.page.locator(".chakra-portal, .chakra-popover__content, .chakra-menu__menu-list").get_by_text(clean_code, exact=False).first
+                if popover_target.is_visible(timeout=1500):
+                    found = True
+            except Exception:
+                pass
+
+            if not found:
+                container = self.page.locator(".chakra-portal, .chakra-popover__content, div.chakra-menu__menu-list, div[role='menu']").first
+                if container.is_visible(timeout=500):
+                    if clean_code.lower() in container.inner_text().lower():
+                        found = True
+            
+            self.page.keyboard.press("Escape")
+            self.page.wait_for_timeout(200)
+            return found
+        return False
+
+    def check_asset_availability_in_modal(self, asset_code: str, employee_name: str = "Adarsh Tiwari", category: str = "IT Hardware", sub_category: str = "Laptop") -> bool:
+        """
+        Opens the Direct Assignment modal, selects employee, category, subcategory,
+        checks if asset_code is present in the available asset dropdown, and closes the modal.
+        """
+        self.navigate_to_asset_assignment()
+        self.click_assign_asset()
+
+        # Fill employee
+        emp_search = self.page.get_by_placeholder("Search employee name…")
+        if not emp_search.is_visible(timeout=1000):
+            emp_search = self.page.locator("input[placeholder*='Search employee']").first
+        if emp_search.is_visible(timeout=1500):
+            emp_search.fill(employee_name)
+            self.page.wait_for_timeout(800)
+            try:
+                opt = self.page.locator(".chakra-portal, [role='listbox'], [role='option'], .chakra-menu__menu-list").get_by_text(employee_name, exact=False).first
+                if opt.is_visible(timeout=2000):
+                    opt.click(force=True)
+            except Exception:
+                self.page.keyboard.press("ArrowDown")
+                self.page.keyboard.press("Enter")
+
+        # Select category
+        cat_select = self.page.get_by_label("Category*", exact=True)
+        if not cat_select.is_visible(timeout=1000):
+            cat_select = self.page.locator("select").first
+        if cat_select.is_visible(timeout=1000):
+            cat_select.select_option(label=category)
+            self.page.wait_for_timeout(500)
+
+        # Select sub-category
+        sub_select = self.page.get_by_label("Sub Category*", exact=True)
+        if not sub_select.is_visible(timeout=1000):
+            sub_select = self.page.locator("select").nth(1)
+        if sub_select.is_visible(timeout=1000):
+            sub_select.select_option(label=sub_category)
+            self.page.wait_for_timeout(800)
+
+        is_visible = self.is_asset_in_available_dropdown(asset_code)
+        self.click_cancel()
+        return is_visible
 
     def open_fulfillment_drawer(self, employee_name: str):
         """

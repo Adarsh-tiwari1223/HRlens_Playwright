@@ -65,6 +65,10 @@ coverage.xml
 *.env
 .env.*
 secrets.py
+credentials.json
+*.json_key
+service_account*.json
+
 
 # Playwright auth state
 .auth/

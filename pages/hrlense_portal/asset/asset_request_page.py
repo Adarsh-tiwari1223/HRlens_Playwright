@@ -215,8 +215,12 @@ class AssetRequestPage(BasePage):
         # Close dialog cleanly if still visible (e.g. when blocked by governance rule)
         try:
             if dialog.is_visible(timeout=500):
-                self.page.keyboard.press("Escape")
-                self.page.wait_for_timeout(300)
+                cancel_btn = dialog.get_by_role("button", name=re.compile(r"Cancel|Close", re.I)).first
+                if cancel_btn.is_visible(timeout=1000):
+                    cancel_btn.click()
+                else:
+                    self.page.keyboard.press("Escape")
+                self.page.wait_for_timeout(500)
         except Exception:
             pass
 

@@ -129,13 +129,13 @@ class AssetProcurementWorkflow:
         toast = self.procurement_page.wait_for_toast_message()
         logger.info(f"[WORKFLOW] Captured Procurement Toast: '{toast}'")
 
-        # Self-Healing Check: If backend returns Total Amount validation mismatch
-        # e.g., 'Total Amount ₹12,09,237.00 must equal the sum of all asset line totals ₹6,04,325.00'
-        match = re.search(r"Total Amount\s*[₹Rs.]*\s*([\d,]+\.?\d*)\s*must equal", toast, re.I)
+        # Self-Healing Check: If backend returns Amount Before GST / Total Amount validation mismatch
+        # e.g., 'Amount Before GST ₹50,000.00 must equal the sum of all asset line totals ₹59,000.00'
+        match = re.search(r"(?:Amount Before GST|Total Amount)\s*[₹Rs.]*\s*([\d,]+\.?\d*)\s*must equal", toast, re.I)
         if match:
             raw_target = match.group(1)
             target_amt = float(re.sub(r"[^\d.]", "", raw_target))
-            logger.info(f"[SELF-HEALING] Detected required Total Amount from backend: ₹{target_amt:,.2f}. Automatically re-balancing cards...")
+            logger.info(f"[SELF-HEALING] Detected required Amount Before GST from backend: ₹{target_amt:,.2f}. Automatically re-balancing cards...")
             self.procurement_page.select_step2_dropdowns(target_total=target_amt)
             self.procurement_page.click_create()
             toast = self.procurement_page.wait_for_toast_message()

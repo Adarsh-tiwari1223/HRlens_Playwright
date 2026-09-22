@@ -140,6 +140,24 @@ class AssetRequestPage(BasePage):
             "row_text": matching_text
         }
 
+    def has_assigned_assets(self) -> bool:
+        """Checks if the logged in employee currently holds any active/accepted assigned assets."""
+        self.navigate_to_asset_request()
+        self.page.wait_for_timeout(1500)
+        
+        rows = self.page.locator("table tbody tr, .chakra-card, .css-prwjms").all()
+        for r in rows:
+            text = r.inner_text().strip()
+            if not text:
+                continue
+            text_lower = text.lower()
+            if any(term in text_lower for term in ["no data", "no asset", "no assigned", "empty"]):
+                continue
+            if "ASSET-" in text or "active" in text_lower or "assigned" in text_lower or "return" in text_lower:
+                logger.info(f"Found active assigned asset on employee portal: '{text[:80]}'")
+                return True
+        return False
+
     def create_new_request(self, reason: str = "Required for project development.", remarks: str = None, category: str = None, sub_category: str = None) -> dict:
         logger.info(f"Creating new asset request: Category='{category or 'Default'}', SubCategory='{sub_category or 'Default'}'")
         new_req_btn = self.page.get_by_role("button", name=re.compile(r"New Request|\+ Request", re.I)).first

@@ -165,7 +165,23 @@ def browser(pytestconfig):
     with sync_playwright() as p:
         browser_instance = launch_browser(p, is_headed=is_headed)
         yield browser_instance
-        browser_instance.close()
+        try:
+            for ctx in list(browser_instance.contexts):
+                for pg in list(ctx.pages):
+                    try:
+                        pg.close()
+                    except Exception:
+                        pass
+                try:
+                    ctx.close()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        try:
+            browser_instance.close()
+        except Exception:
+            pass
 
 
 @pytest.fixture(scope="function")

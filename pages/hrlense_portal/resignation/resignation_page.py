@@ -88,8 +88,9 @@ class ResignationPage(BasePage):
 
         current_origin = "/".join(self.page.url.split("/")[:3])
         target_url = f"{current_origin}/resignation"
-        self.page.goto(target_url)
-        self.page.wait_for_load_state("networkidle")
+        self.page.goto(target_url, wait_until="domcontentloaded")
+        # Wait for first visible tab instead of networkidle
+        self.page.locator("[role='tab']").first.wait_for(state="visible", timeout=10000)
 
 
 
@@ -107,8 +108,7 @@ class ResignationPage(BasePage):
 
         current_origin = "/".join(self.page.url.split("/")[:3])
         target_url = f"{current_origin}/resignation-approval"
-        self.page.goto(target_url)
-        self.page.wait_for_load_state("networkidle")
+        self.page.goto(target_url, wait_until="domcontentloaded")
 
         search_input = self.page.locator("input[placeholder*='Search employee by name']").first
         search_input.wait_for(state="visible", timeout=10000)
@@ -246,6 +246,10 @@ class ResignationPage(BasePage):
             "reason_label_visible": reason_label.is_visible(timeout=5000),
         }
 
+    def is_early_relieving_date_input_visible(self, timeout: int = 3000) -> bool:
+        """Checks if Early Relieving Date input is visible on the Status tab."""
+        return self.page.locator(self.EARLY_RELIEVING_DATE_INPUT).first.is_visible(timeout=timeout)
+
     def fill_early_relieving_date(self, early_relieving_date: str) -> None:
         """Fills early relieving date input field."""
         logger.info(f"UI Action: Fill Early Relieving Date -> '{early_relieving_date}'")
@@ -299,14 +303,18 @@ class ResignationPage(BasePage):
         buyout_btn.click()
 
     def search_employee_in_hr_table(self, employee_name: str) -> None:
-        """Types employee name in HR Resignation search input ('Search employee by name...'), presses Enter, and waits 2s for table filtering."""
+        """Types employee name in HR Resignation search input ('Search employee by name...'), presses Enter, and waits for table row."""
         logger.info(f"UI Action: HR searching employee by name -> '{employee_name}'")
         search_input = self.page.locator("input[placeholder*='Search employee by name']").first
         search_input.wait_for(state="visible", timeout=5000)
         search_input.click()
         search_input.fill(employee_name)
         search_input.press("Enter")
-        self.page.wait_for_timeout(2000)
+        # Wait for filtered row to appear instead of fixed 2s sleep
+        try:
+            self.page.locator(f"tr:has-text('{employee_name}')").first.wait_for(state="visible", timeout=5000)
+        except Exception:
+            pass
 
 
     def get_hr_table_employee_status(self, employee_name: str) -> str:
@@ -549,7 +557,7 @@ class ResignationPage(BasePage):
         current_origin = "/".join(self.page.url.split("/")[:3])
         target_url = f"{current_origin}/accounts-buyout-processing"
         if not self.page.url.endswith("/accounts-buyout-processing"):
-            self.page.goto(target_url, timeout=30000)
+            self.page.goto(target_url, timeout=30000, wait_until="domcontentloaded")
 
         search_input = self.page.locator("input[placeholder*='Search Employee by name']").first
         search_input.wait_for(state="visible", timeout=10000)
@@ -563,7 +571,11 @@ class ResignationPage(BasePage):
         search_input.wait_for(state="visible", timeout=5000)
         search_input.fill(employee_name)
         search_input.press("Enter")
-        self.page.wait_for_timeout(1000)
+        # Wait for table row instead of fixed sleep
+        try:
+            self.page.locator(f"tr:has-text('{employee_name}')").first.wait_for(state="visible", timeout=5000)
+        except Exception:
+            pass
 
     def get_accountant_table_employee_status(self, employee_name: str) -> str:
         """Reads the Status badge (.chakra-badge) in Accountant Buyout processing table."""
@@ -603,89 +615,154 @@ class ResignationPage(BasePage):
     def get_accountant_buyout_modal_values(self) -> Dict[str, str]:
         """
         Reads modal fields: Leave Balance, Leave Payout, Calculated Salary, Buyout Amount, Total Amount.
-        Returns a dictionary of raw string values.
+        Matches the table-based layout in Accounts Processing drawer.
         """
         logger.info("UI Check: Reading Accountant 'Process Buyout' modal values")
-        leave_balance_loc = self.page.locator("div[role='group']:has-text('Leave Balance') input, input[value*='6']").first
-        leave_payout_loc = self.page.locator("input[placeholder*='leave payout'], div[role='group']:has-text('Leave Payout') input").first
-        calc_salary_loc = self.page.locator("input[placeholder*='calculated salary'], div[role='group']:has-text('Calculated Salary') input").first
-        buyout_amount_loc = self.page.locator("input[placeholder*='buyout amount'], div[role='group']:has-text('Buyout Amount') input").first
-        total_amount_loc = self.page.locator("div[role='group']:has-text('Total Amount') input").first
+        modal_container = self.page.locator("section.chakra-modal__content, div[role='dialog']").first
+
+        leave_balance_loc = modal_container.locator(
+            "div.chakra-form-control:has-text('Leave Balance') input, "
+            "div[role='group']:has-text('Leave Balance') input, "
+            "label:has-text('Leave Balance') + input"
+        ).first
+
+        calc_salary_loc = modal_container.locator(
+            "tr:has-text('Calculated Salary') input, "
+            "input[placeholder*='salary']"
+        ).first
+
+        leave_payout_loc = modal_container.locator(
+            "tr:has-text('Leave Payout') input, "
+            "input[placeholder*='leave payout']"
+        ).first
+
+        buyout_amount_loc = modal_container.locator(
+            "tr:has-text('Buyout Amount') input, "
+            "input[placeholder*='buyout amount']"
+        ).first
+
+        net_payable_loc = modal_container.locator("div:has-text('Net Payable') p, p:has-text('Net Payable') + p").last
 
         return {
-            "leave_balance": leave_balance_loc.input_value() if leave_balance_loc.is_visible(timeout=2000) else "",
-            "leave_payout": leave_payout_loc.input_value() if leave_payout_loc.is_visible(timeout=2000) else "",
-            "calculated_salary": calc_salary_loc.input_value() if calc_salary_loc.is_visible(timeout=2000) else "",
-            "buyout_amount": buyout_amount_loc.input_value() if buyout_amount_loc.is_visible(timeout=2000) else "",
-            "total_amount": total_amount_loc.input_value() if total_amount_loc.is_visible(timeout=2000) else "",
+            "leave_balance": leave_balance_loc.input_value() if leave_balance_loc.is_visible(timeout=3000) else "",
+            "leave_payout": leave_payout_loc.input_value() if leave_payout_loc.is_visible(timeout=3000) else "",
+            "calculated_salary": calc_salary_loc.input_value() if calc_salary_loc.is_visible(timeout=3000) else "",
+            "buyout_amount": buyout_amount_loc.input_value() if buyout_amount_loc.is_visible(timeout=3000) else "",
+            "total_amount": net_payable_loc.inner_text().strip() if net_payable_loc.is_visible(timeout=3000) else "",
         }
 
-    def process_accountant_buyout(self, calculated_salary: str = "0", remarks: str = "Approved by Accountant", confirm_recovery: bool = True, approve: bool = True) -> str:
+    def process_accountant_buyout(
+        self,
+        calculated_salary: str = "1000",
+        leave_payout: str = None,
+        buyout_amount: str = None,
+        remarks: str = "Approved by Accountant",
+        confirm_recovery: bool = True,
+        approve: bool = True
+    ) -> str:
         """
         Fills Accountant Process Buyout modal fields:
-        - Fills Calculated Salary (reimbursement / arrear / other)
-        - Confirms 'Recovery Confirmed' checkbox if needed
-        - Fills Remarks
-        - Clicks 'Approve' or 'Reject' button and captures toast message.
+        - Fills Calculated Salary (inside Earnings table row 'Calculated Salary')
+        - Fills Leave Payout if not pre-filled
+        - Fills Buyout Amount if not pre-filled
+        - Confirms 'Recovery Confirmed' checkbox
+        - Fills Remarks (mandatory textarea)
+        - Clicks 'Approve' or 'Reject' button in modal footer and confirms.
         """
         action_str = "Approve" if approve else "Reject"
         logger.info(f"UI Action: Accountant submitting Process Buyout modal ({action_str})")
+        modal_container = self.page.locator("section.chakra-modal__content, div[role='dialog']").first
 
-        # Fill Calculated Salary
+        # 1. Fill Calculated Salary (Mandatory)
         if calculated_salary is not None:
-            calc_salary_input = self.page.locator(
+            calc_salary_input = modal_container.locator(
+                "tr:has-text('Calculated Salary') input, "
                 "div.chakra-form-control:has-text('Calculated Salary') input, "
-                "div[role='group']:has-text('Calculated Salary') input, "
-                "label:has-text('Calculated Salary') + input, "
-                "input[placeholder*='salary'], "
-                "input[placeholder*='Calculated']"
+                "label:has-text('Calculated Salary') + input"
             ).first
-            if calc_salary_input.is_visible(timeout=3000):
-                logger.info(f"UI Action: Filling Calculated Salary -> '{calculated_salary}'")
-                calc_salary_input.click()
-                calc_salary_input.press("Control+A")
-                calc_salary_input.press("Backspace")
-                calc_salary_input.press_sequentially(str(calculated_salary), delay=100)
-                calc_salary_input.press("Tab")
+            calc_salary_input.wait_for(state="visible", timeout=5000)
+            logger.info(f"UI Action: Filling Calculated Salary -> '{calculated_salary}'")
+            calc_salary_input.click()
+            calc_salary_input.press("Control+A")
+            calc_salary_input.press("Backspace")
+            calc_salary_input.fill(str(calculated_salary))
+            calc_salary_input.press("Tab")
 
+        # 2. Fill Leave Payout if specified and not pre-filled
+        if leave_payout is not None:
+            leave_payout_input = modal_container.locator(
+                "tr:has-text('Leave Payout') input, "
+                "input[placeholder*='leave payout']"
+            ).first
+            if leave_payout_input.is_visible(timeout=2000):
+                curr = leave_payout_input.input_value().strip()
+                if not curr or curr == "0" or float(curr or 0) <= 0:
+                    logger.info(f"UI Action: Filling Leave Payout -> '{leave_payout}'")
+                    leave_payout_input.click()
+                    leave_payout_input.fill(str(leave_payout))
+                    leave_payout_input.press("Tab")
 
+        # 3. Fill Buyout Amount if specified and not pre-filled
+        if buyout_amount is not None:
+            buyout_amount_input = modal_container.locator(
+                "tr:has-text('Buyout Amount') input, "
+                "input[placeholder*='buyout amount']"
+            ).first
+            if buyout_amount_input.is_visible(timeout=2000):
+                curr = buyout_amount_input.input_value().strip()
+                if not curr or curr == "0" or float(curr or 0) <= 0:
+                    logger.info(f"UI Action: Filling Buyout Amount -> '{buyout_amount}'")
+                    buyout_amount_input.click()
+                    buyout_amount_input.fill(str(buyout_amount))
+                    buyout_amount_input.press("Tab")
 
-
-
-
-        # Toggle Recovery Confirmed Checkbox by clicking visible span label
+        # 4. Toggle Recovery Confirmed Checkbox
         if confirm_recovery:
-            checkbox_label = self.page.locator(".chakra-checkbox__label:has-text('Recovery Confirmed'), span:has-text('Recovery Confirmed')").first
-            checkbox_label.wait_for(state="visible", timeout=5000)
-            checkbox_label.click()
+            checkbox_label = modal_container.locator(
+                "label.chakra-checkbox:has-text('Recovery Confirmed'), "
+                "span.chakra-checkbox__label:has-text('Recovery Confirmed'), "
+                "span:has-text('Recovery Confirmed')"
+            ).first
+            if checkbox_label.is_visible(timeout=3000):
+                cb_input = modal_container.locator("input[type='checkbox']").first
+                if cb_input.count() > 0:
+                    if not cb_input.is_checked():
+                        checkbox_label.click()
+                else:
+                    checkbox_label.click()
 
-        # Fill Remarks
-        remarks_field = self.page.locator("textarea[placeholder*='remarks'], div[role='group']:has-text('Remarks') textarea").first
+        # 5. Fill Remarks (Mandatory)
+        remarks_field = modal_container.locator(
+            "textarea[placeholder*='remarks' i], "
+            "textarea.chakra-textarea, "
+            "div.chakra-form-control:has-text('Remarks') textarea"
+        ).first
         remarks_field.wait_for(state="visible", timeout=3000)
         remarks_field.fill(remarks)
 
-        # Click Approve or Reject inside modal container
-        modal_container = self.page.locator("section.chakra-modal__content, div[role='dialog']").first
-
+        # 6. Click Approve or Reject Button in modal footer
         if approve:
-            btn = modal_container.locator("button.chakra-button:has-text('Approve'), button.css-h211ee, button:has-text('Approve')").first
-            if not btn.is_visible(timeout=3000):
-                btn = self.page.locator("section.chakra-modal__content button.chakra-button:has-text('Approve'), button.css-h211ee").first
-            btn.wait_for(state="visible", timeout=10000)
+            btn = modal_container.locator(
+                "footer.chakra-modal__footer button:has-text('Approve'), "
+                "button.chakra-button:has-text('Approve')"
+            ).first
+            btn.wait_for(state="visible", timeout=5000)
             btn.click()
             self.page.wait_for_timeout(500)
 
             # Handle Confirmation Modal ('Confirm Buyout Approval' -> click 'Confirm' button)
-            logger.info("UI Action: Confirming 'Confirm Buyout Approval' modal via 'Confirm' button")
             confirm_modal_header = self.page.locator("header:has-text('Confirm Buyout Approval'), header:has-text('Confirm'), header:has-text('Approve')").first
-            if confirm_modal_header.is_visible(timeout=5000):
-                confirm_btn = self.page.locator(".chakra-modal__footer button:has-text('Confirm'), .chakra-modal__content button:has-text('Confirm'), button:has-text('Confirm'), button.css-ec34mi").first
-                confirm_btn.wait_for(state="visible", timeout=5000)
-                confirm_btn.click()
-
+            if confirm_modal_header.is_visible(timeout=4000):
+                confirm_btn = self.page.locator(".chakra-modal__footer button:has-text('Confirm'), .chakra-modal__content button:has-text('Confirm'), button:has-text('Confirm')").first
+                if confirm_btn.is_visible(timeout=3000):
+                    confirm_btn.click()
         else:
-            btn = modal_container.locator("button.chakra-button:has-text('Reject'), button.css-egkxlg, button:has-text('Reject')").first
-            btn.wait_for(state="visible", timeout=10000)
+            logger.info("UI Action: Clicking 'Reject' button inside modal")
+            btn = modal_container.locator(
+                "footer.chakra-modal__footer button:has-text('Reject'), "
+                "button.chakra-button:has-text('Reject')"
+            ).first
+            btn.wait_for(state="visible", timeout=5000)
             btn.click()
 
         return self.wait_for_toast(timeout=10000)
@@ -700,8 +777,12 @@ class ResignationPage(BasePage):
 
         current_origin = "/".join(self.page.url.split("/")[:3])
         target_url = f"{current_origin}/exit-clearance"
-        self.page.goto(target_url)
-        self.page.wait_for_load_state("networkidle")
+        self.page.goto(target_url, wait_until="domcontentloaded")
+        # Wait for table to be present instead of networkidle
+        try:
+            self.page.locator("table, tr, [role='table']").first.wait_for(state="visible", timeout=10000)
+        except Exception:
+            pass
 
     def process_it_person_asset_clearance(
         self,
@@ -770,48 +851,114 @@ class ResignationPage(BasePage):
             if not assigned_assets_modal.is_visible(timeout=3000):
                 assigned_assets_modal = self.page.locator("section.chakra-modal__content, div[role='dialog']").last
 
-            # Locate 'Return' button next to asset in list: <button type="button" class="chakra-button css-1yax204">Return</button>
-            return_btns = assigned_assets_modal.locator("button:has-text('Return')").all()
-            for r_btn in return_btns:
-                if r_btn.is_visible(timeout=2000):
-                    logger.info("Clicking 'Return' button on assigned asset in list...")
-                    r_btn.click()
-                    self.page.wait_for_timeout(800)
+            # Loop through all assigned assets and return them individually
+            max_assets = 5
+            for _ in range(max_assets):
+                r_btn = assigned_assets_modal.get_by_role("button", name="Return", exact=True).first
+                if not r_btn.is_visible(timeout=2500):
+                    break
 
-                    # Step 4: Inside 'Return Asset' dialog modal
-                    return_dialog = self.page.locator("section.chakra-modal__content:has-text('Return Asset'), div[role='dialog']:has-text('Return Asset')").first
-                    if not return_dialog.is_visible(timeout=3000):
-                        return_dialog = self.page.locator("section.chakra-modal__content, div[role='dialog']").last
+                r_btn.click()
+                self.page.wait_for_timeout(800)
 
-                    if return_dialog.is_visible(timeout=3000):
-                        # Select Condition radio (Good / Damaged / Lost)
-                        radio = return_dialog.locator(f"input[type='radio'][value='{asset_condition}'], label:has-text('{asset_condition}')").first
-                        if radio.is_visible(timeout=2000):
-                            radio.click(force=True)
+                # Step 4: Inside 'Return Asset' dialog modal
+                return_dialog = self.page.locator("section.chakra-modal__content:has-text('Return Asset'), div[role='dialog']:has-text('Return Asset')").first
+                if not return_dialog.is_visible(timeout=3000):
+                    return_dialog = self.page.locator("section.chakra-modal__content, div[role='dialog']").last
 
-                        # Fill Remarks textarea
-                        remarks_area = return_dialog.locator("textarea").first
-                        if remarks_area.is_visible(timeout=2000):
-                            remarks_area.fill(remarks)
+                if not return_dialog.is_visible(timeout=3000):
+                    logger.warning("Return Asset dialog did not open; stopping further Return clicks")
+                    break
 
-                        # Click Return Asset confirmation button
-                        confirm_return_btn = return_dialog.locator("button:has-text('Return Asset'), button:has-text('Return'), button:has-text('Submit')").first
-                        confirm_return_btn.wait_for(state="visible", timeout=5000)
-                        confirm_return_btn.click()
-                        self.page.wait_for_timeout(1000)
+                # Select Condition radio (Good / Damaged / Lost / Repair Required)
+                radio = return_dialog.locator(f"input[type='radio'][value*='{asset_condition}' i], label:has-text('{asset_condition}')").first
+                if not radio.is_visible(timeout=1000):
+                    radio = return_dialog.locator("input[type='radio'][value='Good'], label:has-text('Good')").first
+                if radio.is_visible(timeout=2000):
+                    radio.click(force=True)
+
+                # Fill Remarks textarea
+                remarks_area = return_dialog.locator("textarea").first
+                if remarks_area.is_visible(timeout=2000):
+                    remarks_area.fill(remarks)
+
+                # Evidence File Upload (mandatory in Return Asset modal)
+                try:
+                    from utils.asset_media_helper import get_return_test_media_files
+                    files_to_upload = get_return_test_media_files(include_video=False, max_photos=1)
+                    file_input = return_dialog.locator("input[type='file']").first
+                    if not file_input.is_visible(timeout=300):
+                        file_input = self.page.locator("input[type='file']").first
+                    if file_input.count() > 0 and files_to_upload:
+                        file_input.set_input_files(files_to_upload)
+                        self.page.wait_for_timeout(800)
+                        logger.info(f"Attached evidence file: {[os.path.basename(f) for f in files_to_upload]}")
+                except Exception as up_err:
+                    logger.warning(f"Return dialog evidence upload note: {up_err}")
+
+                # Click Return Asset confirmation button (exact name, not list 'Return')
+                confirm_return_btn = return_dialog.get_by_role("button", name="Return Asset", exact=True).last
+                if not confirm_return_btn.is_visible(timeout=2000):
+                    confirm_return_btn = return_dialog.get_by_role("button", name="Submit", exact=True).first
+                confirm_return_btn.wait_for(state="visible", timeout=5000)
+                confirm_return_btn.click()
+                try:
+                    return_dialog.wait_for(state="hidden", timeout=15000)
+                except Exception:
+                    logger.warning("Return Asset dialog did not close after submit; stopping further Return clicks")
+                    break
+                self.page.wait_for_timeout(500)
 
             # Close Assigned Assets modal if still open
             if assigned_assets_modal.is_visible(timeout=1000):
                 self.page.keyboard.press("Escape")
-                self.page.wait_for_timeout(500)
 
         else:
-            logger.info(f"[IT ASSET FLOW] 'Manage Asset Return' button IS NOT VISIBLE for '{employee_name}' -> Employee HAS NO assigned assets")
+            logger.info(f"[IT ASSET FLOW] 'Manage Asset Return' button is NOT enabled (or not visible) for '{employee_name}' -> No pending returnable assets")
+
+        # Step 5: Mark IT Task Complete in Release Employee Checklist modal
+        # Toggle any unchecked checkboxes
+        try:
+            for cb in checklist_modal.locator("input[type='checkbox']").all():
+                if not cb.is_checked():
+                    cb.click(force=True)
+                    self.page.wait_for_timeout(500)
+                    confirm_dialog = self.page.locator(
+                        "section[role='alertdialog']:has-text('Complete Exit Task'), "
+                        "div[role='alertdialog']:has-text('Complete Exit Task'), "
+                        "[role='alertdialog']:has-text('Complete Exit Task'), "
+                        "section.chakra-modal__content:has-text('Complete Exit Task'), "
+                        "div.chakra-modal__content:has-text('Complete Exit Task')"
+                    ).first
+                    if confirm_dialog.is_visible(timeout=2000):
+                        logger.info("UI Action: Confirming IT 'Complete Exit Task' dialog via 'Confirm' button")
+                        confirm_btn = confirm_dialog.locator("button:has-text('Confirm')").first
+                        if confirm_btn.is_visible(timeout=3000):
+                            confirm_btn.click()
+                            self.page.wait_for_timeout(1000)
+        except Exception as cb_err:
+            logger.info(f"Checklist checkbox note: {cb_err}")
 
         # Step 5: Mark IT Task Complete in Release Employee Checklist modal if checkbox or complete button present
         complete_task_btn = checklist_modal.locator("button:has-text('Complete'), button:has-text('Submit'), button:has-text('Confirm'), button:has-text('Approve')").first
-        if complete_task_btn.is_visible(timeout=2000):
+        if complete_task_btn.is_visible(timeout=1500):
             complete_task_btn.click()
+            self.page.wait_for_timeout(500)
+
+        # Handle 'Complete Exit Task' confirmation alertdialog if present
+        confirm_modal = self.page.locator(
+            "section[role='alertdialog']:has-text('Complete Exit Task'), "
+            "div[role='alertdialog']:has-text('Complete Exit Task'), "
+            "[role='alertdialog']:has-text('Complete Exit Task'), "
+            "section.chakra-modal__content:has-text('Complete Exit Task'), "
+            "div.chakra-modal__content:has-text('Complete Exit Task')"
+        ).first
+        if confirm_modal.is_visible(timeout=3000):
+            logger.info("UI Action: Confirming IT 'Complete Exit Task' modal via 'Confirm' button")
+            confirm_btn = confirm_modal.locator("button:has-text('Confirm'), footer.chakra-modal__footer button:has-text('Confirm')").first
+            if confirm_btn.is_visible(timeout=3000):
+                confirm_btn.click()
+                self.page.wait_for_timeout(1000)
 
         toast_msg = self.wait_for_toast(timeout=10000)
         return {
@@ -821,12 +968,108 @@ class ResignationPage(BasePage):
             "status": status_badge
         }
 
+    def process_hr_exit_clearance(
+        self,
+        employee_name: str,
+        remarks: str = "HR Exit formalities and document checklist completed"
+    ) -> Dict[str, Union[bool, str]]:
+        """
+        HR Exit Clearance Execution (/exit-clearance):
+        1. Navigates directly to /exit-clearance.
+        2. Finds target employee row in the table.
+        3. Clicks 'Open Checklist (*)' button in Action column.
+        4. Modal opens with header 'Release Employee Checklist'.
+        5. Checks HR exit clearance checkboxes and fills remarks if present.
+        6. Clicks Complete / Submit button to complete the HR offboarding task.
+        7. Handles 'Complete Exit Task' confirmation modal by clicking 'Confirm'.
+        8. Captures toast message and returns status.
+        """
+        logger.info(f"UI Action: HR processing exit clearance checklist for '{employee_name}'")
+        self.navigate_to_exit_clearance()
 
+        # Locate employee row in /exit-clearance table
+        row = self.page.locator(f"tr:has-text('{employee_name}')").first
+        if not row.is_visible(timeout=5000):
+            search_input = self.page.locator("input[placeholder*='search' i], input[placeholder*='employee' i]").first
+            if search_input.is_visible(timeout=2000):
+                search_input.click()
+                search_input.fill(employee_name)
+                search_input.press("Enter")
+                self.page.wait_for_timeout(1500)
+                row = self.page.locator(f"tr:has-text('{employee_name}')").first
 
+        row.wait_for(state="visible", timeout=5000)
+        status_badge = row.locator(".chakra-badge, span[class*='badge']").first.inner_text().strip() if row.locator(".chakra-badge, span[class*='badge']").first.is_visible(timeout=2000) else ""
+        logger.info(f"HR Exit Clearance Table -> Employee: '{employee_name}' | Status: '{status_badge}'")
 
+        # Click Action button: Open Checklist
+        checklist_btn = row.locator("button:has-text('Open Checklist'), button:has-text('Checklist')").first
+        checklist_btn.wait_for(state="visible", timeout=5000)
+        checklist_btn.click()
+        self.page.wait_for_timeout(500)
 
+        # Release Employee Checklist modal
+        checklist_modal = self.page.locator("section.chakra-modal__content, div[role='dialog']").first
+        checklist_modal.wait_for(state="visible", timeout=5000)
+        modal_text = checklist_modal.inner_text().strip()
+        logger.info(f"HR Exit Checklist Modal Content:\n{modal_text}")
 
+        # Check all pending checkboxes for HR task
+        try:
+            for cb in checklist_modal.locator("input[type='checkbox']").all():
+                if not cb.is_checked():
+                    cb.click(force=True)
+                    self.page.wait_for_timeout(500)
+                    confirm_dialog = self.page.locator(
+                        "section[role='alertdialog']:has-text('Complete Exit Task'), "
+                        "div[role='alertdialog']:has-text('Complete Exit Task'), "
+                        "[role='alertdialog']:has-text('Complete Exit Task'), "
+                        "section.chakra-modal__content:has-text('Complete Exit Task'), "
+                        "div.chakra-modal__content:has-text('Complete Exit Task')"
+                    ).first
+                    if confirm_dialog.is_visible(timeout=2000):
+                        logger.info("UI Action: Confirming HR 'Complete Exit Task' dialog via 'Confirm' button")
+                        confirm_btn = confirm_dialog.locator("button:has-text('Confirm')").first
+                        if confirm_btn.is_visible(timeout=3000):
+                            confirm_btn.click()
+                            self.page.wait_for_timeout(1000)
+        except Exception as cb_err:
+            logger.info(f"HR Checklist checkbox note: {cb_err}")
 
+        # Fill remarks textarea if visible
+        remarks_area = checklist_modal.locator("textarea").first
+        if remarks_area.is_visible(timeout=1500):
+            remarks_area.fill(remarks)
 
+        # Click Complete / Submit / Confirm / Approve button
+        complete_task_btn = checklist_modal.locator("button:has-text('Complete'), button:has-text('Submit'), button:has-text('Confirm'), button:has-text('Approve')").first
+        if complete_task_btn.is_visible(timeout=1500):
+            complete_task_btn.click()
+            self.page.wait_for_timeout(500)
 
+        # Handle 'Complete Exit Task' confirmation alertdialog
+        confirm_modal = self.page.locator(
+            "section[role='alertdialog']:has-text('Complete Exit Task'), "
+            "div[role='alertdialog']:has-text('Complete Exit Task'), "
+            "[role='alertdialog']:has-text('Complete Exit Task'), "
+            "section.chakra-modal__content:has-text('Complete Exit Task'), "
+            "div.chakra-modal__content:has-text('Complete Exit Task')"
+        ).first
+        if confirm_modal.is_visible(timeout=3000):
+            logger.info("UI Action: Confirming HR 'Complete Exit Task' modal via 'Confirm' button")
+            confirm_btn = confirm_modal.locator("button:has-text('Confirm'), footer.chakra-modal__footer button:has-text('Confirm')").first
+            if confirm_btn.is_visible(timeout=3000):
+                confirm_btn.click()
+                self.page.wait_for_timeout(1000)
+                try:
+                    confirm_modal.wait_for(state="hidden", timeout=5000)
+                except Exception:
+                    pass
+
+        toast_msg = self.wait_for_toast(timeout=10000)
+        return {
+            "success": True,
+            "toast": toast_msg,
+            "status": status_badge
+        }
 

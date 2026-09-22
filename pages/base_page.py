@@ -232,7 +232,7 @@ class BasePage:
         except Exception:
             pass
 
-    def wait_for_toast(self, locator: str = "#chakra-toast-manager-top-right", timeout: int = 10000, **kwargs) -> str:
+    def wait_for_toast(self, locator: str = "#chakra-toast-manager-top-right", timeout: int = 5000, **kwargs) -> str:
         """Waits for a toast message to appear, captures text, and dismisses the toast 'X' button."""
         toast_loc = self.page.locator(
             f"{locator} .chakra-toast, {locator} [role='status'], {locator} [role='alert'], "
@@ -251,7 +251,7 @@ class BasePage:
         logger.debug(f"toast → '{text}'")
         return text
 
-    def wait_for_toast_message(self, locator: str = "#chakra-toast-manager-top-right", timeout: int = 10000, **kwargs) -> str:
+    def wait_for_toast_message(self, locator: str = "#chakra-toast-manager-top-right", timeout: int = 5000, **kwargs) -> str:
         """Alias for wait_for_toast."""
         return self.wait_for_toast(locator=locator, timeout=timeout, **kwargs)
 

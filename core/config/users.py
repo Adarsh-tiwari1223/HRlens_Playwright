@@ -65,6 +65,30 @@ USERS = {
         "username": _get_env("ABHISHEK_SINGH_USERNAME"),
         "password": _get_env("ABHISHEK_SINGH_PASSWORD")
     },
+    "namrata_pandey": {
+        "username": _get_env("NAMRATA_PANDEY_USERNAME"),
+        "password": _get_env("NAMRATA_PANDEY_PASSWORD")
+    },
+    "radhika_nayak": {
+        "username": _get_env("RADHIKA_NAYAK_USERNAME"),
+        "password": _get_env("RADHIKA_NAYAK_PASSWORD")
+    },
+    "shreya_singh": {
+        "username": _get_env("SHREYA_SINGH_USERNAME"),
+        "password": _get_env("SHREYA_SINGH_PASSWORD")
+    },
+    "uday_pratap": {
+        "username": _get_env("UDAY_PRATAP_USERNAME"),
+        "password": _get_env("UDAY_PRATAP_PASSWORD")
+    },
+    "amar_deep": {
+        "username": _get_env("AMAR_DEEP_USERNAME"),
+        "password": _get_env("AMAR_DEEP_PASSWORD")
+    },
+    "kailash_singh": {
+        "username": _get_env("KAILASH_SINGH_USERNAME"),
+        "password": _get_env("KAILASH_SINGH_PASSWORD")
+    },
     "it_admin": {
         "username": _get_env("IT_ADMIN_USERNAME"),
         "password": _get_env("IT_ADMIN_PASSWORD")
@@ -140,6 +164,12 @@ APPROVERS = {
     "Ritesh Singh": "ritesh_singh",
     "Uttam Kumar": "uttam_kumar",
     "Abhishek Singh": "abhishek_singh",
+    "Namrata Pandey": "namrata_pandey",
+    "Radhika Nayak": "radhika_nayak",
+    "Shreya Singh": "shreya_singh",
+    "Uday Pratap": "uday_pratap",
+    "Amar Deep": "amar_deep",
+    "Kailash Singh": "kailash_singh",
 }
 
 # Varanasi Branch Employees (excluding Director Vivek, Branch HR Tejaswini/Shiva/Ritesh, and Admins)
@@ -149,6 +179,12 @@ VARANASI_EMPLOYEE_USERS = [
     "abhishek_singh",
     "kumar_piyush",
     "sanidhy",
+    "namrata_pandey",
+    "radhika_nayak",
+    "shreya_singh",
+    "uday_pratap",
+    "amar_deep",
+    "kailash_singh",
 ]
 
 # Management & Administrative roles to exclude from employee resignation selection

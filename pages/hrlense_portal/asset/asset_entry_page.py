@@ -214,6 +214,7 @@ class AssetEntryPage(BasePage):
         serial_no: str = None,
         warranty: str = None,
         expiry_date: str = None,
+        unit_price: str = "50000",
         insured: str = "No",
         insurance_provider: str = "ICICI Lombard",
         policy_number: str = None,
@@ -228,6 +229,7 @@ class AssetEntryPage(BasePage):
         payroll_company_label: str = None,
         **kwargs
     ) -> dict:
+        unit_price = unit_price or kwargs.get("price") or "50000"
         category = category or category_label
         sub_category = sub_category or sub_category_label
         branch = branch or branch_label
@@ -424,6 +426,15 @@ class AssetEntryPage(BasePage):
                 s_in = modal.locator("input[placeholder*='serial' i], input[name*='serial' i]").first
             if s_in.is_visible(timeout=1000):
                 s_in.fill(serial_no)
+
+        # 6.1 Unit Price *
+        if unit_price:
+            up_in = modal.locator("//div[./label[contains(text(), 'Unit Price') or contains(text(), 'Price')]]//input").first
+            if not up_in.is_visible(timeout=500):
+                up_in = modal.locator("input[placeholder*='price' i], input[name*='unitPrice' i], input[name*='price' i]").first
+            if up_in.is_visible(timeout=1000):
+                up_in.fill(str(unit_price))
+                logger.info(f"Filled Unit Price: '{unit_price}'")
 
         # 7. Warranty / Guarantee
         if warranty:

@@ -91,3 +91,20 @@ class HrResignationWorkflow:
         logger.info(f"HR {action_str} Buyout Toast Captured: '{toast}'")
         return toast
 
+    def execute_hr_exit_clearance_workflow(
+        self,
+        employee_name: str,
+        remarks: str = "HR Exit formalities and document checklist completed"
+    ) -> Dict[str, Union[bool, str]]:
+        """
+        Executes HR Exit Clearance workflow on /exit-clearance:
+        Completes HR-side offboarding checklist task to achieve full 2/2 clearance.
+        """
+        logger.info("=" * 60)
+        logger.info(f"STARTING HR EXIT CLEARANCE WORKFLOW FOR: '{employee_name}'")
+        logger.info("=" * 60)
+
+        return self.res_page.process_hr_exit_clearance(
+            employee_name=employee_name,
+            remarks=remarks
+        )

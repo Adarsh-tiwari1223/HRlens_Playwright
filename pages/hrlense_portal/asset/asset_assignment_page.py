@@ -42,14 +42,18 @@ class AssetAssignmentPage(BasePage):
             emp_search = self.page.locator("input[placeholder*='Search employee']").first
         emp_search.fill(employee_name)
         self.page.wait_for_timeout(1000)
-        
+
         # Select first matching result from suggestion popover/portal
         try:
-            opt = self.page.locator(".chakra-portal, [role='listbox'], [role='option'], .chakra-menu__menu-list").get_by_text(employee_name, exact=False).first
+            opt = self.page.locator(
+                ".chakra-portal, [role='listbox'], [role='option'], .chakra-menu__menu-list"
+            ).get_by_text(employee_name, exact=False).first
             if opt.is_visible(timeout=1500):
                 opt.click(force=True)
             else:
-                fallback = self.page.locator(".chakra-portal div, [role='option'], p, li").filter(has_text=re.compile(employee_name.split()[0], re.I)).first
+                fallback = self.page.locator(".chakra-portal div, [role='option'], p, li").filter(
+                    has_text=re.compile(employee_name.split()[0], re.I)
+                ).first
                 if fallback.is_visible(timeout=1500):
                     fallback.click(force=True)
                 else:
@@ -59,6 +63,7 @@ class AssetAssignmentPage(BasePage):
             logger.warning(f"Note selecting employee '{employee_name}': {ex}")
             self.page.keyboard.press("ArrowDown")
             self.page.keyboard.press("Enter")
+
         
         # Category dropdown
         cat_select = self.page.get_by_label("Category*", exact=True)
@@ -105,21 +110,21 @@ class AssetAssignmentPage(BasePage):
                             break
                 except Exception as e:
                     logger.warning(f"Subcategory option select note: {e}")
-            self.page.wait_for_timeout(300)
+            self.page.wait_for_timeout(800)
 
             trigger = modal.locator(".chakra-menu__menubutton, button").filter(has_text=re.compile(r"Select asset|Select|Available|ASSET", re.I)).first
-            if not trigger.is_visible(timeout=300):
+            if not trigger.is_visible(timeout=2000):
                 trigger = modal.locator(".chakra-menu__menubutton").first
 
-            if trigger.is_visible(timeout=300):
+            if trigger.is_visible(timeout=2000):
                 trigger.click(force=True)
-                self.page.wait_for_timeout(200)
+                self.page.wait_for_timeout(500)
 
                 # Optional search box inside dropdown popover
                 if asset_name_or_code:
                     try:
                         search_box = self.page.get_by_placeholder("Search...").first
-                        if not search_box.is_visible(timeout=500):
+                        if not search_box.is_visible(timeout=1000):
                             search_box = self.page.locator(".chakra-portal input[placeholder*='Search' i], div.chakra-menu__menu-list input").first
                         if search_box.is_visible(timeout=1000):
                             search_box.fill(asset_name_or_code)
@@ -128,7 +133,7 @@ class AssetAssignmentPage(BasePage):
                         logger.warning(f"Dropdown search box note: {e}")
 
                 menu = self.page.locator(".chakra-portal div[role='menu'], div.chakra-menu__menu-list, [role='menu']").first
-                items = menu.locator("[role='menuitem'], [role='menuitemcheckbox'], [role='option'], button").all() if menu.is_visible(timeout=300) else self.page.locator("[role='menuitem'], [role='menuitemcheckbox'], .chakra-menu__menuitem").all()
+                items = menu.locator("[role='menuitem'], [role='menuitemcheckbox'], [role='option'], button").all() if menu.is_visible(timeout=2000) else self.page.locator("[role='menuitem'], [role='menuitemcheckbox'], .chakra-menu__menuitem").all()
 
                 valid_items = [itm for itm in items if "not uploaded" not in itm.inner_text().lower() and len(itm.inner_text().strip()) > 0]
                 if valid_items:

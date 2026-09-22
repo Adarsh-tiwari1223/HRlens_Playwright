@@ -41,7 +41,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     container:
-      image: mcr.microsoft.com/playwright/python:v1.49.0-jammy
+      image: adarsh7777/hrlense_playwright:latest
 
     permissions:
       contents: read
@@ -54,14 +54,6 @@ jobs:
         cat << 'EOF' > .env
         ${{ secrets.ENV_FILE }}
         EOF
-
-    # 1. Install dependencies inside pre-built Playwright container (Quiet Output)
-    - name: Install Python dependencies
-      run: |
-        echo "::group::Installing Python Dependencies"
-        python -m pip install --quiet --upgrade pip
-        if [ -f requirements.txt ]; then pip install --quiet --no-cache-dir -r requirements.txt; fi
-        echo "::endgroup::"
 
     # 2. Run Dynamic Parallel Test Suites (-n auto)
     - name: Determine Test Marker & Run Tests

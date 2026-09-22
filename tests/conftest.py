@@ -74,7 +74,7 @@ def pytest_xdist_auto_num_workers(config):
     Parallel Worker Allocation:
     - Assigns 1 worker when --headed flag is passed or HEADLESS is False.
     - Assigns 1 worker when executing a single test file.
-    - Scales up to max 4 workers when running multiple test files in headless mode.
+    - Scales workers to min(test_files, cpu_cores, 4) in headless mode.
     """
     is_headed = getattr(config.option, "headed", False) or not settings.HEADLESS
     if is_headed:
@@ -85,7 +85,8 @@ def pytest_xdist_auto_num_workers(config):
         return 1
 
     cpu_cores = os.cpu_count() or 4
-    return min(cpu_cores, 4)
+    num_files = len(file_args) if file_args else cpu_cores
+    return min(num_files, cpu_cores, 4)
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
@@ -225,6 +226,7 @@ def logged_in_page(browser, request):
     Returns (page, context) tuple and automatically closes all pages/contexts on test completion.
     """
     record_har = request.config.getoption("--record-har", False)
+    contexts = []
 
     def _login(user_key: str = settings.EMPLOYEE_USER):
         har_path = f"reports/network_{request.node.name}_{user_key}.har" if record_har else None

@@ -45,7 +45,7 @@ def inspect_har(har_path: str, errors_only: bool = False, filter_keyword: str = 
             continue
 
         displayed += 1
-        status_symbol = "🟢" if 200 <= status < 300 else ("🟡" if 300 <= status < 400 else "🔴")
+        status_symbol = "[OK] " if 200 <= status < 300 else ("[WARN]" if 300 <= status < 400 else "[ERR] ")
         print(f"[{idx:03d}] {status_symbol} {status} | {method:<6} | {time_ms:>6.1f}ms | {url}")
 
         if status >= 400 or errors_only:

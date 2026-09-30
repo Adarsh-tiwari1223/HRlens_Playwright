@@ -26,7 +26,10 @@ BRANCH_RESPONSIBILITY_MAP = {
         "employees": [
             {"name": "Adarsh Tiwari", "email": "adarsh.tiwari@tekinspirations.com", "user_key": "adarsh_tiwari"},
             {"name": "Sanidhy Tiwari", "email": "sanidhy.tiwari@tekinspirations.com", "user_key": "sanidhy"},
-            {"name": "Kumar Piyush", "email": "kumar.piyush@tekinspirations.com", "user_key": "kumar_piyush"}
+            {"name": "Kumar Piyush", "email": "kumar.piyush@tekinspirations.com", "user_key": "kumar_piyush"},
+            {"name": "Ritesh Singh", "email": "ritesh.singh@tekinspirations.com", "user_key": "ritesh_singh"},
+            {"name": "Uttam Kumar", "email": "uttam.kumar@tekinspirations.com", "user_key": "uttam_kumar"},
+            {"name": "Abhishek Singh", "email": "abhisheksingh@tekinspirations.com", "user_key": "abhishek_singh"}
         ]
     },
     "Agra": {
@@ -88,38 +91,26 @@ BRANCH_RESPONSIBILITY_MAP = {
     }
 }
 
-def get_branch_it_person(branch: str = "Varanasi") -> dict:
-    """Returns the primary deterministic IT Person for a specific branch with valid credentials in .env."""
+def get_branch_it_person(branch: str = "Varanasi", shuffle: bool = True) -> dict:
+    """Returns an IT Person for a specific branch with valid credentials in .env (shuffled if shuffle=True)."""
+    valid_its = get_all_branch_it_persons(branch)
+    if valid_its:
+        return random.choice(valid_its) if shuffle else valid_its[0]
+    return {"name": "Ashutosh Kumar", "email": "ashutosh.kumar@jobvritta.com", "user_key": "it_varanasi_ashutosh"}
+
+def get_all_branch_it_persons(branch: str = "Varanasi") -> list[dict]:
+    """Returns all IT persons belonging to a branch with valid credentials in .env."""
     from core.config import settings
     matched_branch = next((k for k in BRANCH_RESPONSIBILITY_MAP if k.lower() == (branch or "").lower()), "Varanasi")
     b_data = BRANCH_RESPONSIBILITY_MAP.get(matched_branch, BRANCH_RESPONSIBILITY_MAP["Varanasi"])
     it_list = b_data.get("it_persons", [])
-    valid_its = [
+    return [
         it for it in it_list
         if settings.USERS.get(it.get("user_key"), {}).get("password")
     ]
-    if valid_its:
-        return valid_its[0]
-    return it_list[0] if it_list else {"name": "Ashutosh Kumar", "email": "ashutosh.kumar@jobvritta.com", "user_key": "it_varanasi_ashutosh"}
 
-def get_branch_target_employee(branch: str = "Varanasi") -> dict:
-    """Returns respected employee belonging to the specific branch for asset assignment, randomly chosen from valid .env credentials."""
-    from core.config import settings
+def get_all_branch_employees(branch: str = "Varanasi") -> list[dict]:
+    """Returns all test employees belonging to a branch."""
     matched_branch = next((k for k in BRANCH_RESPONSIBILITY_MAP if k.lower() == (branch or "").lower()), "Varanasi")
     b_data = BRANCH_RESPONSIBILITY_MAP.get(matched_branch, BRANCH_RESPONSIBILITY_MAP["Varanasi"])
-    emp_list = b_data.get("employees", [])
-    valid_emps = [
-        e for e in emp_list
-        if settings.USERS.get(e.get("user_key"), {}).get("password")
-    ]
-    if valid_emps:
-        return random.choice(valid_emps)
-
-    if emp_list:
-        return random.choice(emp_list)
-
-    return {"name": "Adarsh Tiwari", "email": "adarsh.tiwari@tekinspirations.com", "user_key": "adarsh_tiwari"}
-
-def get_all_supported_branches() -> list[str]:
-    """Returns list of all supported branch locations."""
-    return list(BRANCH_RESPONSIBILITY_MAP.keys())
+    return b_data.get("employees", [])

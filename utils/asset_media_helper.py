@@ -20,12 +20,13 @@ def get_return_test_media_files(include_video: bool = True, max_photos: int = 4)
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     
     candidate_images = [
+        os.path.join(base_dir, "testdata", "static", "image", "kendrapara.jpg"),      # ~99 KB
+        os.path.join(base_dir, "testdata", "static", "image", "Jaipur.jpg"),          # ~124 KB
+        os.path.join(base_dir, "testdata", "static", "image", "Hampi.jpg"),           # ~236 KB
+        os.path.join(base_dir, "testdata", "static", "image", "varanasi 2.jpg"),      # ~272 KB
+        os.path.join(base_dir, "testdata", "static", "image", "Chitrakote_Falls.jpg"),# ~451 KB
         os.path.join(base_dir, "testdata", "static", "image", "file_example_JPG_2500kB.jpg"),
         os.path.join(base_dir, "testdata", "static", "image", "file_example_PNG_3MB.png"),
-        os.path.join(base_dir, "testdata", "static", "image", "4mb-Image-file-Download.png"),
-        os.path.join(base_dir, "testdata", "static", "image", "Sample-Image-file-Download.jpg"),
-        os.path.join(base_dir, "testdata", "static", "image", "varanasi 2.jpg"),
-        os.path.join(base_dir, "testdata", "static", "image", "Chitrakote_Falls.jpg")
     ]
     
     candidate_videos = [

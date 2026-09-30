@@ -379,6 +379,68 @@ def test_e2e_complete_buyout_lifecycle_sanidhy(logged_in_page):
     logger.info(f"[PASS E2E SANIDHY] Complete Dynamic Buyout Lifecycle for Sanidhy Tiwari PASSED 100%! Toast: '{acc_toast}'")
 
 
+@pytest.mark.ui
+@pytest.mark.resignation
+def test_employee_apply_resignation_and_buyout_sequence(logged_in_page, pytestconfig):
+    """
+    Executes exclusively the two requested steps in sequence:
+    STEP 1: Employee applies resignation on /resignation (Apply Resignation tab).
+    STEP 2: Employee applies buyout / early relieving on /resignation (Status tab).
+    """
+    emp_cli = pytestconfig.getoption("--employee", default=None)
+    emp_key = emp_cli or "sanidhy"
+
+    logger.info("=" * 70)
+    logger.info(f"STARTING SEQUENTIAL RUN: APPLY RESIGNATION -> EMPLOYEE BUYOUT FOR '{emp_key}'")
+    logger.info("=" * 70)
+
+    emp_page, _ = logged_in_page(emp_key)
+    emp_wf = EmployeeResignationWorkflow(emp_page)
+    emp_wf.res_page.navigate_to_resignation()
+
+    # ──────────────────────────────────────────────────────────────────
+    # STEP 1: EMPLOYEE APPLIES RESIGNATION
+    # ──────────────────────────────────────────────────────────────────
+    if not emp_wf.res_page.has_active_resignation():
+        logger.info(f"[STEP 1] Applying fresh resignation for '{emp_key}'...")
+        res_result = emp_wf.submit_resignation_workflow(
+            reason="1",
+            stay_connected=True,
+            share_suggestions=True,
+            suggestion_text="Career advancement and new opportunities.",
+            confirm=True
+        )
+        res_toast = res_result.get("toast", "")
+        logger.info(f"[STEP 1 RESULT] Resignation Toast: '{res_toast}'")
+        assert res_result.get("modal_visible") or res_toast != "", f"Resignation application failed for '{emp_key}'"
+    else:
+        logger.info(f"[STEP 1 NOTICE] Employee '{emp_key}' already has an active resignation. Navigating to Status tab...")
+        emp_wf.res_page.click_status_tab()
+
+    # ──────────────────────────────────────────────────────────────────
+    # STEP 2: EMPLOYEE APPLIES BUYOUT (EARLY RELIEVING DATE)
+    # ──────────────────────────────────────────────────────────────────
+    logger.info(f"[STEP 2] Submitting Employee Buyout (Early Relieving Date) for '{emp_key}'...")
+    emp_wf.res_page.click_status_tab()
+
+    # Calculate valid early relieving date within range
+    min_date = emp_wf.res_page.get_early_relieving_min_date()
+    max_date = emp_wf.res_page.get_early_relieving_max_date()
+    logger.info(f"Early Relieving Constraints -> Min: '{min_date}' | Max: '{max_date}'")
+
+    target_buyout_date = "2026-11-25"
+    if min_date and max_date:
+        target_buyout_date = min_date
+
+    buyout_toast = emp_wf.request_early_relieving_workflow(target_buyout_date)
+    logger.info(f"[STEP 2 RESULT] Buyout Request Toast: '{buyout_toast}'")
+
+    assert buyout_toast != "", f"Buyout request toast must be captured for '{emp_key}'"
+    logger.info("=" * 70)
+    logger.info(f"[PASS 100%] BOTH STEPS (APPLY RESIGNATION + EMPLOYEE BUYOUT) COMPLETED FOR '{emp_key}'!")
+    logger.info("=" * 70)
+
+
 
 
 

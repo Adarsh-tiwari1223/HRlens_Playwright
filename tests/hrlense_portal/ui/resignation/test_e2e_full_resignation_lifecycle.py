@@ -55,13 +55,14 @@ CANDIDATE_EMPLOYEES = [
         "it_key": "it_varanasi_tejasav",
         "branch": "Varanasi",
     },
-    {
-        "name": "Kumar Piyush",
-        "user_key": "kumar_piyush",
-        "hr_key": "tejaswini",
-        "it_key": "it_varanasi_tejasav",
-        "branch": "Varanasi",
-    },
+    # Inactive in Staging DB: "Your Account is Inactive, Please Contact Admin."
+    # {
+    #     "name": "Kumar Piyush",
+    #     "user_key": "kumar_piyush",
+    #     "hr_key": "tejaswini",
+    #     "it_key": "it_varanasi_tejasav",
+    #     "branch": "Varanasi",
+    #     },
 
     {
         "name": "Namrata Pandey",
@@ -98,7 +99,7 @@ CANDIDATE_EMPLOYEES = [
 @pytest.mark.ui
 @pytest.mark.e2e_full_lifecycle
 @pytest.mark.resignation
-def test_full_resignation_buyout_and_asset_lifecycle(logged_in_page):
+def test_full_resignation_buyout_and_asset_lifecycle(logged_in_page, request):
     """
     Unified End-to-End Test: Full Resignation, Buyout, and Asset Clearance Flow.
     """
@@ -109,6 +110,13 @@ def test_full_resignation_buyout_and_asset_lifecycle(logged_in_page):
     # STEP 1: SELECT RANDOM USER FROM ENV (DYNAMIC MAPPING)
     # ══════════════════════════════════════════════════════════════════════
     selected_emp = random.choice(CANDIDATE_EMPLOYEES)
+    emp_opt = request.config.getoption("--employee", default=None)
+    if emp_opt:
+        match = next((e for e in CANDIDATE_EMPLOYEES if e["name"].lower() == emp_opt.lower()), None)
+        if match:
+            selected_emp = match
+        else:
+            pytest.fail(f"--employee='{emp_opt}' not found in CANDIDATE_EMPLOYEES. Valid names: {[e['name'] for e in CANDIDATE_EMPLOYEES]}")
     emp_name = selected_emp["name"]
     emp_key = selected_emp["user_key"]
     hr_key = selected_emp.get("hr_key", "tejaswini")
@@ -131,20 +139,8 @@ def test_full_resignation_buyout_and_asset_lifecycle(logged_in_page):
     if has_assets:
         logger.info(f"[ASSET VERIFIED] Employee '{emp_name}' already holds assigned assets. Proceeding directly!")
         story.log_step("Asset Verification", record=f"Employee '{emp_name}' already has assets assigned", expected="Assets exist", actual="Assets found", status="PASS")
-        # Close employee asset-check context — no assignment needed
-        try:
-            emp_page_asset.context.close()
-        except Exception:
-            pass
     else:
         logger.info(f"[ASSET ASSIGNMENT REQUIRED] Employee '{emp_name}' has NO assets. Assigning stock asset via Admin...")
-
-        # Close employee context FIRST so only one window is open during admin assignment
-        try:
-            emp_page_asset.context.close()
-        except Exception:
-            pass
-
         admin_page, _ = logged_in_page("admin")
         assign_page = AssetAssignmentPage(admin_page)
         assign_page.navigate_to_asset_assignment()
@@ -193,13 +189,7 @@ def test_full_resignation_buyout_and_asset_lifecycle(logged_in_page):
         assign_toast = assign_page.wait_for_toast_message()
         logger.info(f"Admin Assignment Toast: '{assign_toast}' | Code: '{assigned_code}'")
 
-        # Close admin context BEFORE opening employee window for acceptance
-        try:
-            admin_page.context.close()
-        except Exception:
-            pass
-
-        # Employee accepts asset on /asset-request — fresh single context
+        # Employee accepts asset on /asset-request — reused context
         logger.info(f"Employee '{emp_name}' accepting assigned asset...")
         emp_page_accept, _ = logged_in_page(emp_key)
         req_page_accept = AssetRequestPage(emp_page_accept)
@@ -208,12 +198,6 @@ def test_full_resignation_buyout_and_asset_lifecycle(logged_in_page):
         logger.info(f"Employee '{emp_name}' Acceptance Result: {accepted}")
         assert accepted, f"Failed to accept assigned asset for '{emp_name}'"
         story.log_step("Conditional Asset Assignment", record=f"Assigned & Accepted '{assigned_code}'", expected="Asset assigned and accepted", actual="Accepted", status="PASS")
-
-        # Close accept context
-        try:
-            emp_page_accept.context.close()
-        except Exception:
-            pass
 
 
     # ══════════════════════════════════════════════════════════════════════
@@ -246,12 +230,6 @@ def test_full_resignation_buyout_and_asset_lifecycle(logged_in_page):
             pytest.skip(skip_msg)
         story.log_step("Employee Apply Resignation", record=f"Active resignation found for '{emp_name}'", expected="Active resignation present", actual="Active", status="PASS")
 
-    # Close Phase 2 context
-    try:
-        emp_page_res.context.close()
-    except Exception:
-        pass
-
     # ══════════════════════════════════════════════════════════════════════
     # STEP 4: DYNAMIC HR SENDS REVOKE REQUEST
     # ══════════════════════════════════════════════════════════════════════
@@ -276,12 +254,6 @@ def test_full_resignation_buyout_and_asset_lifecycle(logged_in_page):
     except Exception as ex:
         logger.warning(f"HR Revoke note (resignation may already be past initial state): {ex}")
         story.log_step("HR Send Revoke", record=f"Revoke step note: {ex}", expected="Revoke processed or bypassed", actual="Checked", status="PASS")
-
-    # Close Phase 3 context
-    try:
-        hr_page.context.close()
-    except Exception:
-        pass
 
     # ══════════════════════════════════════════════════════════════════════
     # STEP 5: EMPLOYEE DECLINES REVOKE & APPLIES BUYOUT
@@ -312,12 +284,6 @@ def test_full_resignation_buyout_and_asset_lifecycle(logged_in_page):
     logger.info(f"Buyout Request Result: {buyout_res} (Requested Date: {leave_today} - Today)")
     story.log_step("Employee Request Buyout", record=f"Early Relieving requested for Today: {leave_today} | Toast: {buyout_res}", expected="Buyout requested for Today", actual="Requested", status="PASS")
 
-    # Close Phase 4 context
-    try:
-        emp_page_buyout.context.close()
-    except Exception:
-        pass
-
     # ══════════════════════════════════════════════════════════════════════
     # STEP 6: DYNAMIC HR PROCESSES & APPROVES BUYOUT
     # ══════════════════════════════════════════════════════════════════════
@@ -327,12 +293,6 @@ def test_full_resignation_buyout_and_asset_lifecycle(logged_in_page):
     hr_buyout_toast = hr_wf_buyout.process_buyout_request_workflow(employee_name=emp_name, process=True)
     logger.info(f"HR Buyout Approval Toast: '{hr_buyout_toast}'")
     story.log_step("HR Process Buyout", record=f"Toast: '{hr_buyout_toast}'", expected="Buyout approved by HR", actual=str(hr_buyout_toast), status="PASS")
-
-    # Close Phase 5 context
-    try:
-        hr_page_buyout.context.close()
-    except Exception:
-        pass
 
     # ══════════════════════════════════════════════════════════════════════
     # STEP 7: ACCOUNTANT PROCESSES BUYOUT WITH FINANCIAL FORMULA
@@ -352,12 +312,6 @@ def test_full_resignation_buyout_and_asset_lifecycle(logged_in_page):
     acc_toast = str(acc_res.get("toast", "")).strip()
     story.log_step("Accountant Buyout Processing", record=f"Toast: '{acc_toast}' | Formula Match: {acc_res.get('formula_match')}", expected="Buyout settled & approved", actual=acc_toast, status="PASS")
 
-    # Close Phase 6 context
-    try:
-        acc_page.context.close()
-    except Exception:
-        pass
-
     # ══════════════════════════════════════════════════════════════════════
     # STEP 8: DYNAMIC IT PERSON ASSET RETURN & EXIT CLEARANCE (TASK 1 OF 2)
     # ══════════════════════════════════════════════════════════════════════
@@ -366,18 +320,13 @@ def test_full_resignation_buyout_and_asset_lifecycle(logged_in_page):
     it_wf = ItResignationWorkflow(it_page)
     it_res = it_wf.inspect_and_clear_employee_assets_workflow(
         employee_name=emp_name,
-        asset_condition="Good Condition",
-        remarks="IT Asset clearance verified & returned in good condition"
+        asset_conditions=["Good", "Repair Required", "Damaged", "Lost"],
+        remarks="IT Asset clearance multi-condition verification"
     )
+
     logger.info(f"IT Asset Clearance Result: {it_res}")
     assert it_res.get("success"), f"Failed IT Clearance for '{emp_name}'"
     story.log_step("IT Asset Clearance", record=f"Result: {it_res}", expected="IT Clearance completed (1/2)", actual=str(it_res), status="PASS")
-
-    # Close Phase 7 context
-    try:
-        it_page.context.close()
-    except Exception:
-        pass
 
     # ══════════════════════════════════════════════════════════════════════
     # STEP 9: DYNAMIC HR EXIT CLEARANCE & FORMALITIES (TASK 2 OF 2)
@@ -393,13 +342,30 @@ def test_full_resignation_buyout_and_asset_lifecycle(logged_in_page):
     assert hr_clear_res.get("success"), f"Failed HR Exit Clearance for '{emp_name}'"
     story.log_step("HR Exit Clearance", record=f"Result: {hr_clear_res}", expected="HR Clearance completed (2/2)", actual=str(hr_clear_res), status="PASS")
 
-    # Close Phase 8 context
-    try:
-        hr_page_exit.context.close()
-    except Exception:
-        pass
+    # ══════════════════════════════════════════════════════════════════════
+    # STEP 10: HR INITIATES FULL & FINAL (FnF) PROCESS
+    # ══════════════════════════════════════════════════════════════════════
+    logger.info(f"[PHASE 9 - HR START FnF] HR ({hr_key}) initiating FnF process for '{emp_name}'...")
+    hr_page_fnf, _ = logged_in_page(hr_key)
+    hr_wf_fnf = HrResignationWorkflow(hr_page_fnf)
+    fnf_init_toast = hr_wf_fnf.execute_start_fnf_workflow(emp_name)
+    logger.info(f"HR Start FnF Result Toast: '{fnf_init_toast}'")
+    story.log_step("HR Start FnF Process", record=f"Toast: '{fnf_init_toast}'", expected="FnF initiated by HR", actual=fnf_init_toast, status="PASS")
+
+    # ══════════════════════════════════════════════════════════════════════
+    # STEP 11: ACCOUNTANT FINAL FnF SETTLEMENT SUBMISSION
+    # ══════════════════════════════════════════════════════════════════════
+    logger.info(f"[PHASE 10 - ACCOUNTANT FnF] Accountant settling final FnF for '{emp_name}'...")
+    acc_page_fnf, _ = logged_in_page("admin")
+    acc_wf_fnf = AccountantResignationWorkflow(acc_page_fnf)
+    acc_fnf_res = acc_wf_fnf.execute_accountant_fnf_settlement_workflow(emp_name)
+    logger.info(f"Accountant FnF Settlement Result: {acc_fnf_res}")
+    assert acc_fnf_res.get("success"), f"Accountant FnF settlement failed for '{emp_name}'"
+    story.log_step("Accountant FnF Settlement", record=f"Status: '{acc_fnf_res.get('status')}'", expected="FnF settlement completed", actual=str(acc_fnf_res), status="PASS")
 
     logger.info("=" * 80)
-    logger.info(f"[PASS 100%] FULL E2E RESIGNATION, BUYOUT & 2/2 EXIT CLEARANCE COMPLETED FOR '{emp_name}'!")
+    logger.info(f"[PASS 100%] FULL E2E RESIGNATION, BUYOUT, 2/2 EXIT CLEARANCE & FnF SETTLEMENT COMPLETED FOR '{emp_name}'!")
     logger.info("=" * 80)
+    story.finish()
+
 

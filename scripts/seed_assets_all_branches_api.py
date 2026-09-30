@@ -148,27 +148,29 @@ def seed_assets_for_all_branches_api(assets_per_subcategory: int = 1):
         logger.error("[SEEDING ABORTED] Could not resolve active taxonomy from database!")
         return
 
-    # 3. Fetch Branches via REST API
+    # 3. Fetch Branches via REST API (Asset Module stock-by-branch dropdown)
     branches = []
     try:
-        b_resp = requests.get(f"{settings.API_BASE_URL}/Hrlense_Branch", headers=headers, params={"rows": 1000}, timeout=15)
-        if b_resp.status_code == 200:
-            b_data = b_resp.json()
-            branches = b_data if isinstance(b_data, list) else (b_data.get("data", []) if isinstance(b_data, dict) else [])
+        b_drop_resp = requests.get(f"{settings.API_BASE_URL}/Asset/stock-by-branch/branch-dropdown", headers=headers, timeout=15)
+        if b_drop_resp.status_code == 200:
+            b_data = b_drop_resp.json()
+            if isinstance(b_data, list) and b_data:
+                branches = [{"id": item["value"], "branch_Name": item["label"]} for item in b_data if item.get("value") and item.get("label")]
     except Exception as e:
-        logger.warning(f"Error fetching branches via API: {e}")
+        logger.warning(f"Branch dropdown query note: {e}")
 
     if not branches:
         branches = [
-            {"id": 1, "branch_Name": "JOB- (VARANASI)"},
-            {"id": 2, "branch_Name": "VIZ- (AGRA)"},
-            {"id": 3, "branch_Name": "TEK- (NOIDA)"},
-            {"id": 4, "branch_Name": "NEX- (GREATER NOIDA)"},
-            {"id": 5, "branch_Name": "TEC- (JAIPUR)"},
-            {"id": 6, "branch_Name": "TEK- (LUCKNOW)"},
-            {"id": 7, "branch_Name": "VYZ- (MEERUT)"},
-            {"id": 8, "branch_Name": "JOB- (RANCHI)"},
-            {"id": 9, "branch_Name": "TEK- (BHUBANESWAR)"}
+            {"id": 1, "branch_Name": "Varanasi"},
+            {"id": 2, "branch_Name": "Agra"},
+            {"id": 3, "branch_Name": "Meerut"},
+            {"id": 4, "branch_Name": "Lucknow"},
+            {"id": 5, "branch_Name": "Ranchi"},
+            {"id": 6, "branch_Name": "Bhubaneswar"},
+            {"id": 7, "branch_Name": "Jaipur"},
+            {"id": 8, "branch_Name": "Noida"},
+            {"id": 9, "branch_Name": "Noida NX-One"},
+            {"id": 10, "branch_Name": "Greater Noida"}
         ]
 
     logger.info(f"\nResolved {len(branches)} Branches across organization for asset stock generation.")

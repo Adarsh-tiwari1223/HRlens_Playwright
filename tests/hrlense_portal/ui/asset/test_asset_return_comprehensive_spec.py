@@ -224,9 +224,10 @@ class TestAssetReturnComprehensiveSpec:
             asset_code_or_name="Sanidhy Tiwari"
         )
         logger.info("RET_007 Verified Return History Entry: %s", history_data)
+        assert history_data, "Return History table columns could not be validated or entry was not found!"
         story.log_step(
             "Return History Table Verification",
             expected="Return History table columns read and validated",
             actual=str(history_data),
-            status="PASS" if history_data else "INFO"
+            status="PASS"
         )

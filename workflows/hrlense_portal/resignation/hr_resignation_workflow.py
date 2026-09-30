@@ -108,3 +108,92 @@ class HrResignationWorkflow:
             employee_name=employee_name,
             remarks=remarks
         )
+
+    def execute_start_fnf_workflow(self, employee_name: str) -> str:
+        """
+        Executes HR Start FnF Process workflow on /resignation-approval:
+        Opens Actions menu (=) and triggers Start FnF Process to send case to Accounts.
+        """
+        logger.info("=" * 60)
+        logger.info(f"STARTING HR INITIATE FnF PROCESS WORKFLOW FOR: '{employee_name}'")
+        logger.info("=" * 60)
+
+        return self.res_page.trigger_start_fnf_process(employee_name=employee_name)
+
+    def execute_send_released_employee_letters_workflow(
+        self,
+        employee_name: str,
+        letters: list = None,
+        custom_content_map: Dict[str, str] = None,
+        verify_sync: bool = True,
+        signatory_index: int = 1
+    ) -> Dict[str, Union[bool, Dict[str, Union[str, bool]]]]:
+        """
+        Executes dispatch of release letters on /released-employee by HR:
+        Letters supported:
+        - 'Relieving Letter'
+        - 'Full & Final Settlement'
+        - 'Experience Letter'
+        
+        Features:
+        1. Opens preview via row actions menu
+        2. If custom_content_map provided, edits left-side SunEditor
+        3. If verify_sync=True, verifies that the left-side edit dynamically updates right-side Live Preview
+        4. Selects signatory (e.g. Vivekanand Singh)
+        5. Clicks 'Send to Employee' and captures toast
+        6. Clicks Back button to return to table for next document
+        """
+        if letters is None:
+            letters = ["Relieving Letter", "Full & Final Settlement", "Experience Letter"]
+
+        logger.info("=" * 60)
+        logger.info(f"STARTING HR DISPATCH OF RELEASED LETTERS FOR: '{employee_name}' | Letters: {letters}")
+        logger.info("=" * 60)
+
+        dispatches = {}
+        sync_verifications = {}
+        all_success = True
+
+        for letter in letters:
+            logger.info(f"[HR DISPATCH LETTER] Opening '{letter}' for '{employee_name}'...")
+            opened = self.res_page.open_released_employee_letter(employee_name, letter_type=letter)
+            if not opened:
+                logger.error(f"Failed to open '{letter}' preview for '{employee_name}'")
+                dispatches[letter] = "Failed to open preview"
+                all_success = False
+                continue
+
+            # Check if custom content should be edited for this letter
+            custom_text = None
+            if custom_content_map and letter in custom_content_map:
+                custom_text = custom_content_map[letter]
+            elif verify_sync and letter in ["Relieving Letter", "Experience Letter"]:
+                # Default validation phrase for Relieving / Experience letters
+                custom_text = f"[Verified Live Preview Note for {employee_name}]"
+
+            if custom_text:
+                logger.info(f"[HR LETTER SYNC] Editing left-side editor for '{letter}' with: '{custom_text}'")
+                self.res_page.edit_letter_content(custom_text, append=True)
+
+                if verify_sync:
+                    is_synced = self.res_page.verify_letter_content_sync(custom_text)
+                    sync_verifications[letter] = is_synced
+                    if not is_synced:
+                        logger.warning(f"[HR LETTER SYNC] Live preview did NOT sync text for '{letter}'")
+                        all_success = False
+                    else:
+                        logger.info(f"[HR LETTER SYNC] Live preview successfully synchronized for '{letter}'!")
+
+            toast = self.res_page.send_letter_to_employee(signatory_index=signatory_index)
+            dispatches[letter] = toast or "Sent"
+            logger.info(f"[HR DISPATCH LETTER] '{letter}' dispatched. Toast: '{toast}'")
+
+            # Return to /released-employee table for next letter
+            self.res_page.click_letter_back_button()
+
+        return {
+            "success": all_success,
+            "dispatches": dispatches,
+            "sync_verifications": sync_verifications
+        }
+

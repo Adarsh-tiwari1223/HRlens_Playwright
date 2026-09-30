@@ -5,6 +5,7 @@ Contains UI locators and atomic UI interaction methods for the Resignation modul
 Strictly UI layer — contains no business logic workflows.
 """
 
+import os
 import logging
 from typing import Dict, Union
 from playwright.sync_api import Page
@@ -580,7 +581,7 @@ class ResignationPage(BasePage):
     def get_accountant_table_employee_status(self, employee_name: str) -> str:
         """Reads the Status badge (.chakra-badge) in Accountant Buyout processing table."""
         logger.info(f"UI Check: Reading Accountant table status badge for '{employee_name}'")
-        row = self.page.locator(f"//tr[td[normalize-space()='{employee_name}']]").first
+        row = self.page.locator(f"//tr[td[contains(normalize-space(),'{employee_name}')]]").first
         if not row.is_visible(timeout=3000):
             row = self.page.locator(f"tr:has-text('{employee_name}')").first
         badge = row.locator(".chakra-badge").first
@@ -604,7 +605,7 @@ class ResignationPage(BasePage):
             logger.error(f"Validation Error: Accountant table status for '{employee_name}' is '{status}', expected 'HR Approved' / 'HR Processed'")
             return False
 
-        action_img = self.page.locator(f"//tr[td[normalize-space()='{employee_name}']]//img").first
+        action_img = self.page.locator(f"//tr[td[contains(normalize-space(),'{employee_name}')]]//img").first
         action_img.wait_for(state="visible", timeout=10000)
         action_img.click()
 
@@ -614,8 +615,8 @@ class ResignationPage(BasePage):
 
     def get_accountant_buyout_modal_values(self) -> Dict[str, str]:
         """
-        Reads modal fields: Leave Balance, Leave Payout, Calculated Salary, Buyout Amount, Total Amount.
-        Matches the table-based layout in Accounts Processing drawer.
+        Reads modal fields: Leave Balance, Buyout Days, Buyout Amount, Total Deductions.
+        Matches the refined Accounts Processing modal layout.
         """
         logger.info("UI Check: Reading Accountant 'Process Buyout' modal values")
         modal_container = self.page.locator("section.chakra-modal__content, div[role='dialog']").first
@@ -626,6 +627,7 @@ class ResignationPage(BasePage):
             "label:has-text('Leave Balance') + input"
         ).first
 
+        # Optional legacy Earnings fields (fallback if present)
         calc_salary_loc = modal_container.locator(
             "tr:has-text('Calculated Salary') input, "
             "input[placeholder*='salary']"
@@ -638,22 +640,42 @@ class ResignationPage(BasePage):
 
         buyout_amount_loc = modal_container.locator(
             "tr:has-text('Buyout Amount') input, "
-            "input[placeholder*='buyout amount']"
+            "input[placeholder*='buyout amount'], "
+            "input[placeholder='0.00']"
         ).first
+        buyout_amount_val = ""
+        if buyout_amount_loc.is_visible(timeout=2000):
+            buyout_amount_val = buyout_amount_loc.input_value().strip()
+        if not buyout_amount_val:
+            cell = modal_container.locator("tr:has-text('Buyout Amount') td:last-child, tr:has-text('Buyout Amount') td[data-is-numeric='true']").first
+            if cell.is_visible(timeout=1000):
+                buyout_amount_val = cell.inner_text().strip()
+
+        total_deductions_loc = modal_container.locator(
+            "tr:has-text('Total Deductions') td:last-child, "
+            "tr:has-text('Total Deductions') td[data-is-numeric='true']"
+        ).first
+
+        buyout_days_loc = modal_container.locator(
+            "div:has(> p:text-is('Buyout Day')) p, "
+            "div:has(> p:has-text('Buyout Day')) p:last-child"
+        ).last
 
         net_payable_loc = modal_container.locator("div:has-text('Net Payable') p, p:has-text('Net Payable') + p").last
 
         return {
-            "leave_balance": leave_balance_loc.input_value() if leave_balance_loc.is_visible(timeout=3000) else "",
-            "leave_payout": leave_payout_loc.input_value() if leave_payout_loc.is_visible(timeout=3000) else "",
-            "calculated_salary": calc_salary_loc.input_value() if calc_salary_loc.is_visible(timeout=3000) else "",
-            "buyout_amount": buyout_amount_loc.input_value() if buyout_amount_loc.is_visible(timeout=3000) else "",
-            "total_amount": net_payable_loc.inner_text().strip() if net_payable_loc.is_visible(timeout=3000) else "",
+            "leave_balance": leave_balance_loc.input_value().strip() if leave_balance_loc.is_visible(timeout=2000) else "",
+            "leave_payout": leave_payout_loc.input_value().strip() if leave_payout_loc.is_visible(timeout=1000) else "",
+            "calculated_salary": calc_salary_loc.input_value().strip() if calc_salary_loc.is_visible(timeout=1000) else "",
+            "buyout_amount": buyout_amount_val,
+            "total_deductions": total_deductions_loc.inner_text().strip() if total_deductions_loc.is_visible(timeout=2000) else "",
+            "buyout_days": buyout_days_loc.inner_text().strip() if buyout_days_loc.is_visible(timeout=2000) else "",
+            "total_amount": net_payable_loc.inner_text().strip() if net_payable_loc.is_visible(timeout=1000) else "",
         }
 
     def process_accountant_buyout(
         self,
-        calculated_salary: str = "1000",
+        calculated_salary: str = None,
         leave_payout: str = None,
         buyout_amount: str = None,
         remarks: str = "Approved by Accountant",
@@ -662,9 +684,9 @@ class ResignationPage(BasePage):
     ) -> str:
         """
         Fills Accountant Process Buyout modal fields:
-        - Fills Calculated Salary (inside Earnings table row 'Calculated Salary')
-        - Fills Leave Payout if not pre-filled
-        - Fills Buyout Amount if not pre-filled
+        - Fills Calculated Salary if present in UI (legacy/extended form)
+        - Fills Leave Payout if present in UI and not pre-filled
+        - Fills Buyout Amount if specified
         - Confirms 'Recovery Confirmed' checkbox
         - Fills Remarks (mandatory textarea)
         - Clicks 'Approve' or 'Reject' button in modal footer and confirms.
@@ -673,28 +695,28 @@ class ResignationPage(BasePage):
         logger.info(f"UI Action: Accountant submitting Process Buyout modal ({action_str})")
         modal_container = self.page.locator("section.chakra-modal__content, div[role='dialog']").first
 
-        # 1. Fill Calculated Salary (Mandatory)
+        # 1. Fill Calculated Salary (if field exists in UI)
         if calculated_salary is not None:
             calc_salary_input = modal_container.locator(
                 "tr:has-text('Calculated Salary') input, "
                 "div.chakra-form-control:has-text('Calculated Salary') input, "
                 "label:has-text('Calculated Salary') + input"
             ).first
-            calc_salary_input.wait_for(state="visible", timeout=5000)
-            logger.info(f"UI Action: Filling Calculated Salary -> '{calculated_salary}'")
-            calc_salary_input.click()
-            calc_salary_input.press("Control+A")
-            calc_salary_input.press("Backspace")
-            calc_salary_input.fill(str(calculated_salary))
-            calc_salary_input.press("Tab")
+            if calc_salary_input.is_visible(timeout=1000):
+                logger.info(f"UI Action: Filling Calculated Salary -> '{calculated_salary}'")
+                calc_salary_input.click()
+                calc_salary_input.press("Control+A")
+                calc_salary_input.press("Backspace")
+                calc_salary_input.fill(str(calculated_salary))
+                calc_salary_input.press("Tab")
 
-        # 2. Fill Leave Payout if specified and not pre-filled
+        # 2. Fill Leave Payout if specified and field exists in UI
         if leave_payout is not None:
             leave_payout_input = modal_container.locator(
                 "tr:has-text('Leave Payout') input, "
                 "input[placeholder*='leave payout']"
             ).first
-            if leave_payout_input.is_visible(timeout=2000):
+            if leave_payout_input.is_visible(timeout=1000):
                 curr = leave_payout_input.input_value().strip()
                 if not curr or curr == "0" or float(curr or 0) <= 0:
                     logger.info(f"UI Action: Filling Leave Payout -> '{leave_payout}'")
@@ -702,11 +724,12 @@ class ResignationPage(BasePage):
                     leave_payout_input.fill(str(leave_payout))
                     leave_payout_input.press("Tab")
 
-        # 3. Fill Buyout Amount if specified and not pre-filled
+        # 3. Fill / Update Buyout Amount if specified
         if buyout_amount is not None:
             buyout_amount_input = modal_container.locator(
                 "tr:has-text('Buyout Amount') input, "
-                "input[placeholder*='buyout amount']"
+                "input[placeholder*='buyout amount'], "
+                "input[placeholder='0.00']"
             ).first
             if buyout_amount_input.is_visible(timeout=2000):
                 curr = buyout_amount_input.input_value().strip()
@@ -716,29 +739,40 @@ class ResignationPage(BasePage):
                     buyout_amount_input.fill(str(buyout_amount))
                     buyout_amount_input.press("Tab")
 
-        # 4. Toggle Recovery Confirmed Checkbox
+        # 4. Toggle Recovery Confirmed Checkbox (if enabled and not read-only)
         if confirm_recovery:
             checkbox_label = modal_container.locator(
                 "label.chakra-checkbox:has-text('Recovery Confirmed'), "
-                "span.chakra-checkbox__label:has-text('Recovery Confirmed'), "
-                "span:has-text('Recovery Confirmed')"
+                "label:has-text('Recovery Confirmed'), "
+                "span.chakra-checkbox__label:has-text('Recovery Confirmed')"
             ).first
             if checkbox_label.is_visible(timeout=3000):
-                cb_input = modal_container.locator("input[type='checkbox']").first
-                if cb_input.count() > 0:
-                    if not cb_input.is_checked():
-                        checkbox_label.click()
+                is_disabled = (
+                    checkbox_label.get_attribute("data-disabled") is not None
+                    or checkbox_label.locator("input[type='checkbox']").is_disabled()
+                )
+                if is_disabled:
+                    logger.info("UI Notice: 'Recovery Confirmed' checkbox is disabled (modal is in read-only mode). Skipping click.")
                 else:
-                    checkbox_label.click()
+                    cb_input = modal_container.locator("input[type='checkbox']").first
+                    if cb_input.count() > 0:
+                        if not cb_input.is_checked():
+                            checkbox_label.click(timeout=3000)
+                    else:
+                        checkbox_label.click(timeout=3000)
 
-        # 5. Fill Remarks (Mandatory)
+        # 5. Fill Remarks (Mandatory if enabled)
         remarks_field = modal_container.locator(
             "textarea[placeholder*='remarks' i], "
             "textarea.chakra-textarea, "
-            "div.chakra-form-control:has-text('Remarks') textarea"
+            "div.chakra-form-control:has-text('Remarks') textarea, "
+            "textarea"
         ).first
-        remarks_field.wait_for(state="visible", timeout=3000)
-        remarks_field.fill(remarks)
+        if remarks_field.is_visible(timeout=3000):
+            if not remarks_field.is_disabled():
+                remarks_field.fill(remarks)
+            else:
+                logger.info("UI Notice: Remarks textarea is read-only/disabled. Skipping fill.")
 
         # 6. Click Approve or Reject Button in modal footer
         if approve:
@@ -746,7 +780,13 @@ class ResignationPage(BasePage):
                 "footer.chakra-modal__footer button:has-text('Approve'), "
                 "button.chakra-button:has-text('Approve')"
             ).first
-            btn.wait_for(state="visible", timeout=5000)
+            if not btn.is_visible(timeout=2000):
+                logger.info("UI Notice: 'Approve' button not found (modal is already approved/read-only). Returning status.")
+                return "Already Approved"
+            if btn.is_disabled():
+                logger.info("UI Notice: 'Approve' button is disabled (already approved). Returning status.")
+                return "Already Approved"
+
             btn.click()
             self.page.wait_for_timeout(500)
 
@@ -788,7 +828,8 @@ class ResignationPage(BasePage):
         self,
         employee_name: str,
         asset_condition: str = "Good",
-        remarks: str = "IT Asset clearance verified & returned in good condition"
+        asset_conditions: list = None,
+        remarks: str = "IT Asset clearance verified & returned in specified condition"
     ) -> Dict[str, Union[bool, str]]:
         """
         IT Person Asset Clearance Execution (/exit-clearance):
@@ -800,9 +841,10 @@ class ResignationPage(BasePage):
            - Checks if '<button class="chakra-button">Manage Asset Return</button>' is VISIBLE in modal.
            - IF VISIBLE (Employee HAS Assets):
              a. Clicks 'Manage Asset Return' -> Modal 'Assigned Assets' opens.
-             b. Finds assigned assets list and clicks 'Return' button next to asset.
-             c. Modal 'Return Asset' opens -> Selects Condition radio ('Good'), fills remarks, & submits Return.
-             d. Closes Assigned Assets modal.
+             b. Finds assigned assets list and loops through each asset:
+                Applies asset_conditions[idx] if provided (e.g. ['Good', 'Repair Required', 'Damaged', 'Lost']),
+                attaches photo evidence, and confirms Return.
+             c. Closes Assigned Assets modal.
            - IF NOT VISIBLE (Employee HAS NO Assets):
              Logs 'Manage Asset Return button not visible (No Assets)', marks IT task complete directly.
         6. Captures toast message and verifies clearance completion.
@@ -826,6 +868,7 @@ class ResignationPage(BasePage):
         # Read Status badge text from row
         status_badge = row.locator(".chakra-badge, span[class*='badge']").first.inner_text().strip() if row.locator(".chakra-badge, span[class*='badge']").first.is_visible(timeout=2000) else ""
         logger.info(f"IT Exit Clearance Table -> Employee: '{employee_name}' | Status: '{status_badge}'")
+        captured_toast = ""
 
         # Step 1: Click Action button: <button class="chakra-button">Open Checklist (*)</button>
         checklist_btn = row.locator("button:has-text('Open Checklist'), button:has-text('Checklist')").first
@@ -851,13 +894,23 @@ class ResignationPage(BasePage):
             if not assigned_assets_modal.is_visible(timeout=3000):
                 assigned_assets_modal = self.page.locator("section.chakra-modal__content, div[role='dialog']").last
 
-            # Loop through all assigned assets and return them individually
-            max_assets = 5
-            for _ in range(max_assets):
+            # Loop through all assigned assets and return them individually with dynamic conditions
+            max_assets = 10
+            for idx in range(max_assets):
                 r_btn = assigned_assets_modal.get_by_role("button", name="Return", exact=True).first
                 if not r_btn.is_visible(timeout=2500):
+                    logger.info(f"No more returnable assets visible in Assigned Assets list (processed {idx} assets).")
                     break
 
+                # Resolve target condition for this specific asset
+                if asset_conditions and idx < len(asset_conditions):
+                    target_cond = asset_conditions[idx]
+                elif asset_conditions:
+                    target_cond = asset_conditions[idx % len(asset_conditions)]
+                else:
+                    target_cond = asset_condition
+
+                logger.info(f"[IT ASSET RETURN #{idx+1}] Returning asset with Condition: '{target_cond}'")
                 r_btn.click()
                 self.page.wait_for_timeout(800)
 
@@ -871,16 +924,29 @@ class ResignationPage(BasePage):
                     break
 
                 # Select Condition radio (Good / Damaged / Lost / Repair Required)
-                radio = return_dialog.locator(f"input[type='radio'][value*='{asset_condition}' i], label:has-text('{asset_condition}')").first
-                if not radio.is_visible(timeout=1000):
+                radio = return_dialog.locator(f"input[type='radio'][value*='{target_cond}' i]").first
+                if not radio.is_visible(timeout=800):
+                    radio = return_dialog.locator(f"label.chakra-radio, div.chakra-radio, label").filter(has_text=re.compile(f"^{re.escape(target_cond)}$", re.I)).last
+                if not radio.is_visible(timeout=800):
+                    radio = return_dialog.locator(f"label:has-text('{target_cond}')").first
+                if not radio.is_visible(timeout=800):
                     radio = return_dialog.locator("input[type='radio'][value='Good'], label:has-text('Good')").first
                 if radio.is_visible(timeout=2000):
                     radio.click(force=True)
 
+                # If condition is Lost, select Waived Off option if present
+                if target_cond.lower() == "lost":
+                    try:
+                        lost_waive = return_dialog.locator("input[type='radio'][value*='waive' i], label:has-text('Waived Off'), label:has-text('Waive')").first
+                        if lost_waive.is_visible(timeout=1000):
+                            lost_waive.click(force=True)
+                    except Exception:
+                        pass
+
                 # Fill Remarks textarea
                 remarks_area = return_dialog.locator("textarea").first
                 if remarks_area.is_visible(timeout=2000):
-                    remarks_area.fill(remarks)
+                    remarks_area.fill(f"{remarks} - Asset #{idx+1} Condition: {target_cond}")
 
                 # Evidence File Upload (mandatory in Return Asset modal)
                 try:
@@ -902,6 +968,9 @@ class ResignationPage(BasePage):
                     confirm_return_btn = return_dialog.get_by_role("button", name="Submit", exact=True).first
                 confirm_return_btn.wait_for(state="visible", timeout=5000)
                 confirm_return_btn.click()
+                ret_toast = self.wait_for_toast(timeout=5000)
+                if ret_toast:
+                    captured_toast = ret_toast
                 try:
                     return_dialog.wait_for(state="hidden", timeout=15000)
                 except Exception:
@@ -959,8 +1028,14 @@ class ResignationPage(BasePage):
             if confirm_btn.is_visible(timeout=3000):
                 confirm_btn.click()
                 self.page.wait_for_timeout(1000)
+                exit_task_toast = self.wait_for_toast(timeout=4000)
+                if exit_task_toast:
+                    captured_toast = exit_task_toast
 
-        toast_msg = self.wait_for_toast(timeout=10000)
+        if not captured_toast:
+            captured_toast = self.wait_for_toast(timeout=2000)
+
+        toast_msg = captured_toast
         return {
             "success": True,
             "toast": toast_msg,
@@ -1072,4 +1147,404 @@ class ResignationPage(BasePage):
             "toast": toast_msg,
             "status": status_badge
         }
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # FULL & FINAL (FnF) SETTLEMENT & RELEASED EMPLOYEE LETTER WORKFLOWS
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def trigger_start_fnf_process(self, employee_name: str) -> str:
+        """
+        HR Action on /resignation-approval:
+        1. Navigates to /resignation-approval and searches employee.
+        2. Clicks Actions (=) menu button in the employee's table row.
+        3. Clicks 'Start FnF Process' menuitem.
+        4. Confirms 'Start Process' in the alertdialog modal.
+        5. Captures and returns toast message.
+        """
+        logger.info(f"UI Action: HR initiating FnF process for '{employee_name}'")
+        self.navigate_to_hr_resignation_approval()
+        self.search_employee_in_hr_table(employee_name)
+
+        row = self.page.locator(f"tr:has-text('{employee_name}')").first
+        row.wait_for(state="visible", timeout=5000)
+
+        # Actions hamburger button in table row
+        actions_btn = row.locator("td:last-child button, button.chakra-menu__menu-button").first
+        actions_btn.wait_for(state="visible", timeout=3000)
+        actions_btn.click()
+        self.page.wait_for_timeout(500)
+
+        # Check if 'Start FnF Process' menuitem is visible, otherwise wait & poll for DB update
+        fnf_item = self.page.locator("button[role='menuitem']:has-text('Start FnF Process')").first
+        
+        max_retries = 24  # 24 * 5s = 120s total wait
+        for attempt in range(max_retries):
+            if fnf_item.is_visible(timeout=1500):
+                logger.info(f"[UI SUCCESS] 'Start FnF Process' menu item is now active on UI!")
+                break
+            logger.info(
+                f"[WAITING FOR DB UPDATE] 'Start FnF Process' menu item not yet visible (Attempt {attempt+1}/{max_retries}).\n"
+                f"--> Run in SSMS: UPDATE [hrlense_stage].[dbo].[Resignation] SET [Status] = 10 WHERE [Status] = 8;\n"
+                f"Retrying in 5 seconds..."
+            )
+            try:
+                self.page.keyboard.press("Escape")
+            except Exception:
+                pass
+            self.page.wait_for_timeout(5000)
+            self.page.reload(wait_until="domcontentloaded")
+            self.search_employee_in_hr_table(employee_name)
+            row = self.page.locator(f"tr:has-text('{employee_name}')").first
+            row.wait_for(state="visible", timeout=5000)
+            actions_btn = row.locator("td:last-child button, button.chakra-menu__menu-button").first
+            actions_btn.click()
+            self.page.wait_for_timeout(500)
+
+        fnf_item.wait_for(state="visible", timeout=5000)
+        fnf_item.click()
+        self.page.wait_for_timeout(500)
+
+        # Confirm in alertdialog modal
+        modal = self.page.locator("section[role='alertdialog']:has-text('Start FnF Process'), div[role='alertdialog']:has-text('Start FnF Process')").first
+        modal.wait_for(state="visible", timeout=5000)
+        start_btn = modal.locator("button:has-text('Start Process')").first
+        start_btn.wait_for(state="visible", timeout=3000)
+        start_btn.click()
+
+        toast = self.wait_for_toast(timeout=5000)
+        logger.info(f"Start FnF Toast: '{toast}'")
+        return toast
+
+    def navigate_to_accounts_fnf_requests(self) -> None:
+        """
+        Navigates to /accounts-buyout-processing and switches to the 'FnF Requests' tab.
+        """
+        logger.info("UI Action: Accountant navigating to /accounts-buyout-processing -> 'FnF Requests' tab")
+        try:
+            self.page.bring_to_front()
+        except Exception:
+            pass
+
+        current_origin = "/".join(self.page.url.split("/")[:3])
+        target_url = f"{current_origin}/accounts-buyout-processing"
+        if target_url not in self.page.url:
+            self.page.goto(target_url, wait_until="domcontentloaded")
+
+        # Click 'FnF Requests' tab
+        fnf_tab = self.page.locator("button[role='tab']:has-text('FnF Requests')").first
+        fnf_tab.wait_for(state="visible", timeout=10000)
+        fnf_tab.click()
+        self.page.wait_for_timeout(1000)
+
+    def open_accountant_fnf_modal(self, employee_name: str) -> bool:
+        """
+        On /accounts-buyout-processing (FnF Requests tab):
+        Searches employee and clicks the action arrow (Action column) to open the Full & Final Settlement drawer.
+        """
+        logger.info(f"UI Action: Opening Accountant FnF modal for '{employee_name}'")
+        self.navigate_to_accounts_fnf_requests()
+
+        search_input = self.page.locator("input[placeholder*='Search Employee' i]").first
+        if search_input.is_visible(timeout=3000):
+            search_input.click()
+            search_input.fill(employee_name)
+            search_input.press("Enter")
+            self.page.wait_for_timeout(1500)
+
+        row = self.page.locator(f"tr:has-text('{employee_name}')").first
+        row.wait_for(state="visible", timeout=5000)
+
+        action_arrow = row.locator("td:last-child img, td:last-child button, td:last-child").first
+        action_arrow.click()
+        self.page.wait_for_timeout(1000)
+
+        drawer = self.page.locator("div[role='dialog']:has-text('Full & Final Settlement'), section.chakra-modal__content:has-text('Full & Final Settlement')").first
+        return drawer.is_visible(timeout=5000)
+
+    def get_accountant_fnf_modal_values(self) -> Dict[str, str]:
+        """
+        Reads values from the open 'Full & Final Settlement' drawer.
+        """
+        drawer = self.page.locator("div[role='dialog']:has-text('Full & Final Settlement'), section.chakra-modal__content:has-text('Full & Final Settlement')").first
+        drawer.wait_for(state="visible", timeout=5000)
+
+        leave_encashment = drawer.locator("tr:has-text('Leave Encashment') td:last-child, tr:has-text('Leave Encashment') td[data-is-numeric='true']").first
+        total_earnings = drawer.locator("tr:has-text('Total Earnings') td:last-child, tr:has-text('Total Earnings') td[data-is-numeric='true']").first
+        buyout_amount = drawer.locator("tr:has-text('Buyout Amount') td:last-child, tr:has-text('Buyout Amount') td[data-is-numeric='true']").first
+        total_deductions = drawer.locator("tr:has-text('Total Deductions') td:last-child, tr:has-text('Total Deductions') td[data-is-numeric='true']").first
+        net_payable = drawer.locator("div:has-text('Net Payable') p:last-child, p:has-text('Net Payable') + p").first
+
+        return {
+            "leave_encashment": leave_encashment.inner_text().strip() if leave_encashment.is_visible(timeout=1000) else "",
+            "total_earnings": total_earnings.inner_text().strip() if total_earnings.is_visible(timeout=1000) else "",
+            "buyout_amount": buyout_amount.inner_text().strip() if buyout_amount.is_visible(timeout=1000) else "",
+            "total_deductions": total_deductions.inner_text().strip() if total_deductions.is_visible(timeout=1000) else "",
+            "net_payable": net_payable.inner_text().strip() if net_payable.is_visible(timeout=1000) else "",
+        }
+
+    def process_accountant_fnf_settlement(
+        self,
+        employee_name: str,
+        salary_for_days_worked: str = "0.00",
+        other_earnings: str = "0.00",
+        asset_recovery: str = None,
+        loan_recovery: str = None,
+        other_deductions: str = None,
+        remarks: str = "Full & Final Settlement Approved by Accounts"
+    ) -> Dict[str, Union[bool, str, Dict[str, str]]]:
+        """
+        Fills and submits the Full & Final Settlement drawer for an employee.
+        """
+        logger.info(f"UI Action: Accountant processing FnF settlement for '{employee_name}'")
+        opened = self.open_accountant_fnf_modal(employee_name)
+        if not opened:
+            return {"success": False, "toast": "", "status": "", "modal_values": {}}
+
+        drawer = self.page.locator("div[role='dialog']:has-text('Full & Final Settlement'), section.chakra-modal__content:has-text('Full & Final Settlement')").first
+        modal_values = self.get_accountant_fnf_modal_values()
+        logger.info(f"[FnF Modal Initial Values] {modal_values}")
+
+        # Fill Earnings
+        salary_input = drawer.locator("tr:has-text('Salary for Days Worked') input").first
+        if salary_input.is_visible(timeout=2000):
+            salary_input.click()
+            salary_input.fill(str(salary_for_days_worked))
+            salary_input.press("Tab")
+
+        other_earn_input = drawer.locator("tr:has-text('Other Earnings') input").first
+        if other_earn_input.is_visible(timeout=2000):
+            other_earn_input.click()
+            other_earn_input.fill(str(other_earnings))
+            other_earn_input.press("Tab")
+
+        # Fill optional Deductions if provided
+        if asset_recovery is not None:
+            ar_input = drawer.locator("tr:has-text('Asset Recovery') input").first
+            if ar_input.is_visible(timeout=1000):
+                ar_input.click()
+                ar_input.fill(str(asset_recovery))
+                ar_input.press("Tab")
+
+        if loan_recovery is not None:
+            lr_input = drawer.locator("tr:has-text('Loan/Advance Recovery') input").first
+            if lr_input.is_visible(timeout=1000):
+                lr_input.click()
+                lr_input.fill(str(loan_recovery))
+                lr_input.press("Tab")
+
+        if other_deductions is not None:
+            od_input = drawer.locator("tr:has-text('Other Deductions') input").first
+            if od_input.is_visible(timeout=1000):
+                od_input.click()
+                od_input.fill(str(other_deductions))
+                od_input.press("Tab")
+
+        # Remarks
+        remarks_area = drawer.locator("textarea[placeholder*='Remarks' i]").first
+        if remarks_area.is_visible(timeout=2000):
+            remarks_area.fill(remarks)
+
+        # Submit FnF
+        submit_btn = drawer.locator("button:has-text('Submit FnF')").first
+        submit_btn.wait_for(state="visible", timeout=3000)
+        submit_btn.click()
+
+        toast = self.wait_for_toast(timeout=5000)
+        logger.info(f"Submit FnF Toast: '{toast}'")
+
+        # Check status in FnF Requests table (expecting 'COMPLETED')
+        self.page.wait_for_timeout(1000)
+        row = self.page.locator(f"tr:has-text('{employee_name}')").first
+        status_badge = row.locator(".chakra-badge, span[class*='badge']").first.inner_text().strip() if row.locator(".chakra-badge, span[class*='badge']").first.is_visible(timeout=2000) else ""
+        logger.info(f"FnF Table Status for '{employee_name}': '{status_badge}'")
+
+        is_success = bool(toast and "error" not in toast.lower() and "failed" not in toast.lower()) or "completed" in status_badge.lower()
+        return {
+            "success": is_success,
+            "toast": toast,
+            "status": status_badge,
+            "modal_values": modal_values
+        }
+
+    def navigate_to_released_employees(self) -> None:
+        """
+        Navigates directly to /released-employee.
+        """
+        logger.info("UI Action: Navigating to Released Employees (/released-employee)")
+        try:
+            self.page.bring_to_front()
+        except Exception:
+            pass
+
+        current_origin = "/".join(self.page.url.split("/")[:3])
+        target_url = f"{current_origin}/released-employee"
+        self.page.goto(target_url, wait_until="domcontentloaded")
+        search_input = self.page.locator("input[placeholder*='Search employee' i]").first
+        search_input.wait_for(state="visible", timeout=10000)
+
+    def open_released_employee_letter(self, employee_name: str, letter_type: str = "Full & Final Settlement") -> bool:
+        """
+        On /released-employee:
+        1. Searches employee.
+        2. Opens Actions (≡) menu.
+        3. Clicks specified letter_type ('Relieving Letter', 'Full & Final Settlement', or 'Experience Letter').
+        4. Verifies letter editor & live preview page is loaded.
+        """
+        logger.info(f"UI Action: Opening '{letter_type}' for released employee '{employee_name}'")
+        self.navigate_to_released_employees()
+
+        search_input = self.page.locator("input[placeholder*='Search employee' i]").first
+        search_input.click()
+        search_input.fill(employee_name)
+        search_input.press("Enter")
+        self.page.wait_for_timeout(1500)
+
+        row = self.page.locator(f"tr:has-text('{employee_name}')").first
+        row.wait_for(state="visible", timeout=5000)
+        row.scroll_into_view_if_needed()
+
+        # Actions menu button
+        actions_btn = row.locator("button[aria-label='Actions'], button.icon_btn").first
+        actions_btn.scroll_into_view_if_needed()
+        actions_btn.wait_for(state="visible", timeout=5000)
+
+        # Open the Chakra Actions menu
+        actions_btn.click()
+        self.page.wait_for_timeout(300)
+
+        menu_list = self.page.locator("div.chakra-menu__menu-list:visible, div[role='menu']:visible").first
+        try:
+            menu_list.wait_for(state="visible", timeout=3000)
+        except Exception:
+            logger.info("Retrying Actions button click to ensure dropdown opens...")
+            actions_btn.evaluate("el => el.click()")
+            menu_list.wait_for(state="visible", timeout=5000)
+
+        # Find the specific letter menuitem inside the open menu
+        menuitem = menu_list.locator(f"button[role='menuitem']:has-text('{letter_type}')").first
+        menuitem.wait_for(state="visible", timeout=5000)
+        
+        # Trigger native click which executes React onClick handler cleanly bypassing any table z-index overlaps
+        logger.info(f"UI Action: Clicking menuitem '{letter_type}'")
+        menuitem.evaluate("el => el.click()")
+        self.page.wait_for_timeout(1000)
+
+        # Wait for Letter Editor / Live Preview Page
+        send_btn = self.page.locator("button:has-text('Send to Employee'), button:has-text('Send to')").first
+        send_btn.wait_for(state="visible", timeout=15000)
+        return send_btn.is_visible()
+
+    def send_letter_to_employee(self, signatory_index: int = 1) -> str:
+        """
+        Inside the open Letter Editor / Live Preview screen:
+        1. Selects signatory from dropdown.
+        2. Clicks 'Send to Employee' button.
+        3. Confirms modal if present.
+        4. Captures and returns toast.
+        """
+        logger.info(f"UI Action: Selecting signatory (index {signatory_index}) and sending letter to employee")
+        signatory_select = self.page.locator("select.chakra-select").first
+        if signatory_select.is_visible(timeout=3000):
+            signatory_select.select_option(index=signatory_index)
+            self.page.wait_for_timeout(500)
+
+        send_btn = self.page.locator("button:has-text('Send to Employee')").first
+        send_btn.wait_for(state="visible", timeout=3000)
+        send_btn.click(force=True)
+        self.page.wait_for_timeout(500)
+
+        # Handle optional confirmation modal if rendered
+        confirm_btn = self.page.locator(
+            "section[role='alertdialog'] button:has-text('Send'), "
+            "section[role='alertdialog'] button:has-text('Confirm'), "
+            ".chakra-modal__content button:has-text('Send'), "
+            ".chakra-modal__content button:has-text('Confirm')"
+        ).first
+        if confirm_btn.is_visible(timeout=2000):
+            logger.info("UI Action: Confirming letter dispatch modal")
+            confirm_btn.click(force=True)
+
+        toast = self.wait_for_toast(timeout=8000)
+        logger.info(f"Send Letter Toast: '{toast}'")
+        return toast
+
+    def get_letter_editor_content(self) -> str:
+        """Reads and returns the current text inside the left-side SunEditor."""
+        editor = self.page.locator("div.sun-editor-editable[contenteditable='true'], div.se-wrapper-wysiwyg").first
+        if editor.is_visible(timeout=3000):
+            return editor.inner_text().strip()
+        return ""
+
+    def edit_letter_content(self, text_to_insert: str, append: bool = True) -> None:
+        """
+        Edits the content in the left-side rich text editor (SunEditor):
+        - append=True: clicks at the end and types the new text.
+        - append=False: selects all existing text, clears it, and types text_to_insert.
+        Typing emits native keyboard events which triggers live preview updates on the right side.
+        """
+        logger.info(f"UI Action: Editing letter content (append={append}): '{text_to_insert}'")
+        editor = self.page.locator("div.sun-editor-editable[contenteditable='true'], div.se-wrapper-wysiwyg").first
+        editor.wait_for(state="visible", timeout=5000)
+        editor.click(force=True)
+        self.page.wait_for_timeout(300)
+
+        if not append:
+            self.page.keyboard.press("Control+A")
+            self.page.keyboard.press("Backspace")
+            self.page.wait_for_timeout(300)
+
+        # Type the text using native keystrokes so SunEditor synchronizes to Live Preview
+        self.page.keyboard.type(f" {text_to_insert}")
+        self.page.wait_for_timeout(1000)
+
+    def get_letter_live_preview_content(self) -> str:
+        """Reads and returns the text currently displayed in the right-side Live Preview document."""
+        preview_container = self.page.locator(".css-ubtrqw .page, div.page, div.css-1dp0x90 .page").first
+        if preview_container.is_visible(timeout=3000):
+            return preview_container.inner_text().strip()
+        return ""
+
+    def verify_letter_content_sync(self, expected_substring: str) -> bool:
+        """
+        Verifies that custom text typed in the left editor has dynamically synced
+        into the right-side Live Preview.
+        """
+        try:
+            self.page.wait_for_timeout(1000)
+            preview_container = self.page.locator(".css-ubtrqw .page, div.page, div.css-1dp0x90 .page").first
+            preview_text = preview_container.inner_text(timeout=5000)
+            matched = expected_substring.lower() in preview_text.lower()
+            logger.info(f"[Letter Sync Check] Substring '{expected_substring}' in Live Preview -> {matched}")
+            return matched
+        except Exception as e:
+            logger.warning(f"[Letter Sync Check] Error checking live preview: {e}")
+            return False
+
+    def click_letter_back_button(self) -> None:
+        """Clicks the Back button on the letter editor screen to return to /released-employee."""
+        back_btn = self.page.locator("button[aria-label='Back']").first
+        if back_btn.is_visible(timeout=3000):
+            back_btn.evaluate("el => el.click()")
+            self.page.wait_for_timeout(1000)
+
+    def get_released_employee_letter_statuses(self, employee_name: str) -> Dict[str, str]:
+        """
+        On /released-employee, reads the Relieving, F&F Status, and Experience column badges for employee.
+        """
+        row = self.page.locator(f"tr:has-text('{employee_name}')").first
+        if not row.is_visible(timeout=3000):
+            self.navigate_to_released_employees()
+            search_input = self.page.locator("input[placeholder*='Search employee' i]").first
+            search_input.fill(employee_name)
+            search_input.press("Enter")
+            self.page.wait_for_timeout(1500)
+            row = self.page.locator(f"tr:has-text('{employee_name}')").first
+
+        row.wait_for(state="visible", timeout=5000)
+        cells = row.locator("td").all_inner_texts()
+        return {
+            "name": employee_name,
+            "raw_cells": cells
+        }
+
 

@@ -145,9 +145,16 @@ class AssetRequestPage(BasePage):
         self.navigate_to_asset_request()
         self.page.wait_for_timeout(1500)
         
-        rows = self.page.locator("table tbody tr, .chakra-card, .css-prwjms").all()
-        for r in rows:
-            text = r.inner_text().strip()
+        # Use all_inner_texts() to instantly read all rows without timing out on detached elements
+        try:
+            row_texts = self.page.locator("table tbody tr").all_inner_texts()
+            if not row_texts:
+                row_texts = self.page.locator(".chakra-card, .css-prwjms").all_inner_texts()
+        except Exception:
+            row_texts = []
+
+        for text in row_texts:
+            text = text.strip()
             if not text:
                 continue
             text_lower = text.lower()

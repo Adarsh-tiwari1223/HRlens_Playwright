@@ -28,12 +28,13 @@ class ItResignationWorkflow:
         self,
         employee_name: str,
         asset_condition: str = "Good Condition",
+        asset_conditions: list = None,
         remarks: str = "IT Asset clearance verified & completed"
     ) -> Dict[str, Union[bool, str]]:
         """
         Executes IT Person workflow to inspect employee's assigned assets and issue IT Clearance.
         Handles both cases dynamically:
-        - If employee HAS assets: Processes asset inspection & return.
+        - If employee HAS assets: Processes asset inspection & return (loops through asset_conditions if provided).
         - If employee has NO assets: Verifies and completes clearance task directly.
         """
         logger.info("=" * 60)
@@ -43,6 +44,8 @@ class ItResignationWorkflow:
         return self.res_page.process_it_person_asset_clearance(
             employee_name=employee_name,
             asset_condition=asset_condition,
+            asset_conditions=asset_conditions,
             remarks=remarks
         )
+
 

@@ -37,40 +37,66 @@ def test_accountant_finance_clearance_inspection(get_accountant_resignation_work
     logger.info(f"[PASS ACCOUNTANT] Finance Clearance inspection executed for '{target_employee_name}'! Result: {result}")
 
 
+def pytest_generate_tests(metafunc):
+    """
+    Dynamically generates test parameters for 'target_employee_name':
+    - If user passed --employee="Name", generates [Name]
+    - If user passed -k "Name", generates [Name] so -k matches the test id during collection!
+    - Otherwise, generates ["auto"] with id "first_eligible" to pick dynamically at runtime.
+    """
+    if "target_employee_name" in metafunc.fixturenames:
+        emp_cli = metafunc.config.getoption("--employee", default=None)
+        if emp_cli:
+            metafunc.parametrize("target_employee_name", [emp_cli], ids=[emp_cli.lower().replace(" ", "_")])
+            return
+
+        k_expr = (metafunc.config.getoption("-k", default="") or "").strip()
+        ignored_keywords = {"test_", "accountant", "process", "buyout", "resignation", "ui", "and", "or", "not", "inspection", "finance", "clearance"}
+        clean_parts = [p.replace('"', '').replace("'", "").strip() for p in k_expr.split() if p.lower() not in ignored_keywords and len(p) > 1]
+
+        if clean_parts:
+            target = " ".join(clean_parts)
+            metafunc.parametrize("target_employee_name", [target], ids=[target.lower().replace(" ", "_")])
+        else:
+            metafunc.parametrize("target_employee_name", ["auto"], ids=["first_eligible"])
+
+
 @pytest.mark.ui
 @pytest.mark.accountant_process_buyout
 @pytest.mark.resignation
-@pytest.mark.parametrize("target_employee_name", ["Sanidhy Tiwari", "Adarsh Tiwari"], ids=["sanidhy", "adarsh_tiwari"])
-def test_accountant_process_buyout_flow(get_accountant_resignation_workflow, target_employee_name):
+def test_accountant_process_buyout_flow(target_employee_name, get_accountant_resignation_workflow):
     """
     Accountant Process Buyout Flow:
-    1. Accountant logs in
-    2. Navigates to https://stg-hrlense.jobvritta.com/accounts-buyout-processing
-    3. Searches employee (target_employee_name) in table (status: 'HR Approved')
-    4. Clicks Action icon to open 'Process Buyout' modal
-    5. Reads Leave Balance, Leave Payout, Calculated Salary, Buyout Amount, Total Amount
-    6. Validates financial formula: Total Amount = (Leave Payout + Calculated Salary) - Buyout Amount
-    7. Fills Calculated Salary, toggles 'Recovery Confirmed' checkbox, enters Remarks
-    8. Clicks 'Approve' button and captures success toast message!
+    1. If -k <employee_name> or --employee is provided, targets that specific employee.
+    2. Otherwise ('auto'), dynamically discovers the first eligible employee waiting in 'HR Approved' status.
+    3. Accountant logs in, searches employee on /accounts-buyout-processing, opens modal.
+    4. Reads modal values, validates formula/deductions, confirms recovery, and approves.
     """
     acc_wf = get_accountant_resignation_workflow()
 
+    if target_employee_name == "auto":
+        resolved_name = acc_wf.get_first_eligible_buyout_employee()
+        if not resolved_name:
+            pytest.skip("No employees currently waiting in 'HR Approved' status for Accountant buyout processing.")
+    else:
+        resolved_name = target_employee_name
+
+    logger.info(f"[EXECUTION] Processing Accountant Buyout for employee: '{resolved_name}'")
     result = acc_wf.process_accountant_buyout_workflow(
-        employee_name=target_employee_name,
-        calculated_salary="1000",
+        employee_name=resolved_name,
+        calculated_salary="0",
         remarks="Buyout Approved & Dues Cleared by Accountant",
         confirm_recovery=True,
         approve=True
     )
 
-
-    assert result.get("success"), f"Failed to open Process Buyout modal for '{target_employee_name}'"
+    assert result.get("success"), f"Failed to process Buyout modal for '{resolved_name}'"
     toast_msg = str(result.get("toast", "")).strip()
     assert toast_msg != "", "Toast message must be captured after Accountant Buyout approval"
     assert "required" not in toast_msg.lower(), f"Accountant buyout approval failed with validation error toast: '{toast_msg}'"
     assert "approved" in toast_msg.lower() or "success" in toast_msg.lower() or "processed" in toast_msg.lower(), \
         f"Expected buyout approval success toast, got: '{toast_msg}'"
-    logger.info(f"[PASS ACCOUNTANT] Accountant successfully processed Buyout for '{target_employee_name}'! Toast: '{toast_msg}'")
+    logger.info(f"[PASS ACCOUNTANT] Accountant successfully processed Buyout for '{resolved_name}'! Toast: '{toast_msg}'")
 
 
 

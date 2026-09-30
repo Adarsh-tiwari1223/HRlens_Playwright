@@ -34,6 +34,36 @@ def pytest_addoption(parser):
         "--record-har", action="store_true", default=False,
         help="Record HAR (HTTP Archive) network logs into reports/network_<test_name>.har"
     )
+    parser.addoption(
+        "--employee", action="store", default=None,
+        help="Pin a specific employee name for resignation E2E test (e.g. --employee='Uttam Kumar')"
+    )
+    parser.addoption(
+        "--record-trace", action="store_true", default=False,
+        help="Always record Playwright trace view (on both PASS and FAIL). When omitted, traces are saved on FAIL only."
+    )
+
+
+def should_save_trace(request, failed: bool) -> bool:
+    """
+    Determines whether Playwright trace should be exported to disk.
+    - If user passed `--record-trace`, `--trace`, or `--tracing=on`: captures on BOTH PASS and FAIL.
+    - Otherwise (default): captures ONLY on FAIL.
+    """
+    if failed:
+        return True
+    try:
+        if request.config.getoption("--record-trace", False):
+            return True
+    except Exception:
+        pass
+    try:
+        tracing_opt = str(request.config.getoption("--tracing", "")).lower()
+        if tracing_opt in ["on", "true", "1"]:
+            return True
+    except Exception:
+        pass
+    return False
 
 
 def pytest_generate_tests(metafunc):
@@ -221,14 +251,28 @@ def page(browser, request):
 @pytest.fixture(scope="function")
 def logged_in_page(browser, request):
     """
-    Function-scoped login factory fixture.
-    Supports user_key selection (defaults to settings.EMPLOYEE_USER).
-    Returns (page, context) tuple and automatically closes all pages/contexts on test completion.
+    Function-scoped login factory fixture with session pooling.
+    Maintains isolated browser contexts per user_key, reusing existing active sessions
+    to prevent redundant re-logins during multi-role workflows.
+    Automatically closes all contexts on test completion.
     """
     record_har = request.config.getoption("--record-har", False)
     contexts = []
+    session_pool = {}
 
-    def _login(user_key: str = settings.EMPLOYEE_USER):
+    def _login(user_key: str = settings.EMPLOYEE_USER, reuse: bool = True):
+        # 1. Reuse existing logged-in session if available and active
+        if reuse and user_key in session_pool:
+            page, ctx = session_pool[user_key]
+            try:
+                if not page.is_closed():
+                    logger.info(f"[SESSION POOL] Reusing active session for '{user_key}' (0s login time)")
+                    page.bring_to_front()
+                    return page, ctx
+            except Exception:
+                pass
+
+        # 2. First time or fresh request: create isolated context & log in
         har_path = f"reports/network_{request.node.name}_{user_key}.har" if record_har else None
         context = create_browser_context(browser, har_path=har_path)
         start_tracing(context)
@@ -236,14 +280,20 @@ def logged_in_page(browser, request):
 
         authenticate_user(page_instance, user_key=user_key)
         contexts.append((context, user_key))
+        session_pool[user_key] = (page_instance, context)
         return page_instance, context
 
     yield _login
 
     failed = hasattr(request.node, "rep_call") and request.node.rep_call.failed
+    save_trace = should_save_trace(request, failed)
+    safe_name = re.sub(r'[^\w\-_.]', '_', request.node.name)
+
     for context, user_key in contexts:
-        if failed:
-            stop_tracing(context, output_path=f"reports/trace_{request.node.name}_{user_key}.zip")
+        if save_trace:
+            trace_path = f"reports/trace_{safe_name}_{user_key}.zip"
+            stop_tracing(context, output_path=trace_path)
+            logger.info(f"[TRACE SAVED] Exported Playwright trace ({'FAILED' if failed else 'PASSED'}) -> {trace_path}")
         else:
             stop_tracing(context)
         try:
@@ -275,8 +325,13 @@ def admin_page(browser, request):
     yield page_instance
 
     failed = hasattr(request.node, "rep_call") and request.node.rep_call.failed
-    if failed:
-        stop_tracing(context, output_path=f"reports/trace_{request.node.name}.zip")
+    save_trace = should_save_trace(request, failed)
+    safe_name = re.sub(r'[^\w\-_.]', '_', request.node.name)
+
+    if save_trace:
+        trace_path = f"reports/trace_{safe_name}.zip"
+        stop_tracing(context, output_path=trace_path)
+        logger.info(f"[TRACE SAVED] Exported Playwright trace ({'FAILED' if failed else 'PASSED'}) -> {trace_path}")
     else:
         stop_tracing(context)
     try:

@@ -333,12 +333,13 @@ class TestAssetBranchScopingValidation:
                 assets = assign_page.get_fulfillment_available_assets(drawer)
                 logger.info(f"[REQUEST FULFILLMENT ASSETS] Admin drawer revealed {len(assets)} assets: {assets[:5]}")
 
+                assert len(assets) > 0, "No available assets found in fulfillment drawer for branch!"
                 story.log_step(
                     "Admin Request Fulfillment Drawer Inspection",
                     record=f"Row: {first_row.inner_text().strip()[:60]}...",
                     expected="Fulfillment drawer dynamically filters stock to the requesting employee's branch",
                     actual=f"Revealed {len(assets)} available assets",
-                    status="PASS" if len(assets) > 0 else "INFO"
+                    status="PASS"
                 )
                 assign_page.click_cancel()
 

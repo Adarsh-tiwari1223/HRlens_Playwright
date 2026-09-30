@@ -13,7 +13,7 @@ KEY DESIGN PRINCIPLE:
 import os
 import json
 import logging
-from typing import Dict, Union
+from typing import Dict, Union, Optional
 
 from playwright.sync_api import Page
 from pages.hrlense_portal.resignation.resignation_page import ResignationPage
@@ -132,12 +132,44 @@ class AccountantResignationWorkflow:
     # ──────────────────────────────────────────────────────────────────────────
 
     def navigate_to_finance_clearance(self) -> None:
-        """Navigates Accountant / Finance role to Offboarding → Finance Clearance tab."""
-        logger.info("UI Action: Accountant Navigating to Finance Clearance")
-        clearance_link = self.page.locator("a[href*='finance-clearance'], a:has-text('Finance Clearance')").first
-        clearance_link.wait_for(state="visible", timeout=10000)
-        clearance_link.click()
+        """Navigates Accountant / Finance role to Offboarding → Exit Clearance / Finance page."""
+        logger.info("UI Action: Accountant Navigating to Exit/Finance Clearance")
+        current_origin = "/".join(self.page.url.split("/")[:3])
+        target_url = f"{current_origin}/exit-clearance"
+        if not self.page.url.endswith("/exit-clearance"):
+            self.page.goto(target_url, wait_until="domcontentloaded")
         self.page.locator("table, tr").first.wait_for(state="visible", timeout=10000)
+
+    def get_first_eligible_buyout_employee(self) -> Optional[str]:
+        """
+        Discovers the first employee currently in 'HR APPROVED' status waiting for
+        Accountant Buyout processing.
+        1. Navigates to /accounts-buyout-processing
+        2. Scans the table rows for status badge 'HR APPROVED'
+        3. Returns the employee name, or None if no candidate exists.
+        """
+        try:
+            self.res_page.navigate_to_accountant_buyout_processing()
+            self.page.wait_for_timeout(1000)
+            rows = self.page.locator("table tbody tr").all()
+            for row in rows:
+                try:
+                    badge = row.locator(".chakra-badge, span[class*='badge']").first
+                    if badge.is_visible(timeout=1000):
+                        badge_text = badge.inner_text().strip().upper()
+                        if "HR APPROVED" in badge_text or "APPROVED" in badge_text:
+                            cells = row.locator("td").all()
+                            for cell in cells[:3]:
+                                text = cell.inner_text().strip()
+                                if text and not text.isdigit() and len(text) > 3 and "hr" not in text.lower():
+                                    cleaned_name = text.split("\n")[0].strip()
+                                    logger.info(f"[DYNAMIC DISCOVERY] Found eligible buyout candidate: '{cleaned_name}'")
+                                    return cleaned_name
+                except Exception:
+                    continue
+        except Exception as e:
+            logger.warning(f"[DYNAMIC DISCOVERY] Error scanning buyout table: {e}")
+        return None
 
     def inspect_employee_buyout_settlement_workflow(self, employee_name: str) -> Dict[str, Union[bool, str]]:
         """
@@ -201,19 +233,28 @@ class AccountantResignationWorkflow:
                 "api_details": {}, "expected_total": 0.0
             }
 
+        def _safe_float(val, default: float = 0.0) -> float:
+            if val is None:
+                return default
+            try:
+                cleaned = str(val).replace(",", "").replace("₹", "").replace("INR", "").strip()
+                return float(cleaned) if cleaned else default
+            except (ValueError, TypeError):
+                return default
+
         # STEP 2 — Read displayed modal values from UI
         modal_values = self.res_page.get_accountant_buyout_modal_values()
         logger.info(f"[Modal UI Values] {modal_values}")
 
-        ui_leave_balance = float(modal_values.get("leave_balance") or 0.0)
-        ui_buyout_amount = float(modal_values.get("buyout_amount") or 0.0)
+        ui_leave_balance = _safe_float(modal_values.get("leave_balance"))
+        ui_buyout_amount = _safe_float(modal_values.get("buyout_amount"))
 
         # STEP 3 — Fetch API details via browser session (fast — no second login)
         api_details = self.get_employee_buyout_api_details(employee_name)
-        api_leave_balance = float(api_details.get("leave_Balance") or 0.0)
+        api_leave_balance = _safe_float(api_details.get("leave_Balance"))
         api_buyout_days   = int(api_details.get("buyout_Days") or 0)
-        api_buyout_amount = float(api_details.get("buyout_Amount") or 0.0)
-        api_per_day_basic = float(api_details.get("per_Day_Basic") or api_details.get("perDayBasic") or 0.0)
+        api_buyout_amount = _safe_float(api_details.get("buyout_Amount"))
+        api_per_day_basic = _safe_float(api_details.get("per_Day_Basic") or api_details.get("perDayBasic"))
 
         # STEP 4 — VALIDATE: UI Leave Balance == API Leave Balance
         if api_leave_balance > 0:
@@ -228,12 +269,15 @@ class AccountantResignationWorkflow:
             logger.warning("[Leave Balance Check] API returned 0 or no data — skipping API cross-check.")
 
         # STEP 5 — VALIDATE: Buyout Days × Per-Day Basic == Buyout Amount
-        if api_per_day_basic > 0 and api_buyout_days > 0:
-            expected_buyout_from_days = round(api_buyout_days * api_per_day_basic, 2)
+        ui_buyout_days = int(modal_values.get("buyout_days") or 0)
+        effective_buyout_days = ui_buyout_days if ui_buyout_days > 0 else api_buyout_days
+
+        if api_per_day_basic > 0 and effective_buyout_days > 0:
+            expected_buyout_from_days = round(effective_buyout_days * api_per_day_basic, 2)
             effective_buyout = ui_buyout_amount if ui_buyout_amount > 0 else api_buyout_amount
             buyout_calc_match = abs(effective_buyout - expected_buyout_from_days) < 1.0
             logger.info(
-                f"[Buyout Calc] {api_buyout_days} days × ₹{api_per_day_basic}/day = "
+                f"[Buyout Calc] {effective_buyout_days} days × ₹{api_per_day_basic}/day = "
                 f"₹{expected_buyout_from_days} | UI Buyout Amount: ₹{effective_buyout} "
                 f"→ Match: {buyout_calc_match}"
             )
@@ -241,18 +285,27 @@ class AccountantResignationWorkflow:
             buyout_calc_match = True
             logger.info("[Buyout Calc] per_Day_Basic not in API response — skipping days×rate check.")
 
-        # STEP 6 — VALIDATE: Formula  Total = (Leave Payout + Calc Salary) − Buyout Amount
-        val_leave_payout  = float(leave_payout or 0.0)
-        val_calc_salary   = float(calculated_salary or 0.0)
-        val_buyout_amount = ui_buyout_amount if ui_buyout_amount > 0 else api_buyout_amount
-        expected_total    = (val_leave_payout + val_calc_salary) - val_buyout_amount
+        # STEP 6 — VALIDATE: Deductions / Formula
+        ui_total_deductions = _safe_float(modal_values.get("total_deductions"))
+        val_leave_payout    = _safe_float(modal_values.get("leave_payout"))
+        val_calc_salary     = _safe_float(calculated_salary) if modal_values.get("calculated_salary") else 0.0
+        val_buyout_amount   = ui_buyout_amount if ui_buyout_amount > 0 else api_buyout_amount
 
-        formula_valid = self.validate_accountant_buyout_formulas(
-            leave_payout=val_leave_payout,
-            calculated_salary=val_calc_salary,
-            buyout_amount=val_buyout_amount,
-            expected_total_amount=expected_total
-        )
+        if ui_total_deductions > 0:
+            formula_valid = abs(ui_total_deductions - val_buyout_amount) < 1.0
+            expected_total = ui_total_deductions
+            logger.info(
+                f"[Formula Validation] Total Deductions ({ui_total_deductions}) == Buyout Amount ({val_buyout_amount}) "
+                f"→ Match: {formula_valid}"
+            )
+        else:
+            expected_total = (val_leave_payout + val_calc_salary) - val_buyout_amount
+            formula_valid = self.validate_accountant_buyout_formulas(
+                leave_payout=val_leave_payout,
+                calculated_salary=val_calc_salary,
+                buyout_amount=val_buyout_amount,
+                expected_total_amount=expected_total
+            )
 
         # STEP 7 — Fill form and submit
         toast = self.res_page.process_accountant_buyout(
@@ -280,3 +333,29 @@ class AccountantResignationWorkflow:
             "formula_match": formula_valid,
             "expected_total": expected_total,
         }
+
+    def execute_accountant_fnf_settlement_workflow(
+        self,
+        employee_name: str,
+        salary_for_days_worked: str = "0.00",
+        other_earnings: str = "0.00",
+        remarks: str = "Full & Final Settlement Approved by Accounts"
+    ) -> Dict[str, Union[bool, str, Dict[str, str]]]:
+        """
+        Executes Accountant Full & Final Settlement on /accounts-buyout-processing (FnF Requests tab):
+        1. Switches to 'FnF Requests' tab
+        2. Opens 'Full & Final Settlement' drawer for employee
+        3. Fills earnings and submits FnF
+        4. Verifies status changes to COMPLETED
+        """
+        logger.info("=" * 60)
+        logger.info(f"STARTING ACCOUNTANT FnF SETTLEMENT WORKFLOW FOR: '{employee_name}'")
+        logger.info("=" * 60)
+
+        return self.res_page.process_accountant_fnf_settlement(
+            employee_name=employee_name,
+            salary_for_days_worked=salary_for_days_worked,
+            other_earnings=other_earnings,
+            remarks=remarks
+        )
+

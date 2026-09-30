@@ -604,3 +604,172 @@ class AssetEntryPage(BasePage):
 
     def wait_for_toast_message(self) -> str:
         return self.wait_for_toast(self.TOAST)
+
+    def click_edit_asset(self, asset_identifier: str = None) -> dict:
+        """
+        Locates an asset row (by code/name or first visible row),
+        clicks the Edit button/action, and waits for the edit modal to appear.
+        Returns metadata about the selected row.
+        """
+        self.page.locator("table tbody tr").first.wait_for(state="visible", timeout=15000)
+        if asset_identifier:
+            self.search_asset(asset_identifier)
+            self.page.wait_for_timeout(1000)
+            row = self.page.locator("table tbody tr").filter(has_text=asset_identifier).first
+            if not row.is_visible(timeout=2000):
+                row = self.page.locator("table tbody tr").first
+        else:
+            row = self.page.locator("table tbody tr").first
+
+        row_text = row.inner_text().replace("\n", " | ")
+        logger.info(f"Target asset row for edit: '{row_text}'")
+
+        # Locate Edit button in target row
+        edit_btn = row.locator("button[aria-label='Edit'], button[aria-label*='edit' i], button[title*='Edit' i]").first
+        if not edit_btn.is_visible(timeout=1500):
+            edit_btn = row.locator("button:has(svg), td:last-child button, td:nth-last-child(1) button, td:nth-last-child(2) button").first
+        if not edit_btn.is_visible(timeout=1500):
+            # Check for menu button (e.g. 3 dots / more)
+            more_btn = row.locator("button[aria-label*='more' i], button[aria-label*='menu' i], button:has(svg.lucide-more-vertical), button:has(svg.lucide-ellipsis)").first
+            if more_btn.is_visible(timeout=1500):
+                more_btn.click()
+                self.page.wait_for_timeout(300)
+                edit_btn = self.page.get_by_role("menuitem", name=re.compile(r"Edit", re.I)).first
+
+        logger.info("Clicking Edit button on asset row...")
+        edit_btn.wait_for(state="visible", timeout=5000)
+        try:
+            edit_btn.click(timeout=3000)
+        except Exception:
+            edit_btn.click(force=True)
+
+        # Wait for modal to open
+        modal = self.page.locator("[role='dialog'][aria-modal='true'], .chakra-modal__content").first
+        modal.wait_for(state="visible", timeout=10000)
+        logger.info("Verified Edit Asset modal is visible.")
+
+        return {"row_text": row_text}
+
+    def get_prefilled_asset_data(self) -> dict:
+        """
+        Reads and returns all prefilled values from the open Asset Edit modal.
+        """
+        modal = self.page.locator("[role='dialog']:visible, .chakra-modal__content:visible").last
+        if not modal.is_visible(timeout=1000):
+            modal = self.page
+
+        def _get_input(locator):
+            try:
+                if locator.is_visible(timeout=400):
+                    return locator.input_value().strip()
+            except Exception:
+                pass
+            return ""
+
+        def _get_select(locator):
+            try:
+                if locator.is_visible(timeout=400):
+                    txt = locator.evaluate("el => el.options && el.selectedIndex >= 0 ? el.options[el.selectedIndex].text.trim() : ''")
+                    if txt and not txt.lower().startswith("select"):
+                        return txt
+                    val = locator.input_value().strip()
+                    if val and not val.lower().startswith("select"):
+                        return val
+            except Exception:
+                pass
+            return ""
+
+        data = {}
+
+        # 1. Asset Name
+        name_in = modal.locator("//div[./label[contains(text(), 'Asset Name')]]//input").first
+        if not name_in.is_visible(timeout=300):
+            name_in = modal.get_by_placeholder("e.g. Dell Latitude").first
+        if not name_in.is_visible(timeout=300):
+            name_in = modal.locator("input[placeholder*='Latitude' i], input[name*='name' i]").first
+        data["name"] = _get_input(name_in)
+
+        # 2. Category
+        cat_select = modal.locator("//div[./label[contains(text(), 'Category') and not(contains(text(), 'Sub'))]]//select").first
+        if not cat_select.is_visible(timeout=300):
+            cat_select = modal.locator("select").filter(has=self.page.locator("option", has_text=re.compile(r"Select category", re.I))).first
+        data["category"] = _get_select(cat_select)
+
+        # 3. Sub Category
+        sub_select = modal.locator("//div[./label[contains(text(), 'Sub Category')]]//select").first
+        if not sub_select.is_visible(timeout=300):
+            sub_select = modal.locator("select").filter(has=self.page.locator("option", has_text=re.compile(r"Select sub category", re.I))).first
+        data["sub_category"] = _get_select(sub_select)
+
+        # 4. Branch
+        branch_select = modal.locator("//div[./label[contains(text(), 'Branch')]]//select").first
+        if not branch_select.is_visible(timeout=300):
+            branch_select = modal.locator("select").filter(has=self.page.locator("option", has_text=re.compile(r"Select branch", re.I))).first
+        data["branch"] = _get_select(branch_select)
+
+        # 5. Payroll Company (if present)
+        comp_select = modal.locator("//div[./label[contains(text(), 'Payroll Company') or contains(text(), 'Company')]]//select").first
+        data["payroll_company"] = _get_select(comp_select)
+
+        # 6. Brand
+        brand_in = modal.locator("//div[./label[normalize-space()='Brand']]//input").first
+        if not brand_in.is_visible(timeout=300):
+            brand_in = modal.locator("input[placeholder*='Dell' i], input[name*='brand' i]").first
+        data["brand"] = _get_input(brand_in)
+
+        # 7. Model
+        model_in = modal.locator("//div[./label[contains(text(), 'Model')]]//input").first
+        if not model_in.is_visible(timeout=300):
+            model_in = modal.locator("input[placeholder*='Latitude' i], input[name*='model' i]").first
+        data["model"] = _get_input(model_in)
+
+        # 8. Serial No.
+        serial_in = modal.locator("//div[./label[contains(text(), 'Serial')]]//input").first
+        if not serial_in.is_visible(timeout=300):
+            serial_in = modal.locator("input[placeholder*='serial' i], input[name*='serial' i]").first
+        data["serial_no"] = _get_input(serial_in)
+
+        # 9. Unit Price
+        price_in = modal.locator("//div[./label[contains(text(), 'Unit Price') or contains(text(), 'Price')]]//input").first
+        if not price_in.is_visible(timeout=300):
+            price_in = modal.locator("input[placeholder*='price' i], input[name*='unitPrice' i], input[name*='price' i]").first
+        data["unit_price"] = _get_input(price_in)
+
+        # 10. Warranty
+        warr_select = modal.locator("//div[./label[contains(text(), 'Warranty / Guarantee')]]//select").first
+        data["warranty"] = _get_select(warr_select)
+
+        # 11. Expiry Date
+        exp_in = modal.locator("//div[./label[contains(text(), 'Expiry Date')]]//input").first
+        data["expiry_date"] = _get_input(exp_in)
+
+        # 12. Insured
+        ins_select = modal.locator("//div[./label[contains(text(), 'Insured')]]//select").first
+        data["insured"] = _get_select(ins_select)
+
+        # 13. Insurance fields if visible
+        prov_in = modal.locator("//div[./label[contains(text(), 'Insurance Provider')]]//input").first
+        data["insurance_provider"] = _get_input(prov_in)
+
+        pol_in = modal.locator("//div[./label[contains(text(), 'Policy Number')]]//input").first
+        data["policy_number"] = _get_input(pol_in)
+
+        # 14. Notes
+        notes_in = modal.locator("//div[./label[contains(text(), 'Notes')]]//textarea").first
+        if not notes_in.is_visible(timeout=300):
+            notes_in = modal.locator("textarea").first
+        data["notes"] = _get_input(notes_in)
+
+        logger.info(f"[ASSET PREFILLED DATA READ] {data}")
+        return data
+
+    def close_edit_modal(self):
+        """Closes the edit modal via Cancel button or Close icon."""
+        logger.info("Closing edit modal...")
+        cancel_btn = self.page.locator("[role='dialog']:visible button:has-text('Cancel'), [role='dialog']:visible button[aria-label='Close']").first
+        if cancel_btn.is_visible(timeout=1000):
+            cancel_btn.click()
+        else:
+            self.page.keyboard.press("Escape")
+        self.page.wait_for_timeout(500)
+

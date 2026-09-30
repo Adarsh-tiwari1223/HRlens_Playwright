@@ -139,22 +139,26 @@ class TestAssetDirectAssignment:
         request_page.navigate_to_asset_request()
 
         is_accepted = request_page.accept_asset(assigned_asset_code)
+        assert is_accepted, f"Employee '{target_emp['name']}' could not accept assigned asset '{assigned_asset_code}' on /asset-request!"
+
         story.log_step(
             "Step 3: Employee Accepts Assigned Asset",
             record=f"Employee: {target_emp['name']} | Asset Code: {assigned_asset_code}",
             expected="Employee accepts asset on /asset-request",
-            actual="Asset accepted successfully" if is_accepted else "Accept button clicked",
-            status="PASS" if is_accepted else "INFO"
+            actual="Asset accepted successfully",
+            status="PASS"
         )
 
         # Search and verify in assigned assets table
         search_res = request_page.search_assigned_asset(assigned_asset_code)
+        assert search_res["found"], f"Assigned asset '{assigned_asset_code}' was not found in employee assigned assets table!"
+
         story.log_step(
             "Step 4: Search & Verify Status in Employee Table",
             record=f"Search Query: {assigned_asset_code}",
             expected="Assigned asset visible with active/assigned status",
             actual=f"Status: {search_res['status']} | Row: {search_res['row_text'][:60]}",
-            status="PASS" if search_res["found"] else "INFO"
+            status="PASS"
         )
 
         emp_ctx.close()
@@ -239,22 +243,26 @@ class TestAssetDirectAssignment:
             reason=rejection_reason
         )
 
+        assert is_rejected, f"Employee '{target_emp['name']}' could not reject assigned asset '{assigned_asset_code}'!"
+
         story.log_step(
             "Step 2: Employee Rejects Assignment (Modal + Reason)",
             record=f"Reason: '{rejection_reason}' | Asset: {assigned_asset_code}",
             expected="Rejection submitted via 'Reject Assignment' modal and spinner completed",
-            actual="Rejection submitted successfully" if is_rejected else "Reject button processed",
-            status="PASS" if is_rejected else "INFO"
+            actual="Rejection submitted successfully",
+            status="PASS"
         )
 
         # Step 3: Search Assigned Assets Table and Verify Status
         search_res = request_page.search_assigned_asset(assigned_asset_code)
+        assert search_res["found"], f"Asset '{assigned_asset_code}' not found in employee table after rejection!"
+
         story.log_step(
             "Step 3: Search Assigned Assets & Verify State",
             record=f"Search Query: {assigned_asset_code}",
             expected="Table searched via 'Search assigned assets…' input and state verified",
             actual=f"Status: {search_res['status']} | Row snippet: {search_res['row_text'][:60]}",
-            status="PASS" if search_res["found"] else "INFO"
+            status="PASS"
         )
 
         emp_ctx.close()

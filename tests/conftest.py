@@ -42,6 +42,10 @@ def pytest_addoption(parser):
         "--record-trace", action="store_true", default=False,
         help="Always record Playwright trace view (on both PASS and FAIL). When omitted, traces are saved on FAIL only."
     )
+    parser.addoption(
+        "--headed", action="store_true", default=False,
+        help="Run browser in headed mode (visible GUI window)"
+    )
 
 
 def should_save_trace(request, failed: bool) -> bool:

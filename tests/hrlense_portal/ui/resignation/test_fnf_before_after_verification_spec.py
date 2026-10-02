@@ -29,7 +29,12 @@ def test_fnf_before_and_after_accountant_visibility_verification(logged_in_page)
     - Phase 2 (TRIGGER): HR clicks 'Start FnF Process' on /resignation-approval.
     - Phase 3 (AFTER): Accountant re-checks 'FnF Requests' tab -> Asserts employee IS NOW PRESENT!
     """
-    emp_name = "Sushree Radhika Nayak"
+    from utils.branch_persona_resolver import get_branch_persona_bundle, get_dynamic_resignation_employee
+
+    bundle = get_branch_persona_bundle("Varanasi")
+    dynamic_emp = get_dynamic_resignation_employee("Varanasi")
+    emp_name = dynamic_emp["name"]
+
     screenshots_dir = os.path.join(os.getcwd(), "reports", "screenshots")
     os.makedirs(screenshots_dir, exist_ok=True)
 
@@ -40,14 +45,14 @@ def test_fnf_before_and_after_accountant_visibility_verification(logged_in_page)
     screenshot_drawer = os.path.join(screenshots_dir, "fnf_step4_accountant_drawer.png")
 
     logger.info("=" * 80)
-    logger.info(f"STARTING FnF BEFORE & AFTER VERIFICATION TEST FOR: '{emp_name}'")
+    logger.info(f"STARTING FnF BEFORE & AFTER VERIFICATION TEST FOR DYNAMIC EMPLOYEE: '{emp_name}'")
     logger.info("=" * 80)
 
     # ══════════════════════════════════════════════════════════════════════
     # PHASE 1: BEFORE — ACCOUNTANT CHECKS FnF REQUESTS QUEUE
     # ══════════════════════════════════════════════════════════════════════
-    logger.info(f"[PHASE 1 - BEFORE] Accountant checking /accounts-buyout-processing -> FnF Requests for '{emp_name}'...")
-    acc_page, _ = logged_in_page("admin")
+    logger.info(f"[PHASE 1 - BEFORE] Accountant ({bundle['accountant_name']}) checking /accounts-buyout-processing -> FnF Requests for '{emp_name}'...")
+    acc_page, _ = logged_in_page(bundle["accountant"])
     acc_res_page = ResignationPage(acc_page)
 
     acc_res_page.navigate_to_accounts_fnf_requests()

@@ -30,18 +30,24 @@ def launch_browser(playwright: Playwright, is_headed: bool = False) -> Browser:
     Gracefully falls back to headless if headed mode is requested but no X-server/display is available.
     """
     headless = not (is_headed or not settings.HEADLESS)
+    print(f"\n=======================================================")
+    print(f"[BROWSER LAUNCH] is_headed={is_headed} | settings.HEADLESS={settings.HEADLESS} | computed headless={headless}")
+    print(f"=======================================================\n")
+    logger.info(f"[BROWSER LAUNCH] is_headed={is_headed} | settings.HEADLESS={settings.HEADLESS} | computed headless={headless}")
+
+    launch_kwargs = {
+        "headless": headless,
+        "args": ["--start-maximized", "--no-sandbox"],
+    }
+    if not headless:
+        launch_kwargs["slow_mo"] = 1000  # 1 second between actions so user can inspect
+
     try:
-        return playwright.chromium.launch(
-            headless=headless,
-            channel="chrome",
-            args=["--start-maximized"]
-        )
-    except Exception:
+        return playwright.chromium.launch(**launch_kwargs)
+    except Exception as e:
+        logger.warning(f"Chromium launch note: {e}")
         try:
-            return playwright.chromium.launch(
-                headless=headless,
-                args=["--start-maximized"]
-            )
+            return playwright.chromium.launch(channel="chrome", **launch_kwargs)
         except Exception as launch_err:
             # When headed mode is requested in container or CI without an X display, fall back to headless
             if not headless and ("Missing X server" in str(launch_err) or "Target page, context or browser has been closed" in str(launch_err)):

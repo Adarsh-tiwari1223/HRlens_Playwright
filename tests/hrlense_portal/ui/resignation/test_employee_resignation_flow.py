@@ -166,19 +166,21 @@ def test_e2e_resignation_revoke_full_coverage(logged_in_page):
     - [Step 8] HR opens Resignation Details modal → Verifies 'Revoke' button is BLOCKED/HIDDEN by Buyout!
     """
     from workflows.hrlense_portal.resignation.hr_resignation_workflow import HrResignationWorkflow
+    from utils.branch_persona_resolver import get_branch_persona_bundle, get_dynamic_resignation_employee
+
+    bundle = get_branch_persona_bundle("Varanasi")
+    dynamic_emp = get_dynamic_resignation_employee("Varanasi")
+    employee_full_name = dynamic_emp["name"]
 
     # Set up Employee & HR sessions
-    emp_page, _ = logged_in_page("adarsh_tiwari")
+    emp_page, _ = logged_in_page(dynamic_emp["user_key"])
     emp_wf = EmployeeResignationWorkflow(emp_page)
 
-    hr_page, _ = logged_in_page("tejaswini")
+    hr_page, _ = logged_in_page(bundle["hr_person"])
     hr_wf = HrResignationWorkflow(hr_page)
 
-    employee_full_name = "Adarsh Tiwari"
-
-
     logger.info("=" * 60)
-    logger.info("STARTING UNIFIED E2E REVOKE FULL COVERAGE TEST")
+    logger.info(f"STARTING UNIFIED E2E REVOKE FULL COVERAGE TEST FOR: '{employee_full_name}'")
     logger.info("=" * 60)
 
     # ─── CYCLE 1: Resignation #1 -> HR Revoke -> Employee Accept ───
@@ -237,23 +239,26 @@ def test_e2e_complete_buyout_lifecycle_adarsh(logged_in_page):
     """
     from workflows.hrlense_portal.resignation.hr_resignation_workflow import HrResignationWorkflow
     from workflows.hrlense_portal.resignation.accountant_resignation_workflow import AccountantResignationWorkflow
+    from utils.branch_persona_resolver import get_branch_persona_bundle, get_dynamic_resignation_employee
 
-    employee_full_name = "Adarsh Tiwari"
+    bundle = get_branch_persona_bundle("Varanasi")
+    dynamic_emp = get_dynamic_resignation_employee("Varanasi")
+    employee_full_name = dynamic_emp["name"]
 
     # Step 1: Employee Session
-    emp_page, _ = logged_in_page("adarsh_tiwari")
+    emp_page, _ = logged_in_page(dynamic_emp["user_key"])
     emp_wf = EmployeeResignationWorkflow(emp_page)
 
     # Step 2: HR Session
-    hr_page, _ = logged_in_page("tejaswini")
+    hr_page, _ = logged_in_page(bundle["hr_person"])
     hr_wf = HrResignationWorkflow(hr_page)
 
-    # Step 3: Accountant Session
-    acc_page, _ = logged_in_page("admin")
+    # Step 3: Accountant Session (Sunil Kumar - No Admin Bypass)
+    acc_page, _ = logged_in_page(bundle["accountant"])
     acc_wf = AccountantResignationWorkflow(acc_page)
 
     logger.info("=" * 60)
-    logger.info("STARTING DYNAMIC E2E COMPLETE BUYOUT LIFECYCLE FOR ADARSH TIWARI")
+    logger.info(f"STARTING DYNAMIC E2E COMPLETE BUYOUT LIFECYCLE FOR: '{employee_full_name}'")
     logger.info("=" * 60)
 
     # 1. Employee submits Resignation
@@ -317,23 +322,26 @@ def test_e2e_complete_buyout_lifecycle_sanidhy(logged_in_page):
     """
     from workflows.hrlense_portal.resignation.hr_resignation_workflow import HrResignationWorkflow
     from workflows.hrlense_portal.resignation.accountant_resignation_workflow import AccountantResignationWorkflow
+    from utils.branch_persona_resolver import get_branch_persona_bundle, get_dynamic_resignation_employee
 
-    employee_full_name = "Sanidhy Tiwari"
+    bundle = get_branch_persona_bundle("Varanasi")
+    dynamic_emp = get_dynamic_resignation_employee("Varanasi")
+    employee_full_name = dynamic_emp["name"]
 
     # Step 1: Employee Session
-    emp_page, _ = logged_in_page("sanidhy")
+    emp_page, _ = logged_in_page(dynamic_emp["user_key"])
     emp_wf = EmployeeResignationWorkflow(emp_page)
 
     # Step 2: HR Session
-    hr_page, _ = logged_in_page("tejaswini")
+    hr_page, _ = logged_in_page(bundle["hr_person"])
     hr_wf = HrResignationWorkflow(hr_page)
 
-    # Step 3: Accountant Session
-    acc_page, _ = logged_in_page("admin")
+    # Step 3: Accountant Session (Sunil Kumar - No Admin Bypass)
+    acc_page, _ = logged_in_page(bundle["accountant"])
     acc_wf = AccountantResignationWorkflow(acc_page)
 
     logger.info("=" * 60)
-    logger.info("STARTING DYNAMIC E2E COMPLETE BUYOUT LIFECYCLE FOR SANIDHY TIWARI")
+    logger.info(f"STARTING DYNAMIC E2E COMPLETE BUYOUT LIFECYCLE FOR: '{employee_full_name}'")
     logger.info("=" * 60)
 
     # 1. Employee submits Resignation

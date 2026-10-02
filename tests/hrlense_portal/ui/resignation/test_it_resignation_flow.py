@@ -6,6 +6,7 @@ Contains test cases for IT Person-side offboarding clearance, asset recovery ins
 import pytest
 import logging
 from core.config import settings
+from utils.branch_persona_resolver import get_dynamic_resignation_employee
 from workflows.hrlense_portal.resignation.it_resignation_workflow import ItResignationWorkflow
 
 logger = logging.getLogger(__name__)
@@ -23,18 +24,19 @@ def get_it_resignation_workflow(logged_in_page):
 @pytest.mark.ui
 @pytest.mark.it_clearance
 @pytest.mark.resignation
-@pytest.mark.parametrize("target_employee_name", ["Sanidhy Tiwari", "Adarsh Tiwari"], ids=["sanidhy", "adarsh_tiwari"])
-def test_it_person_asset_clearance_inspection(get_it_resignation_workflow, target_employee_name):
+def test_it_person_asset_clearance_inspection(get_it_resignation_workflow):
     """
     IT Person Asset Clearance Flow:
     1. IT Person logs in (it_varanasi_ashutosh)
     2. Navigates Offboarding -> Resignation Approval / IT Task Clearance
-    3. Searches resigning employee (target_employee_name)
+    3. Searches dynamic candidate
     4. Dynamically processes IT Clearance:
        - If employee HAS assets: Inspects asset condition & confirms return.
        - If employee HAS NO assets: Verifies and completes task directly.
     """
     it_wf = get_it_resignation_workflow("it_varanasi_ashutosh")
+    candidate = get_dynamic_resignation_employee("Varanasi")
+    target_employee_name = candidate["name"]
 
     result = it_wf.inspect_and_clear_employee_assets_workflow(
         employee_name=target_employee_name,

@@ -156,12 +156,38 @@ def get_contextual_brand_model(cat_name: str, sub_name: str) -> tuple[str, str]:
         return "Enterprise Standard", f"Model-{sub_name[:6].strip()}"
 
 
+def get_contextual_unit_price(cat_name: str, sub_name: str) -> float:
+    """
+    Returns realistic unit price (INR) based on Category and SubCategory.
+    """
+    combo = f"{cat_name} {sub_name}".lower()
+    if any(k in combo for k in ["laptop", "notebook", "computer", "pc", "workstation"]):
+        return 65000.0
+    elif any(k in combo for k in ["monitor", "display", "screen"]):
+        return 18000.0
+    elif any(k in combo for k in ["chair", "desk", "table", "furniture"]):
+        return 8500.0
+    elif any(k in combo for k in ["mouse", "keyboard", "peripheral", "headset"]):
+        return 2500.0
+    elif any(k in combo for k in ["printer", "scanner"]):
+        return 22000.0
+    elif any(k in combo for k in ["router", "switch", "networking"]):
+        return 14000.0
+    elif any(k in combo for k in ["mobile", "phone", "tablet"]):
+        return 35000.0
+    elif any(k in combo for k in ["car", "vehicle", "bike"]):
+        return 750000.0
+    else:
+        return 25000.0
+
+
 def seed_all_branch_assets(assets_per_subcategory: int = 2, target_branch_group_id: int = None):
     """
     Seeds assets across all Branch Groups using the required structure:
     - "branch_Id": Branch Group ID
     - "payroll_Company_Id": Valid Payroll Company ID from API
     - "asset_Name": "{branch_group_name}_{brand_and_model}"
+    - "unit_Price": Realistic enterprise unit cost
     """
     logger.info("=" * 80)
     logger.info("SEED ALL BRANCH ASSETS - API GENERATOR")
@@ -213,6 +239,7 @@ def seed_all_branch_assets(assets_per_subcategory: int = 2, target_branch_group_
                 sub_prefix = "".join([w[0] for w in sub_name.split() if w])[:3].upper()
 
                 brand, model = get_contextual_brand_model(cat_name, sub_name)
+                unit_price = get_contextual_unit_price(cat_name, sub_name)
                 brand_and_model = f"{brand} {model}"
 
                 # Strict requirement: format is '{branch_group_name}_{brand_and_model}'
@@ -231,6 +258,8 @@ def seed_all_branch_assets(assets_per_subcategory: int = 2, target_branch_group_
                         "brand": brand,
                         "model_No": model,
                         "serial_No": serial_no,
+                        "unit_Price": unit_price,                   # Enterprise Unit Price (INR)
+                        "unitPrice": unit_price,                    # Compatibility key for backend schema
                         "warranty_Type": "Warranty",
                         "warranty_Expiry": "2028-12-31",
                         "notes": f"Bulk Stock Ingestion for {bg_name} Branch Group",

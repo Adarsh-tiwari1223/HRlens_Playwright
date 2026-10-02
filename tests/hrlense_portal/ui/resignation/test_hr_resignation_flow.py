@@ -6,7 +6,7 @@ Contains test cases for HR-side offboarding approvals, employee search, Resignat
 import pytest
 import logging
 from core.config import settings
-from core.config.users import get_random_varanasi_employee
+from utils.branch_persona_resolver import get_dynamic_resignation_employee
 from workflows.hrlense_portal.resignation.hr_resignation_workflow import HrResignationWorkflow
 
 logger = logging.getLogger(__name__)
@@ -28,14 +28,13 @@ def test_hr_revoke_request_flow(get_hr_resignation_workflow):
     """
     HR Revoke Request Flow:
     1. HR logs in (Branch HR: tejaswini)
-    2. Navigates Offboarding -> • Resignation Request
-    3. Searches employee by name in input[placeholder="Search employee by name..."]
-    4. Inspects status badge (.chakra-badge) in tr:has-text(employee_name)
-    5. If status is Resignation Requested (or Applied), clicks employee name to open modal (header:has-text('Resignation Details'))
-    6. Verifies button:has-text('Revoke') is visible -> clicks Revoke -> clicks Confirm / Yes
+    2. Navigates Offboarding -> Resignation Approval
+    3. Searches dynamic employee by name
+    4. Inspects status badge and processes Revoke
     """
     hr_wf = get_hr_resignation_workflow("tejaswini")
-    target_employee_name = "Sanidhy Tiwari"
+    candidate = get_dynamic_resignation_employee("Varanasi")
+    target_employee_name = candidate["name"]
 
     is_revoked = hr_wf.execute_hr_revoke_request_workflow(employee_name=target_employee_name)
     assert is_revoked, f"HR Revoke Request Flow must complete successfully for '{target_employee_name}'"
@@ -51,11 +50,12 @@ def test_buyout_request_prevents_hr_revoke(get_hr_resignation_workflow):
     When Employee submits a Buyout Request, HR should NOT have the option to create a Revoke Request.
     """
     hr_wf = get_hr_resignation_workflow("tejaswini")
-    target_employee_name = "Kumar Piyush"
+    candidate = get_dynamic_resignation_employee("Varanasi")
+    target_employee_name = candidate["name"]
 
     is_revoke_visible = hr_wf.validate_buyout_prevents_hr_revoke_workflow(employee_name=target_employee_name)
     assert not is_revoke_visible, "HR Revoke button must be hidden/blocked when employee has requested Buyout"
-    logger.info("[PASS HR] Buyout Request correctly prevents HR Revoke!")
+    logger.info(f"[PASS HR] Buyout Request correctly prevents HR Revoke for '{target_employee_name}'!")
 
 
 @pytest.mark.ui
@@ -67,8 +67,8 @@ def test_revoke_without_buyout_allows_hr_revoke(get_hr_resignation_workflow):
     When Employee has NOT submitted a Buyout Request, HR should be able to initiate the Revoke Request.
     """
     hr_wf = get_hr_resignation_workflow("tejaswini")
-
-    target_employee_name = "Uttam Kumar"
+    candidate = get_dynamic_resignation_employee("Varanasi")
+    target_employee_name = candidate["name"]
 
     status = hr_wf.verify_hr_table_status_workflow(employee_name=target_employee_name)
     logger.info(f"[PASS HR] Employee '{target_employee_name}' table status: '{status}'")
@@ -77,18 +77,19 @@ def test_revoke_without_buyout_allows_hr_revoke(get_hr_resignation_workflow):
 @pytest.mark.ui
 @pytest.mark.hr_process_buyout
 @pytest.mark.resignation
-@pytest.mark.parametrize("target_employee_name", ["Sanidhy Tiwari", "Adarsh Tiwari"], ids=["sanidhy", "adarsh_tiwari"])
-def test_hr_process_buyout_request_flow(get_hr_resignation_workflow, target_employee_name):
+def test_hr_process_buyout_request_flow(get_hr_resignation_workflow):
     """
     HR Process Buyout Request Flow:
     1. HR logs in (Branch HR: tejaswini)
     2. Navigates Offboarding -> Resignation Approval
-    3. Searches employee (target_employee_name) with status 'BUYOUT REQUESTED'
+    3. Searches dynamic candidate with status 'BUYOUT REQUESTED'
     4. Clicks Actions hamburger button -> selects 'Buyout Request' menu item
     5. Drawer opens ('Buyout Request') displaying Buyout Days, Early LWD, Requested On
     6. Clicks 'Process Buyout' button and captures toast message!
     """
     hr_wf = get_hr_resignation_workflow("tejaswini")
+    candidate = get_dynamic_resignation_employee("Varanasi")
+    target_employee_name = candidate["name"]
 
     toast_msg = hr_wf.process_buyout_request_workflow(employee_name=target_employee_name, process=True)
     assert toast_msg != "", "Toast message must be captured after processing Buyout"
@@ -98,6 +99,7 @@ def test_hr_process_buyout_request_flow(get_hr_resignation_workflow, target_empl
     # Verify table status updates post-approval
     updated_status = hr_wf.verify_hr_table_status_workflow(employee_name=target_employee_name)
     logger.info(f"[PASS HR] HR successfully processed Buyout for '{target_employee_name}'! Post-approval status: '{updated_status}' | Toast: '{toast_msg}'")
+
 
 
 

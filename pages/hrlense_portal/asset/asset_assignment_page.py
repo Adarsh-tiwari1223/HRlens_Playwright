@@ -228,6 +228,51 @@ class AssetAssignmentPage(BasePage):
             self.page.keyboard.press("Escape")
         self.page.wait_for_timeout(300)
 
+    def select_assignment_duration(self, duration_type: str = "Temporary"):
+        """Selects Assignment Type duration: 'Permanent' or 'Temporary'."""
+        modal = self.page.locator("[role='dialog'], .chakra-modal__content, .chakra-drawer__content").first
+        type_select = modal.locator("//div[./label[contains(text(), 'Assignment Type')]]//select").last
+        if not type_select.is_visible(timeout=1500):
+            type_select = modal.locator("select:has(option:has-text('Permanent'))").first
+        if type_select.is_visible(timeout=2000):
+            type_select.select_option(label=duration_type)
+            logger.info(f"Selected Assignment Duration Type: '{duration_type}'")
+            self.page.wait_for_timeout(500)
+            return True
+        logger.warning(f"Assignment Duration dropdown not found for '{duration_type}'")
+        return False
+
+    def get_form_error_messages(self) -> list[str]:
+        """Retrieves visible inline error messages inside assignment drawer."""
+        modal = self.page.locator("[role='dialog'], .chakra-modal__content, .chakra-drawer__content").first
+        if not modal.is_visible(timeout=1000):
+            modal = self.page
+        errors = modal.locator(".chakra-form__error-message, [role='alert'], .text-danger, span[class*='error']").all_inner_texts()
+        return [e.strip() for e in errors if e.strip()]
+
+    def verify_gating_restrictions(self) -> dict:
+        """
+        Audits whether Category, Sub Category, and Assets dropdowns are disabled
+        before an Employee is selected (TC-AST-048).
+        """
+        modal = self.page.locator("[role='dialog'], .chakra-modal__content, .chakra-drawer__content").first
+        cat_select = modal.locator("//div[./label[contains(text(), 'Category')]]//select").first
+        if not cat_select.is_visible(timeout=1000):
+            cat_select = modal.locator("select").first
+        
+        sub_select = modal.locator("//div[./label[contains(text(), 'Sub Category')]]//select").first
+        if not sub_select.is_visible(timeout=1000):
+            sub_select = modal.locator("select").nth(1)
+
+        cat_disabled = cat_select.is_disabled() if cat_select.is_visible(timeout=1000) else None
+        sub_disabled = sub_select.is_disabled() if sub_select.is_visible(timeout=1000) else None
+
+        return {
+            "category_disabled": cat_disabled,
+            "subcategory_disabled": sub_disabled,
+            "gated": bool(cat_disabled and sub_disabled)
+        }
+
     def open_fulfillment_drawer(self, employee_name: str = None):
         """
         Switches to Requested Assignment tab, optionally searches for employee, and clicks Fulfil to open the assignment drawer.

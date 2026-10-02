@@ -89,6 +89,42 @@ USERS = {
         "username": _get_env("KAILASH_SINGH_USERNAME"),
         "password": _get_env("KAILASH_SINGH_PASSWORD")
     },
+    "sunil_kumar": {
+        "username": _get_env("SUNIL_KUMAR_USERNAME"),
+        "password": _get_env("SUNIL_KUMAR_PASSWORD")
+    },
+    "riya_tripathi": {
+        "username": _get_env("RIYA_TRIPATHI_USERNAME"),
+        "password": _get_env("RIYA_TRIPATHI_PASSWORD")
+    },
+    "sanjeev_rohatgi": {
+        "username": _get_env("SANJEEV_ROHATGI_USERNAME"),
+        "password": _get_env("SANJEEV_ROHATGI_PASSWORD")
+    },
+    "riyan_sharma": {
+        "username": _get_env("RIYAN_SHARMA_USERNAME"),
+        "password": _get_env("RIYAN_SHARMA_PASSWORD")
+    },
+    "shatveer": {
+        "username": _get_env("SHATVEER_USERNAME"),
+        "password": _get_env("SHATVEER_PASSWORD")
+    },
+    "arvind_kumar": {
+        "username": _get_env("ARVIND_KUMAR_USERNAME"),
+        "password": _get_env("ARVIND_KUMAR_PASSWORD")
+    },
+    "davesh_sharma": {
+        "username": _get_env("DAVESH_SHARMA_USERNAME"),
+        "password": _get_env("DAVESH_SHARMA_PASSWORD")
+    },
+    "pramod_nayak": {
+        "username": _get_env("PRAMOD_NAYAK_USERNAME"),
+        "password": _get_env("PRAMOD_NAYAK_PASSWORD")
+    },
+    "naseema_bano": {
+        "username": _get_env("NASEEMA_BANO_USERNAME"),
+        "password": _get_env("NASEEMA_BANO_PASSWORD")
+    },
     "it_admin": {
         "username": _get_env("IT_ADMIN_USERNAME"),
         "password": _get_env("IT_ADMIN_PASSWORD")
@@ -170,6 +206,8 @@ APPROVERS = {
     "Uday Pratap": "uday_pratap",
     "Amar Deep": "amar_deep",
     "Kailash Singh": "kailash_singh",
+    "Sunil Kumar": "sunil_kumar",
+    "Riya Tripathi": "riya_tripathi",
 }
 
 # Varanasi Branch Employees (excluding Director Vivek, Branch HR Tejaswini/Shiva/Ritesh, and Admins)
@@ -194,6 +232,8 @@ EXCLUDED_MANAGEMENT_USERS = [
     "tejaswini",
     "shiva",
     "ritesh_singh",
+    "sunil_kumar",
+    "riya_tripathi",
     "it_admin",
     "it_admin_greaternoida",
     "it_admin_jaipur",

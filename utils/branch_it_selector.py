@@ -114,3 +114,12 @@ def get_all_branch_employees(branch: str = "Varanasi") -> list[dict]:
     matched_branch = next((k for k in BRANCH_RESPONSIBILITY_MAP if k.lower() == (branch or "").lower()), "Varanasi")
     b_data = BRANCH_RESPONSIBILITY_MAP.get(matched_branch, BRANCH_RESPONSIBILITY_MAP["Varanasi"])
     return b_data.get("employees", [])
+
+def get_branch_target_employee(branch: str = "Varanasi") -> dict:
+    """Returns a target test employee belonging to a branch."""
+    emps = get_all_branch_employees(branch)
+    return emps[0] if emps else {"name": "Adarsh Tiwari", "email": "adarsh.tiwari@tekinspirations.com", "user_key": "adarsh_tiwari"}
+
+def get_all_supported_branches() -> list[str]:
+    """Returns a list of all branches supported in the responsibility map."""
+    return list(BRANCH_RESPONSIBILITY_MAP.keys())

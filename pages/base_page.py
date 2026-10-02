@@ -232,6 +232,47 @@ class BasePage:
         except Exception:
             pass
 
+    def handle_global_asset_alert(self, action: str = "dismiss") -> dict:
+        """
+        Handles the global floating 'Asset Alert' notification card that appears upon fresh login:
+        - action='dismiss' -> clicks 'Dismiss' or '✕' to close it.
+        - action='view_details' -> clicks 'View Details' to deep-link to the respected requests view.
+        Returns: {'found': bool, 'badge': str, 'text': str, 'action_taken': str}
+        """
+        try:
+            alert = self.page.locator("div:has-text('Asset Alert'), p:has-text('Asset Alert')").filter(
+                has_text=re.compile(r"Asset Alert|New Asset Request", re.I)
+            ).first
+            if not alert.is_visible(timeout=1500):
+                return {"found": False, "badge": "", "text": "", "action_taken": None}
+
+            container = alert.locator("xpath=ancestor::div[contains(@class, 'css-')][last()]").first
+            if not container.is_visible(timeout=500):
+                container = alert
+
+            badge_loc = container.locator(".chakra-badge").first
+            badge_text = badge_loc.inner_text().strip() if badge_loc.is_visible(timeout=500) else ""
+            alert_text = container.inner_text().strip().replace("\n", " | ")
+            logger.info(f"[GLOBAL ASSET ALERT DETECTED]: {alert_text}")
+
+            if action.lower() == "view_details":
+                view_btn = container.locator("button:has-text('View Details')").first
+                if view_btn.is_visible(timeout=1000):
+                    view_btn.click()
+                    logger.info("Clicked 'View Details' on Asset Alert")
+                    return {"found": True, "badge": badge_text, "text": alert_text, "action_taken": "view_details"}
+
+            # Default: Dismiss
+            dismiss_btn = container.locator("button:has-text('Dismiss'), button:has-text('✕')").first
+            if dismiss_btn.is_visible(timeout=1000):
+                dismiss_btn.click()
+                logger.info("Dismissed global Asset Alert")
+                return {"found": True, "badge": badge_text, "text": alert_text, "action_taken": "dismiss"}
+        except Exception as ex:
+            logger.debug(f"Note checking global asset alert: {ex}")
+
+        return {"found": False, "badge": "", "text": "", "action_taken": None}
+
     def wait_for_toast(self, locator: str = "#chakra-toast-manager-top-right", timeout: int = 5000, **kwargs) -> str:
         """Waits for a toast message to appear, captures text, and dismisses the toast 'X' button."""
         toast_loc = self.page.locator(

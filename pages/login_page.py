@@ -116,6 +116,9 @@ class LoginPage(BasePage):
         except Exception:
             pass
 
+        if login_succeeded:
+            self.dismiss_all_floating_alerts()
+
         if not login_succeeded:
             # Capture any visible UI toast/error message
             toast_text = ""

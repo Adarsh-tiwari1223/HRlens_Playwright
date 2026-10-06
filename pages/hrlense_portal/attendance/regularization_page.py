@@ -28,6 +28,17 @@ class RegularizationPage(BasePage):
     APPLY_BTN = "button:has-text('Apply'), button:has-text('Submit')"
     CONFIRM_BTN = "button:has-text('Confirm'), button:has-text('Yes')"
 
+    # Custom Table Locators (/regularisation Approver Grid)
+    CUSTOM_TABLE = "table.chakra-table"
+    CUSTOM_THEAD = "thead.table_header"
+    CUSTOM_TH_CELLS = "thead.table_header th"
+    COLUMNS_MENU_BTN = "button[aria-label='Columns']"
+    COLUMNS_MENU_ITEMS = ".chakra-menu__menu-list button[role='menuitem']"
+    EMPTY_TABLE_MSG = "text='No Regularisation Requests Found'"
+    PAGINATION_LIST = "ul.pagination"
+    PAGE_SIZE_SELECT = "select.chakra-select"
+    DATE_RANGE_INPUT = "input[placeholder*='Select Date Range' i]"
+
     # Toast (Chakra UI)
     TOAST = (
         "[role='region'][aria-live='polite'] [role='status'], "
@@ -374,10 +385,21 @@ class RegularizationPage(BasePage):
             pass
 
         rows = self.page.locator("tbody tr").all()
+        # Filter out empty placeholder rows
+        valid_rows = [
+            r for r in rows
+            if "no regularisation requests found" not in r.inner_text().lower()
+            and "no records found" not in r.inner_text().lower()
+        ]
+
+        if not valid_rows:
+            logger.info("Approver grid has no active employee regularization rows.")
+            return None
+
         clean_target = employee_name.splitlines()[-1].strip().lower()
 
         # 1. Exact target name + date match
-        for row in rows:
+        for row in valid_rows:
             txt = row.inner_text().lower()
             if any(part in txt for part in clean_target.split()):
                 if date_candidates and not any(d.lower() in txt for d in date_candidates):
@@ -386,12 +408,222 @@ class RegularizationPage(BasePage):
 
         # 2. Match by date if search filtered the table
         if date_candidates:
-            for row in rows:
+            for row in valid_rows:
                 txt = row.inner_text().lower()
                 if any(d.lower() in txt for d in date_candidates):
                     return row
 
-        return rows[0] if rows else None
+        return valid_rows[0] if valid_rows else None
+
+    # -------------------------------------------------------------
+    # Custom Table (Enterprise Grid) Helper Methods
+    # -------------------------------------------------------------
+    def get_column_headers(self) -> list[str]:
+        """Extracts visible column header names from the custom table."""
+        headers = []
+        try:
+            th_locators = self.page.locator(self.CUSTOM_TH_CELLS).all()
+            for th in th_locators:
+                # Column titles are typically inside .css-1tsdjac or .css-1t4h492
+                title_el = th.locator(".css-1tsdjac, .css-1t4h492").first
+                if title_el.is_visible(timeout=500):
+                    txt = title_el.inner_text().strip()
+                else:
+                    txt = th.inner_text().strip()
+                if txt and txt != "":
+                    headers.append(txt)
+        except Exception as e:
+            logger.warning(f"Error reading custom table column headers: {e}")
+        logger.info(f"Custom table headers found: {headers}")
+        return headers
+
+    def get_column_index(self, col_name: str) -> int:
+        """Returns 0-based column index matching the given header name."""
+        headers = self.get_column_headers()
+        col_clean = col_name.strip().lower()
+        for idx, h in enumerate(headers):
+            if col_clean in h.lower():
+                return idx
+        return -1
+
+    def is_empty_table(self) -> bool:
+        """Checks if the custom table currently shows 'No Regularisation Requests Found'."""
+        try:
+            empty_el = self.page.locator(self.EMPTY_TABLE_MSG).first
+            return empty_el.is_visible(timeout=2000)
+        except Exception:
+            return False
+
+    def get_custom_table_rows(self) -> list[dict]:
+        """
+        Parses all visible rows from the custom table and returns list of dictionaries
+        mapped with header names.
+        """
+        if self.is_empty_table():
+            return []
+
+        headers = self.get_column_headers()
+        result = []
+        try:
+            rows = self.page.locator("table.chakra-table tbody tr").all()
+            for row in rows:
+                txt = row.inner_text().strip()
+                if "no regularisation requests found" in txt.lower() or "no records found" in txt.lower():
+                    continue
+                cells = [td.inner_text().strip() for td in row.locator("td").all()]
+                if not cells:
+                    continue
+                row_dict = {}
+                for idx, cell_val in enumerate(cells):
+                    h_name = headers[idx] if idx < len(headers) else f"col_{idx}"
+                    row_dict[h_name] = cell_val
+                row_dict["_row_element"] = row
+                result.append(row_dict)
+        except Exception as e:
+            logger.warning(f"Error extracting custom table rows: {e}")
+        return result
+
+    def filter_by_column(self, col_name: str, search_query: str):
+        """
+        Filters by a specific column using the column's filter popover button (aria-label='Filter').
+        """
+        logger.info(f"Applying column filter on '{col_name}' with value '{search_query}'...")
+        try:
+            headers = self.page.locator(self.CUSTOM_TH_CELLS).all()
+            target_th = None
+            for th in headers:
+                if col_name.lower() in th.inner_text().lower():
+                    target_th = th
+                    break
+
+            if target_th:
+                filter_btn = target_th.locator("button[aria-label='Filter']").first
+                if filter_btn.is_visible(timeout=1500):
+                    filter_btn.click()
+                    self.page.wait_for_timeout(400)
+                    popover_input = self.page.locator(".chakra-popover__content input, [role='dialog'] input").first
+                    if popover_input.is_visible(timeout=2000):
+                        popover_input.fill("")
+                        popover_input.fill(search_query)
+                        popover_input.press("Enter")
+                        self.page.wait_for_timeout(800)
+        except Exception as e:
+            logger.warning(f"Could not apply column filter for '{col_name}': {e}")
+
+    def toggle_column(self, col_name: str, enable: bool = True):
+        """
+        Opens the 'Columns' manager dropdown and checks/unchecks the column checkbox.
+        """
+        logger.info(f"Setting column '{col_name}' visibility to {enable}...")
+        try:
+            col_btn = self.page.locator(self.COLUMNS_MENU_BTN).first
+            if col_btn.is_visible(timeout=2000):
+                col_btn.click()
+                self.page.wait_for_timeout(400)
+                item = self.page.locator(self.COLUMNS_MENU_ITEMS).filter(has_text=re.compile(rf"\b{re.escape(col_name)}\b", re.I)).first
+                if item.is_visible(timeout=2000):
+                    checkbox = item.locator("input[type='checkbox']").first
+                    is_checked = checkbox.is_checked()
+                    if is_checked != enable:
+                        item.locator("label.chakra-checkbox").click()
+                        self.page.wait_for_timeout(300)
+                # Close menu by clicking outside or pressing Escape
+                self.page.keyboard.press("Escape")
+        except Exception as e:
+            logger.warning(f"Error toggling column '{col_name}': {e}")
+
+    def freeze_column(self, col_name: str):
+        """
+        Pins/freezes the specified column via the 'Columns' manager.
+        """
+        logger.info(f"Freezing column '{col_name}'...")
+        try:
+            col_btn = self.page.locator(self.COLUMNS_MENU_BTN).first
+            if col_btn.is_visible(timeout=2000):
+                col_btn.click()
+                self.page.wait_for_timeout(400)
+                item = self.page.locator(self.COLUMNS_MENU_ITEMS).filter(has_text=re.compile(rf"\b{re.escape(col_name)}\b", re.I)).first
+                if item.is_visible(timeout=2000):
+                    freeze_btn = item.locator("button[aria-label='Freeze']").first
+                    if freeze_btn.is_visible(timeout=1000):
+                        freeze_btn.click()
+                        self.page.wait_for_timeout(300)
+                self.page.keyboard.press("Escape")
+        except Exception as e:
+            logger.warning(f"Error freezing column '{col_name}': {e}")
+
+    def set_table_page_size(self, size: int = 20):
+        """Changes the table pagination page size (20, 100, 200, 500)."""
+        logger.info(f"Setting table page size to {size}...")
+        try:
+            size_select = self.page.locator(self.PAGE_SIZE_SELECT).first
+            if size_select.is_visible(timeout=2000):
+                size_select.select_option(str(size))
+                self.page.wait_for_timeout(800)
+        except Exception as e:
+            logger.warning(f"Error setting table page size: {e}")
+
+    def get_selected_date_range(self) -> str:
+        """Reads current value of the Date Range filter input."""
+        try:
+            dt_input = self.page.locator(self.DATE_RANGE_INPUT).first
+            if dt_input.is_visible(timeout=2000):
+                val = dt_input.input_value() or dt_input.get_attribute("value") or ""
+                logger.info(f"Current selected date range: '{val}'")
+                return val.strip()
+        except Exception as e:
+            logger.warning(f"Error reading selected date range: {e}")
+        return ""
+
+    def select_date_range(self, start_day: int, end_day: int | None = None, month: int | None = None, year: int | None = None):
+        """
+        Interacts with the react-datepicker range picker on /regularisation:
+        1. Clicks input[placeholder*='Select Date Range'] to open the calendar.
+        2. Optionally selects Month (0-11) and Year dropdowns if provided.
+        3. Clicks start_day (1st click).
+        4. Clicks end_day (2nd click) to complete the range selection.
+        """
+        logger.info(f"Selecting date range: start_day={start_day}, end_day={end_day}, month={month}, year={year}...")
+        try:
+            dt_input = self.page.locator(self.DATE_RANGE_INPUT).first
+            dt_input.wait_for(state="visible", timeout=10000)
+            dt_input.click()
+            self.page.wait_for_timeout(400)
+
+            # Wait for react-datepicker popup to render
+            picker = self.page.locator(".react-datepicker__month-container").first
+            picker.wait_for(state="visible", timeout=10000)
+
+            # Optional Month & Year selection
+            if month is not None:
+                m_select = self.page.locator(".react-datepicker__month-select").first
+                if m_select.is_visible(timeout=1000):
+                    m_select.select_option(str(month))
+                    self.page.wait_for_timeout(200)
+
+            if year is not None:
+                y_select = self.page.locator(".react-datepicker__year-select").first
+                if y_select.is_visible(timeout=1000):
+                    y_select.select_option(str(year))
+                    self.page.wait_for_timeout(200)
+
+            # Target 3-digit zero-padded day classes built into react-datepicker (e.g. .react-datepicker__day--001)
+            start_cls = f".react-datepicker__day--{str(start_day).zfill(3)}:not(.react-datepicker__day--outside-month)"
+            start_cell = self.page.locator(start_cls).first
+            start_cell.wait_for(state="visible", timeout=2000)
+            start_cell.click()
+            self.page.wait_for_timeout(200)
+
+            target_end = end_day if end_day is not None else start_day
+            end_cls = f".react-datepicker__day--{str(target_end).zfill(3)}:not(.react-datepicker__day--outside-month)"
+            end_cell = self.page.locator(end_cls).first
+            end_cell.wait_for(state="visible", timeout=2000)
+            end_cell.click()
+            self.page.wait_for_timeout(500)
+
+            logger.info("Date range selected successfully.")
+        except Exception as e:
+            logger.warning(f"Error selecting date range: {e}")
 
     def approve_regularization(self, employee_name: str, reg_date: datetime | str | None = None, reason: str = "Approved by Manager") -> str | None:
         """
@@ -525,27 +757,73 @@ class RegularizationPage(BasePage):
         return ""
 
     def reject_regularization(self, employee_name: str, reg_date: datetime | str | None = None, remark: str = "Rejected for testing") -> str | None:
-        """Admin Flow: Selects Reject and confirms regularization request (REG_002, REG_009)."""
+        """
+        Admin Flow: Selects Reject and confirms regularization request.
+        1. Search employee name
+        2. Match row
+        3. Select 'Reject' (value='Rejected' / 'Reject')
+        4. Modal opens with header 'Reject Reason' / 'Rejection Reason'
+        5. Enter reject reason
+        6. Click Submit
+        7. Click Confirm if confirmation dialog appears
+        8. Wait for spinner and return toast notification
+        """
         logger.info(f"Rejecting Regularization request for '{employee_name}' with remark '{remark}'...")
+        self.search_employee(employee_name)
         row = self.get_matched_employee_row(employee_name, reg_date)
         if row:
             select_elem = row.locator("select").first
-            if select_elem.is_visible():
+            if select_elem.is_visible(timeout=1000):
+                logger.info("Selecting 'Reject' / 'Rejected' in table row dropdown...")
                 try:
-                    select_elem.select_option(label="Reject")
+                    select_elem.select_option(value="Rejected")
                 except Exception:
-                    select_elem.select_option(value="Reject")
+                    try:
+                        select_elem.select_option(value="Reject")
+                    except Exception:
+                        try:
+                            select_elem.select_option(label="Reject")
+                        except Exception:
+                            select_elem.select_option(label="Rejected")
             else:
                 reject_btn = row.locator("button:has-text('Reject'), a:has-text('Reject')").first
-                if reject_btn.is_visible():
+                if reject_btn.is_visible(timeout=1000):
                     reject_btn.click(force=True)
 
-            remark_input = self.page.locator("textarea[placeholder*='Remark'], input[placeholder*='Remark']").first
-            if remark_input.is_visible():
-                remark_input.fill(remark)
+            # Check for 'Reject Reason' modal
+            try:
+                modal_header = self.page.locator("text=/Reject Reason|Rejection Reason|Reason/i").first
+                if modal_header.is_visible(timeout=3000):
+                    logger.info("Reject Reason modal detected. Entering reason...")
+                    reason_input = self.page.get_by_placeholder("Enter reject reason...").first
+                    if not reason_input.is_visible(timeout=1000):
+                        reason_input = self.page.locator("textarea[placeholder*='reason' i], textarea[placeholder*='reject' i], textarea[placeholder*='remark' i], input[placeholder*='reason' i], input[placeholder*='reject' i]").first
+                    if not reason_input.is_visible(timeout=1000):
+                        reason_input = self.page.locator("textarea, input[type='text']").first
+                    if reason_input.is_visible(timeout=1000):
+                        reason_input.fill(remark)
 
+                    submit_btn = self.page.get_by_role("button", name="Submit").first
+                    if not submit_btn.is_visible(timeout=1000):
+                        submit_btn = self.page.locator("button:has-text('Submit'), .chakra-modal__content button:has-text('Submit'), button:has-text('Reject')").first
+                    if submit_btn.is_visible(timeout=1000):
+                        logger.info("Clicking Submit button on Reject Reason modal...")
+                        submit_btn.click(force=True)
+            except Exception as e:
+                logger.debug(f"Reject Reason modal note: {e}")
+
+            # Confirmation modal opens after Submit -> Click Confirm
             self.click_confirm_btn()
-            return self.get_pop_msg()
+
+            # Dynamic wait: wait for spinner to disappear
+            try:
+                self.page.locator(".chakra-spinner, [data-loading], [aria-busy='true']").first.wait_for(state="detached", timeout=15000)
+            except Exception:
+                pass
+
+            toast = self.get_pop_msg()
+            logger.info(f"Captured Rejection Toast: '{toast}'")
+            return toast
         return None
 
     def cancel_pending_request(self, day_num: int) -> str | None:

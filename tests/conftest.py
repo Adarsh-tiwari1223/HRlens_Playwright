@@ -9,7 +9,7 @@ import pytest
 from playwright.sync_api import sync_playwright
 
 from core.config import settings
-from core.browser.browser_manager import get_context_options, launch_browser, create_browser_context
+from core.browser.browser_manager import get_context_options, launch_browser, create_browser_context, register_floating_alert_dismiss_handler
 from core.reporting.trace_manager import start_tracing, stop_tracing
 from core.auth.auth_manager import authenticate_user
 from testdata.static.companies import COMPANIES
@@ -231,6 +231,7 @@ def page(browser, request):
     context = create_browser_context(browser, har_path=har_path)
     start_tracing(context)
     page_instance = context.new_page()
+    register_floating_alert_dismiss_handler(page_instance)
 
     yield page_instance
 
@@ -281,6 +282,7 @@ def logged_in_page(browser, request):
         context = create_browser_context(browser, har_path=har_path)
         start_tracing(context)
         page_instance = context.new_page()
+        register_floating_alert_dismiss_handler(page_instance)
 
         authenticate_user(page_instance, user_key=user_key)
         contexts.append((context, user_key))

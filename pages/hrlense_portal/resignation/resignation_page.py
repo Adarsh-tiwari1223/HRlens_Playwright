@@ -90,8 +90,13 @@ class ResignationPage(BasePage):
         current_origin = "/".join(self.page.url.split("/")[:3])
         target_url = f"{current_origin}/resignation"
         self.page.goto(target_url, wait_until="domcontentloaded")
-        # Wait for first visible tab instead of networkidle
-        self.page.locator("[role='tab']").first.wait_for(state="visible", timeout=10000)
+        self.dismiss_all_floating_alerts()
+        # Wait for first visible tab, resignation apply form, or active status details view
+        self.page.locator(
+            "[role='tab'], select[name='reason'], div:has-text('Resignation Summary'), "
+            "div:has-text('Resignation Status'), div:has-text('APPLICATION DETAILS'), "
+            "button:has-text('Request Withdrawal'), div:has-text('Early Relieving Buyout')"
+        ).first.wait_for(state="visible", timeout=10000)
 
 
 
@@ -110,6 +115,7 @@ class ResignationPage(BasePage):
         current_origin = "/".join(self.page.url.split("/")[:3])
         target_url = f"{current_origin}/resignation-approval"
         self.page.goto(target_url, wait_until="domcontentloaded")
+        self.dismiss_all_floating_alerts()
 
         search_input = self.page.locator("input[placeholder*='Search employee by name']").first
         search_input.wait_for(state="visible", timeout=10000)
@@ -124,28 +130,36 @@ class ResignationPage(BasePage):
         """Clicks on the 'Apply Resignation' tab."""
         logger.info("UI Action: Click 'Apply Resignation' tab")
         apply_tab = self.page.get_by_role("tab", name="Apply Resignation")
-        apply_tab.wait_for(state="visible", timeout=5000)
-        apply_tab.click()
+        if apply_tab.is_visible(timeout=2000):
+            apply_tab.click()
+        else:
+            logger.info("Apply Resignation tab not present (direct form view active)")
 
 
     def has_active_resignation(self) -> bool:
-        """Checks if employee already has an active resignation (Status tab is auto-opened)."""
+        """Checks if employee already has an active resignation."""
         status_tab = self.page.get_by_role("tab", name="Status")
-        applied_on = self.page.get_by_text("Applied On:", exact=False)
-        return status_tab.is_visible(timeout=3000) and applied_on.is_visible(timeout=3000)
+        if status_tab.is_visible(timeout=2000):
+            return True
+        active_indicator = self.page.locator(
+            "div:has-text('Resignation Status'), button:has-text('Request Withdrawal'), div:has-text('APPLICATION DETAILS')"
+        ).first
+        return active_indicator.is_visible(timeout=2000)
 
 
     def click_status_tab(self) -> None:
         """Clicks on the 'Status' tab."""
         logger.info("UI Action: Click 'Status' tab")
         status_tab = self.page.get_by_role("tab", name="Status")
-        status_tab.wait_for(state="visible", timeout=10000)
-        status_tab.click()
+        if status_tab.is_visible(timeout=2000):
+            status_tab.click()
+        else:
+            logger.info("Status tab not present (direct status view active)")
 
     def verify_autofilled_fields(self) -> Dict[str, Union[bool, str]]:
         """Verifies presence of auto-filled personal email label and contact number input."""
         logger.info("UI Check: Verify Personal Email and Contact Number auto-filled fields")
-        email_label = self.page.get_by_text("Personal Email", exact=True)
+        email_label = self.page.get_by_text("Personal Email", exact=True).first
         contact_input = self.page.locator(self.CONTACT_NUMBER_INPUT)
 
         is_email_visible = email_label.is_visible(timeout=5000)
@@ -296,6 +310,39 @@ class ResignationPage(BasePage):
         submit_btn.wait_for(state="visible", timeout=5000)
         submit_btn.click()
 
+    def is_withdrawal_button_visible(self, timeout: int = 3000) -> bool:
+        """Checks if 'Withdraw Resignation' or 'Request Withdrawal' button is visible on employee portal."""
+        btn = self.page.locator("button:has-text('Withdraw Resignation'), button:has-text('Request Withdrawal'), button:has-text('Withdraw')").first
+        return btn.is_visible(timeout=timeout)
+
+    def click_request_withdrawal(self) -> dict:
+        """
+        Clicks 'Withdraw Resignation' / 'Request Withdrawal' on Employee resignation page and confirms modal dialog.
+        Captures confirmation and toast message.
+        """
+        logger.info("UI Action: Click 'Withdraw Resignation' / 'Request Withdrawal' button")
+        btn = self.page.locator("button:has-text('Withdraw Resignation'), button:has-text('Request Withdrawal'), button:has-text('Withdraw')").first
+        btn.wait_for(state="visible", timeout=5000)
+        btn.click()
+
+        # Handle confirmation dialog / alertdialog if present
+        modal = self.page.locator("[role='dialog'], [role='alertdialog'], .chakra-modal__content").first
+        modal_visible = False
+        try:
+            if modal.is_visible(timeout=2000):
+                modal_visible = True
+                confirm_btn = modal.locator(
+                    "button:has-text('Confirm'), button:has-text('Yes'), button:has-text('Withdraw'), button:has-text('Submit')"
+                ).first
+                if confirm_btn.is_visible(timeout=2000):
+                    confirm_btn.click()
+        except Exception:
+            pass
+
+        toast = self.wait_for_toast(timeout=5000)
+        logger.info(f"Request Withdrawal result -> Toast: '{toast}', Modal: {modal_visible}")
+        return {"modal_visible": modal_visible, "toast": toast}
+
     def click_buyout_request_button(self) -> None:
         """Clicks on the 'View Buy out Request' or 'Apply Buyout' button."""
         logger.info("UI Action: Click Buyout Request button")
@@ -306,9 +353,14 @@ class ResignationPage(BasePage):
     def search_employee_in_hr_table(self, employee_name: str) -> None:
         """Types employee name in HR Resignation search input ('Search employee by name...'), presses Enter, and waits for table row."""
         logger.info(f"UI Action: HR searching employee by name -> '{employee_name}'")
+        self.dismiss_all_floating_alerts()
         search_input = self.page.locator("input[placeholder*='Search employee by name']").first
         search_input.wait_for(state="visible", timeout=5000)
-        search_input.click()
+        try:
+            search_input.click()
+        except Exception:
+            self.dismiss_all_floating_alerts()
+            search_input.click(force=True)
         search_input.fill(employee_name)
         search_input.press("Enter")
         # Wait for filtered row to appear instead of fixed 2s sleep
@@ -402,7 +454,94 @@ class ResignationPage(BasePage):
 
         return False
 
+    def process_hr_withdrawal_request(self, employee_name: str, approve: bool = True) -> dict:
+        """
+        HR searches employee on /resignation-approval, checks status, and approves or rejects Withdrawal.
+        Can process via Actions hamburger menu or via Resignation Details modal.
+        """
+        logger.info(f"UI Action: HR processing Withdrawal for '{employee_name}' (approve={approve})")
+        self.navigate_to_hr_resignation_approval()
+        self.search_employee_in_hr_table(employee_name)
 
+        row = self.page.locator(f"tr:has-text('{employee_name}')").first
+        row.wait_for(state="visible", timeout=5000)
+
+        initial_status = self.get_hr_table_employee_status(employee_name)
+        logger.info(f"HR Resignation table status for '{employee_name}': '{initial_status}'")
+
+        action_keyword = "Approve" if approve else "Reject"
+        processed = False
+
+        # Attempt 1: Via Actions hamburger menu in row
+        try:
+            action_btn = row.locator("td").last.locator("button").first
+            if action_btn.is_visible(timeout=2000):
+                action_btn.click()
+                self.page.wait_for_timeout(500)
+                menu_item = self.page.locator(
+                    f"[role='menuitem']:has-text('{action_keyword}'), button:has-text('{action_keyword}')"
+                ).first
+                if menu_item.is_visible(timeout=2000):
+                    menu_item.click()
+                    processed = True
+        except Exception:
+            pass
+
+        # Attempt 2: Via Resignation Details modal
+        if not processed:
+            try:
+                self.open_hr_resignation_details_modal(employee_name)
+                modal = self.page.locator("[role='dialog'], .chakra-modal__content").first
+                btn = modal.locator(f"button:has-text('{action_keyword}')").first
+                if btn.is_visible(timeout=3000):
+                    btn.click()
+                    processed = True
+            except Exception:
+                pass
+
+        # Handle any confirmation dialog
+        try:
+            confirm_btn = self.page.locator("[role='alertdialog'] button:has-text('Confirm'), [role='alertdialog'] button:has-text('Yes'), button:has-text('Confirm')").first
+            if confirm_btn.is_visible(timeout=2000):
+                confirm_btn.click()
+        except Exception:
+            pass
+
+        toast = self.wait_for_toast(timeout=5000)
+        self.page.wait_for_timeout(1000)
+        final_status = self.get_hr_table_employee_status(employee_name)
+        logger.info(f"HR Withdrawal processing completed -> Initial: '{initial_status}', Final: '{final_status}', Toast: '{toast}'")
+
+        return {
+            "processed": processed,
+            "initial_status": initial_status,
+            "final_status": final_status,
+            "toast": toast
+        }
+
+    def get_hr_table_row_actions(self, employee_name: str) -> list:
+        """
+        Searches employee on /resignation-approval, opens row Actions menu,
+        and returns list of available action labels.
+        """
+        self.navigate_to_hr_resignation_approval()
+        self.search_employee_in_hr_table(employee_name)
+        row = self.page.locator(f"tr:has-text('{employee_name}')").first
+        if not row.is_visible(timeout=3000):
+            return []
+        actions_btn = row.locator("td").last.locator("button.chakra-menu__menu-button, button").first
+        if not actions_btn.is_visible(timeout=2000):
+            return []
+        actions_btn.click()
+        self.page.wait_for_timeout(500)
+        items = self.page.locator("[role='menuitem'], button.chakra-menu__menuitem, .chakra-menu__menu-list button").all_inner_texts()
+        actions = [i.strip() for i in items if i.strip()]
+        # Close menu by pressing Escape or clicking outside
+        try:
+            self.page.keyboard.press("Escape")
+        except Exception:
+            pass
+        return actions
 
     def open_hr_buyout_request_drawer(self, employee_name: str) -> bool:
         """

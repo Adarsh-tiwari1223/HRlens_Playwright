@@ -3,7 +3,7 @@ Browser and Context lifecycle manager for Playwright.
 """
 
 import logging
-from playwright.sync_api import Playwright, Browser, BrowserContext
+from playwright.sync_api import Playwright, Browser, BrowserContext, Page
 from core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -86,3 +86,30 @@ def create_browser_context(browser: Browser, custom_options: dict = None, har_pa
 
     context.set_default_timeout(settings.DEFAULT_TIMEOUT)
     return context
+
+
+def register_floating_alert_dismiss_handler(page: Page) -> None:
+    """
+    Registers an automatic background locator handler on the Page (Playwright 1.42+).
+    Whenever any floating notification card (e.g. 'RESIGNATION UPDATE', 'Asset Alert', 'Return Approaching')
+    appears (on login, refresh, or real-time event) and intercepts pointer events,
+    Playwright automatically clicks its 'Dismiss' or '✕' button before continuing.
+    """
+    if getattr(page, "_has_alert_dismiss_handler", False):
+        return
+    try:
+        alert_dismiss_loc = page.locator(
+            "button:has-text('Dismiss'), "
+            "div:has-text('Asset Alert') button:has-text('✕'), "
+            "div:has-text('RESIGNATION UPDATE') button:has-text('✕'), "
+            "div:has-text('Resignation Update') button:has-text('✕'), "
+            "div:has-text('Return Approaching') button:has-text('✕')"
+        ).first
+        page.add_locator_handler(
+            alert_dismiss_loc,
+            lambda overlay: overlay.click()
+        )
+        page._has_alert_dismiss_handler = True
+        logger.debug("[FLOATING ALERTS] Background auto-dismiss handler registered on page.")
+    except Exception as ex:
+        logger.debug(f"[FLOATING ALERTS] Note registering handler: {ex}")

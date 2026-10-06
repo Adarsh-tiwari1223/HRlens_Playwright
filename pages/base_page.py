@@ -124,6 +124,11 @@ class BasePage:
 
     def __init__(self, page: Page):
         self.page = page
+        try:
+            from core.browser.browser_manager import register_floating_alert_dismiss_handler
+            register_floating_alert_dismiss_handler(page)
+        except Exception:
+            pass
 
     # ──────────────────────────────────────────────────────────────────────────
     # PORTAL-WIDE NAVIGATION HELPERS
@@ -213,7 +218,7 @@ class BasePage:
     # ──────────────────────────────────────────────────────────────────────────
 
     def dismiss_toasts(self):
-        """Dismisses all visible Chakra toasts by clicking their close 'X' button or SVG."""
+        """Dismisses all visible Chakra toasts by clicking their close 'X' button or SVG, and clears floating alert cards."""
         try:
             close_locators = [
                 ".chakra-toast button[aria-label='Close']",
@@ -228,9 +233,59 @@ class BasePage:
                 for el in elements:
                     if el.is_visible():
                         el.click(force=True)
-            self.page.wait_for_timeout(200)
+            self.page.wait_for_timeout(100)
         except Exception:
             pass
+        self.dismiss_all_floating_alerts()
+
+    def dismiss_all_floating_alerts(self):
+        """
+        Dismisses all floating notification / alert popup cards (e.g. 'ASSET ALERT',
+        'RESIGNATION UPDATE', 'RETURN APPROACHING', etc.) that stack and overlap UI elements.
+        """
+        try:
+            # 1. Click all explicit close '✕' buttons or 'Dismiss' buttons on floating notification cards
+            alert_close_btns = self.page.locator(
+                "div:has-text('Asset Alert') button:has-text('✕'), "
+                "div:has-text('Asset Alert') button:has-text('Dismiss'), "
+                "div:has-text('Resignation Update') button:has-text('✕'), "
+                "div:has-text('Return Approaching') button:has-text('✕'), "
+                "button:has-text('Dismiss')"
+            )
+            if alert_close_btns.first.is_visible(timeout=800):
+                for btn in alert_close_btns.all():
+                    try:
+                        if btn.is_visible(timeout=200):
+                            btn.click(force=True)
+                            self.page.wait_for_timeout(150)
+                    except Exception:
+                        pass
+
+            # 3. Fail-safe JS evaluation: close or hide any remaining fixed/absolute alert cards
+            self.page.evaluate('''() => {
+                const keywords = ['ASSET ALERT', 'RESIGNATION UPDATE', 'RETURN APPROACHING', 'NEW RESIGNATION'];
+                document.querySelectorAll('div, section, aside').forEach(el => {
+                    const text = el.innerText || '';
+                    if (keywords.some(k => text.includes(k))) {
+                        let curr = el;
+                        for (let i = 0; i < 4 && curr; i++) {
+                            const style = window.getComputedStyle(curr);
+                            if (style.position === 'fixed' || style.position === 'absolute') {
+                                const closeBtn = curr.querySelector('button[aria-label*="close" i], button.chakra-close-button, button');
+                                if (closeBtn && (closeBtn.innerText.includes('Dismiss') || closeBtn.innerText.includes('✕') || closeBtn.querySelector('svg'))) {
+                                    closeBtn.click();
+                                } else {
+                                    curr.style.display = 'none';
+                                }
+                                break;
+                            }
+                            curr = curr.parentElement;
+                        }
+                    }
+                });
+            }''')
+        except Exception as ex:
+            logger.debug(f"Note dismissing floating alert cards: {ex}")
 
     def handle_global_asset_alert(self, action: str = "dismiss") -> dict:
         """
@@ -239,6 +294,10 @@ class BasePage:
         - action='view_details' -> clicks 'View Details' to deep-link to the respected requests view.
         Returns: {'found': bool, 'badge': str, 'text': str, 'action_taken': str}
         """
+        if action.lower() == "dismiss":
+            self.dismiss_all_floating_alerts()
+            return {"found": True, "badge": "", "text": "Dismissed all floating alert cards", "action_taken": "dismiss"}
+
         try:
             alert = self.page.locator("div:has-text('Asset Alert'), p:has-text('Asset Alert')").filter(
                 has_text=re.compile(r"Asset Alert|New Asset Request", re.I)
@@ -262,12 +321,8 @@ class BasePage:
                     logger.info("Clicked 'View Details' on Asset Alert")
                     return {"found": True, "badge": badge_text, "text": alert_text, "action_taken": "view_details"}
 
-            # Default: Dismiss
-            dismiss_btn = container.locator("button:has-text('Dismiss'), button:has-text('✕')").first
-            if dismiss_btn.is_visible(timeout=1000):
-                dismiss_btn.click()
-                logger.info("Dismissed global Asset Alert")
-                return {"found": True, "badge": badge_text, "text": alert_text, "action_taken": "dismiss"}
+            self.dismiss_all_floating_alerts()
+            return {"found": True, "badge": badge_text, "text": alert_text, "action_taken": "dismiss"}
         except Exception as ex:
             logger.debug(f"Note checking global asset alert: {ex}")
 

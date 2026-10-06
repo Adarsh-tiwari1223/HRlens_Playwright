@@ -197,3 +197,27 @@ class HrResignationWorkflow:
             "sync_verifications": sync_verifications
         }
 
+    def process_withdrawal_workflow(self, employee_name: str, approve: bool = True) -> Dict[str, Union[bool, str]]:
+        """
+        Executes HR Process Withdrawal Workflow:
+        1. Navigates to Offboarding -> Resignation Approval
+        2. Searches employee_name in table
+        3. Identifies and executes Withdrawal action (Approve/Reject) via Actions menu or Details modal
+        4. Verifies confirmation dialog and returns result dict with toast and final status
+        """
+        action_str = "APPROVE" if approve else "REJECT"
+        logger.info("=" * 60)
+        logger.info(f"STARTING HR {action_str} WITHDRAWAL WORKFLOW FOR: '{employee_name}'")
+        logger.info("=" * 60)
+
+        result = self.res_page.process_hr_withdrawal_request(employee_name=employee_name, approve=approve)
+        logger.info(f"HR {action_str} Withdrawal Result for '{employee_name}': {result}")
+        return result
+
+    def get_hr_available_actions_workflow(self, employee_name: str) -> list:
+        """
+        Reads all available action options in the HR Resignation table row menu for an employee.
+        """
+        logger.info(f"HR Workflow: Reading available action menu items for '{employee_name}'")
+        return self.res_page.get_hr_table_row_actions(employee_name)
+

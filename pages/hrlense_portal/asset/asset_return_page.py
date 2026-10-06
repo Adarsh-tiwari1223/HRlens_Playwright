@@ -119,27 +119,27 @@ class AssetReturnPage(BasePage):
             except Exception as ex:
                 logger.warning(f"Condition selection note for '{condition}': {ex}")
 
-            # Handle Lost Condition Recovery Options (Recover Amount vs Waived Off)
-            if condition.lower() == "lost":
+            # Handle Recovery Options (Recover Amount vs Waived Off) for Lost, Damaged & Repair Required
+            if condition.lower() in ["lost", "damaged", "repair required"]:
                 try:
-                    recovery_mode = kwargs.get("recovery_type", "waived").lower()
-                    rec_amount = kwargs.get("recovery_amount", "5000")
+                    recovery_mode = kwargs.get("recovery_type", "recover").lower()
+                    rec_amount = kwargs.get("recovery_amount", "3500")
                     if "recover" in recovery_mode:
                         rec_radio = dialog.locator("input[type='radio'][value*='recover' i], label:has-text('Recover Amount'), label:has-text('Recover')").first
                         if rec_radio.is_visible(timeout=1000):
                             rec_radio.click(force=True)
-                            logger.info("Selected Lost Recovery Option: 'Recover Amount'")
+                            logger.info(f"Selected Recovery Option: 'Recover Amount' for condition '{condition}'")
                             amt_in = dialog.locator("input[type='number'], input[placeholder*='amount' i], input[placeholder*='0' i]").first
                             if amt_in.is_visible(timeout=1000):
                                 amt_in.fill(str(rec_amount))
                                 logger.info(f"Entered Recovery Amount: ₹{rec_amount}")
-                    else: # Waived Off (default)
+                    else: # Waived Off
                         waived_radio = dialog.locator("input[type='radio'][value*='waive' i], label:has-text('Waived Off'), label:has-text('Waive')").first
                         if waived_radio.is_visible(timeout=1000):
                             waived_radio.click(force=True)
-                            logger.info("Selected Lost Recovery Option: 'Waived Off'")
+                            logger.info(f"Selected Recovery Option: 'Waived Off' for condition '{condition}'")
                 except Exception as ex:
-                    logger.warning(f"Lost recovery selection note: {ex}")
+                    logger.warning(f"Recovery selection note for '{condition}': {ex}")
 
             # Media Attachment Upload (Up to 4 photos <= 5MB + 1 video ~10s if present)
             if kwargs.get("upload_media", True):

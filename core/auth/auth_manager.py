@@ -6,6 +6,7 @@ Handles user credential resolution, login execution, and session verification.
 import logging
 from playwright.sync_api import Page
 from core.config import settings
+from core.browser.browser_manager import register_floating_alert_dismiss_handler
 from pages.login_page import LoginPage
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ def authenticate_user(page: Page, user_key: str = "admin") -> Page:
     Navigates to portal base URL and authenticates with credentials of the specified user_key.
     Includes safeguards for modal dismissal and submission latency.
     """
+    register_floating_alert_dismiss_handler(page)
     creds = get_user_credentials(user_key)
 
     page.goto(settings.BASE_URL, timeout=60000)
@@ -54,4 +56,50 @@ def authenticate_user(page: Page, user_key: str = "admin") -> Page:
     except Exception:
         pass
 
+    dismiss_post_login_cards(page)
+
     return page
+
+
+def dismiss_post_login_cards(page: Page) -> int:
+    """
+    Dismisses all floating notification cards (e.g. Asset Alert, Resignation Update, Return Approaching)
+    that appear after successful login.
+    Clicks the card's '✕' close button or 'Dismiss' button.
+    """
+    dismissed_count = 0
+    try:
+        alert_buttons = page.locator(
+            "div:has-text('Asset Alert') button:has-text('✕'), "
+            "div:has-text('Asset Alert') button:has-text('Dismiss'), "
+            "div:has-text('Resignation Update') button:has-text('✕'), "
+            "div:has-text('Return Approaching') button:has-text('✕'), "
+            "button:has-text('Dismiss')"
+        )
+        if not alert_buttons.first.is_visible(timeout=1000):
+            return 0
+
+        for _ in range(5):
+            btns = alert_buttons.all()
+            if not btns:
+                break
+            clicked = False
+            for btn in btns:
+                try:
+                    if btn.is_visible(timeout=300):
+                        btn.click(force=True)
+                        dismissed_count += 1
+                        clicked = True
+                        page.wait_for_timeout(200)
+                except Exception:
+                    pass
+            if not clicked:
+                break
+
+        if dismissed_count > 0:
+            logger.info(f"[POST-LOGIN] Successfully dismissed {dismissed_count} notification card(s).")
+    except Exception as ex:
+        logger.debug(f"Note dismissing post-login cards: {ex}")
+
+    return dismissed_count
+

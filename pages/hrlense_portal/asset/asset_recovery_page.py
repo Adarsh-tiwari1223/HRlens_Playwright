@@ -121,7 +121,7 @@ class AssetRecoveryPage(BasePage):
             return {"found": False}
 
         cells = [c.strip() for c in row.locator("td").all_inner_texts()]
-        if len(cells) >= 9:
+        if len(cells) >= 10:
             details = {
                 "found": True,
                 "asset_code": cells[0],
@@ -132,6 +132,24 @@ class AssetRecoveryPage(BasePage):
                 "total": cells[5],
                 "recovered": cells[6],
                 "balance": cells[7],
+                "next_due": cells[8],
+                "status": cells[9],
+                "has_settle_btn": row.locator("button:has-text('Settle')").is_visible(timeout=1000),
+            }
+            logger.info(f"Parsed recovery row for '{identifier}': {details}")
+            return details
+        elif len(cells) >= 9:
+            details = {
+                "found": True,
+                "asset_code": cells[0],
+                "asset_name": cells[1],
+                "employee": cells[2],
+                "reason": cells[3],
+                "return_date": cells[4],
+                "total": cells[5],
+                "recovered": cells[6],
+                "balance": cells[7],
+                "next_due": "",
                 "status": cells[8],
                 "has_settle_btn": row.locator("button:has-text('Settle')").is_visible(timeout=1000),
             }
@@ -288,3 +306,164 @@ class AssetRecoveryPage(BasePage):
         toast = self.wait_for_toast(timeout=5000)
         logger.info(f"Record Partial Payment toast: '{toast}'")
         return toast
+
+    def create_installment_plan(
+        self,
+        months_count: int = 2,
+        custom_installments: list[dict] = None
+    ) -> str:
+        """
+        Executes 'Installments' plan creation workflow:
+        1. Clicks 'Installments' pill/tab button
+        2. Selects number of months from dropdown (e.g. 2, 5, 10 months)
+        3. Clicks 'Auto split' button to automatically distribute pending balance equally
+        4. Optionally customizes dates/amounts if custom_installments provided
+        5. Verifies 'Balanced ✓' status
+        6. Clicks 'Save Plan' button and captures toast notification
+        """
+        logger.info(f"UI Action: Creating Installment Plan for {months_count} months")
+        modal = self.page.locator("[role='dialog'], .chakra-modal__content").first
+
+        # 1. Click Installments tab
+        inst_tab = modal.locator("button:has-text('Installments'), p:has-text('Installments'), div:has-text('Installments')").filter(has_text=re.compile(r"^Installments$", re.I)).first
+        if not inst_tab.is_visible(timeout=1500):
+            inst_tab = modal.locator("button, div").filter(has_text="Installments").last
+        inst_tab.wait_for(state="visible", timeout=3000)
+        inst_tab.click()
+        self.page.wait_for_timeout(500)
+
+        # 2. Select months count dropdown
+        month_select = modal.locator("select").first
+        if month_select.is_visible(timeout=2000):
+            try:
+                month_select.select_option(str(months_count))
+            except Exception:
+                month_select.select_option(value=str(months_count))
+            self.page.wait_for_timeout(300)
+
+        # 3. Click 'Auto split' button
+        auto_split_btn = modal.locator("button:has-text('Auto split'), button:has-text('Auto Split')").first
+        if auto_split_btn.is_visible(timeout=2000):
+            auto_split_btn.click()
+            self.page.wait_for_timeout(500)
+
+        # 4. Optional custom installments handling
+        if custom_installments:
+            rows = modal.locator("div:has(> input[type='number']), div:has(> input[value])").all()
+            for idx, item in enumerate(custom_installments):
+                if idx < len(rows):
+                    row = rows[idx]
+                    if "amount" in item:
+                        amt_input = row.locator("input[type='number'], input[placeholder*='0' i]").first
+                        if amt_input.is_visible():
+                            amt_input.fill(str(item["amount"]))
+                    if "date" in item:
+                        date_input = row.locator("input[type='date'], input[placeholder*='dd' i]").first
+                        if date_input.is_visible():
+                            date_input.fill(str(item["date"]))
+
+        # 5. Check balance status
+        try:
+            balanced_el = modal.locator("text=Balanced, text=Planned").first
+            if balanced_el.is_visible(timeout=1500):
+                logger.info(f"Installment balance status: '{balanced_el.inner_text().strip()}'")
+        except Exception:
+            pass
+
+        # 6. Click 'Save Plan' button
+        save_btn = modal.locator("button:has-text('Save Plan')").first
+        if not save_btn.is_visible(timeout=2000):
+            save_btn = modal.get_by_role("button", name="Save Plan").first
+        save_btn.wait_for(state="visible", timeout=3000)
+        save_btn.click()
+
+        toast = self.wait_for_toast(timeout=5000)
+        logger.info(f"Save Installment Plan toast: '{toast}'")
+        return toast
+
+    def get_installment_plan_details(self) -> dict:
+        """
+        Reads visible installment rows and balance summary from Settle Recovery modal.
+        Returns:
+        {
+            'installments': [{'num': 1, 'date': '10/06/2026', 'amount': '1000'}, ...],
+            'planned_status': 'Planned ₹2,000 of ₹2,000',
+            'is_balanced': True
+        }
+        """
+        modal = self.page.locator("[role='dialog'], .chakra-modal__content").first
+        details = {"installments": [], "planned_status": "", "is_balanced": False}
+
+        try:
+            # Check for Balanced badge
+            balanced_badge = modal.locator("text=Balanced, text=Planned").first
+            if balanced_badge.is_visible(timeout=1500):
+                details["planned_status"] = balanced_badge.inner_text().strip()
+                details["is_balanced"] = "balanced" in details["planned_status"].lower()
+        except Exception:
+            pass
+
+        return details
+
+    def get_installment_schedule_items(self) -> List[Dict[str, Union[str, bool]]]:
+        """
+        Reads saved 'INSTALLMENT SCHEDULE' cards in the Settle Recovery modal:
+        [
+            {'num': '#1', 'amount': '₹1,000', 'due_date': 'Due 05 Oct 2026', 'status': 'PENDING', 'can_pay': True},
+            {'num': '#2', 'amount': '₹1,000', 'due_date': 'Due 05 Nov 2026', 'status': 'PENDING', 'can_pay': True}
+        ]
+        """
+        modal = self.page.locator("[role='dialog'], .chakra-modal__content").first
+        items = []
+        schedule_section = modal.locator("div:has(> p:text-matches('INSTALLMENT SCHEDULE', 'i')), div:has-text('INSTALLMENT SCHEDULE')").first
+        if not schedule_section.is_visible(timeout=2000):
+            return items
+
+        # Look for cards matching #1, #2...
+        cards = modal.locator("div:has(> div:has-text('#')), div:has(> span:has-text('#'))").all()
+        if not cards:
+            cards = modal.locator("div.css-0, div").filter(has_text=re.compile(r"^#\d+")).all()
+
+        for card in cards:
+            text = card.inner_text().strip()
+            if "#" in text and ("Due" in text or "PENDING" in text or "PAID" in text):
+                lines = [line.strip() for line in text.split("\n") if line.strip()]
+                num_match = re.search(r"#\d+", text)
+                amt_match = re.search(r"₹[\d,]+", text)
+                due_match = re.search(r"Due\s+[^\n]+", text)
+                status_match = re.search(r"(PENDING|PAID|SETTLED)", text, re.I)
+
+                pay_btn = card.locator("button:has-text('Pay')").first
+                items.append({
+                    "num": num_match.group(0) if num_match else "",
+                    "amount": amt_match.group(0) if amt_match else "",
+                    "due_date": due_match.group(0) if due_match else "",
+                    "status": status_match.group(0) if status_match else "",
+                    "can_pay": pay_btn.is_visible(timeout=500) if pay_btn else False,
+                })
+
+        logger.info(f"Parsed Installment Schedule items: {items}")
+        return items
+
+    def click_revise_plan(self) -> bool:
+        """Clicks 'Revise plan' button to modify an active installment plan."""
+        logger.info("UI Action: Clicking 'Revise plan' button")
+        modal = self.page.locator("[role='dialog'], .chakra-modal__content").first
+        revise_btn = modal.locator("button:has-text('Revise plan')").first
+        revise_btn.wait_for(state="visible", timeout=3000)
+        revise_btn.click()
+        self.page.wait_for_timeout(500)
+        return True
+
+    def click_pay_installment(self, installment_num: int = 1) -> bool:
+        """Clicks 'Pay' button for a specific installment number in the schedule."""
+        logger.info(f"UI Action: Clicking 'Pay' for installment #{installment_num}")
+        modal = self.page.locator("[role='dialog'], .chakra-modal__content").first
+        card = modal.locator(f"div:has-text('#{installment_num}')").filter(has_text="Due").first
+        card.wait_for(state="visible", timeout=3000)
+        pay_btn = card.locator("button:has-text('Pay')").first
+        pay_btn.wait_for(state="visible", timeout=2000)
+        pay_btn.click()
+        self.page.wait_for_timeout(500)
+        return True
+

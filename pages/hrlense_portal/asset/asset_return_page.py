@@ -35,14 +35,14 @@ class AssetReturnPage(BasePage):
         self.page.wait_for_timeout(1000)
 
         # 1. Switch to 'Assigned Assets' tab (or Return Requests tab if specified)
-        tab_name = kwargs.get("tab_name", "Assigned Assets")
+        target_tab = tab_name or kwargs.get("tab_name", "Assigned Assets")
         try:
-            tab_btn = self.page.get_by_role("tab", name=re.compile(tab_name, re.I)).first
+            tab_btn = self.page.get_by_role("tab", name=re.compile(target_tab, re.I)).first
             if not tab_btn.is_visible(timeout=1000):
-                tab_btn = self.page.locator("button[role='tab']").filter(has_text=re.compile(tab_name, re.I)).first
+                tab_btn = self.page.locator("button[role='tab']").filter(has_text=re.compile(target_tab, re.I)).first
             if tab_btn.is_visible(timeout=1000):
                 tab_btn.click()
-                logger.info(f"Switched to '{tab_name}' tab on /asset-return")
+                logger.info(f"Switched to '{target_tab}' tab on /asset-return")
                 self.page.wait_for_timeout(800)
         except Exception as e:
             logger.warning(f"Tab switch note for '{tab_name}': {e}")
@@ -202,6 +202,9 @@ class AssetReturnPage(BasePage):
             toast = self.wait_for_toast_message()
             logger.info(f"Return confirmation toast: '{toast}'")
             self.page.wait_for_timeout(1000)
+            return {"status": "SUCCESS", "toast": toast or ""}
+
+        return {"status": "FAILED", "toast": ""}
 
     def review_and_fulfill_return(self, asset_code_or_name: str, condition: str = "Good", remarks: str = "Condition assessed by IT Admin.") -> str:
         """

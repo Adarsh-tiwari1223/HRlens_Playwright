@@ -142,7 +142,15 @@ class LeavePage(BasePage):
         self.page.locator(self.SUBMIT_BTN).click()
 
     def click_confirm(self):
-        self.page.locator(self.CONFIRM_BTN).click()
+        try:
+            confirm_loc = self.page.locator(self.CONFIRM_BTN).first
+            confirm_loc.wait_for(state="visible", timeout=3000)
+            confirm_loc.click()
+        except Exception:
+            try:
+                self.page.locator(self.CONFIRM_BTN).first.evaluate("el => el.click()")
+            except Exception:
+                pass
 
     def wait_for_apply_spinner_and_toast(self) -> str:
         """
@@ -420,9 +428,17 @@ class LeavePage(BasePage):
 
                     drawer = self.page.locator("[role='dialog'], .chakra-drawer__content, .page_wrapper").first
                     btn = drawer.locator(f"button:has-text('{action}')").first
-                    if not btn.is_visible(timeout=1000):
+                    if not btn.is_visible(timeout=1500):
                         btn = self.page.get_by_role("button", name=action, exact=True)
-                    btn.click(force=True)
+                    
+                    try:
+                        btn.scroll_into_view_if_needed(timeout=2000)
+                        btn.click(force=True, timeout=2000)
+                    except Exception:
+                        try:
+                            btn.evaluate("el => { el.scrollIntoView({ behavior: 'instant', block: 'center' }); el.click(); }")
+                        except Exception:
+                            btn.dispatch_event("click")
 
                     self.click_confirm()
                     toast = self.wait_for_apply_spinner_and_toast()

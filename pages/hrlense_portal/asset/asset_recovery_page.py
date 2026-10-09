@@ -328,10 +328,15 @@ class AssetRecoveryPage(BasePage):
         logger.info(f"UI Action: Creating Installment Plan for {months_count} months")
         modal = self.page.locator("[role='dialog'], .chakra-modal__content").first
 
-        # 1. Click Installments tab
-        inst_tab = modal.locator("button:has-text('Installments'), p:has-text('Installments'), div:has-text('Installments')").filter(has_text=re.compile(r"^Installments$", re.I)).first
+        # 1. Click Installments tab / pill
+        # If an installment schedule is already present, plan is already configured
+        if modal.locator("text='INSTALLMENT SCHEDULE'").first.is_visible(timeout=1000):
+            logger.info("Installment plan already active for this recovery.")
+            return "Installment plan already active"
+
+        inst_tab = modal.locator("p:has-text('Installments'), button:has-text('Installments')").first
         if not inst_tab.is_visible(timeout=1500):
-            inst_tab = modal.locator("button, div").filter(has_text="Installments").last
+            inst_tab = modal.locator("[role='tab']:has-text('Installments'), div:has-text('Installments')").first
         inst_tab.wait_for(state="visible", timeout=3000)
         inst_tab.click()
         self.page.wait_for_timeout(500)
@@ -375,7 +380,7 @@ class AssetRecoveryPage(BasePage):
             pass
 
         # 6. Click 'Save Plan' button
-        save_btn = modal.locator("button:has-text('Save Plan')").first
+        save_btn = modal.locator("button:has-text('Save Plan'), button:has-text('Save')").first
         if not save_btn.is_visible(timeout=2000):
             save_btn = modal.get_by_role("button", name="Save Plan").first
         save_btn.wait_for(state="visible", timeout=3000)

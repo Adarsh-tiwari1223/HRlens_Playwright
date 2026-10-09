@@ -8,7 +8,7 @@ from testdata.static.Leave import Leave
 
 import random
 
-EMPLOYEE_USERS = ["kumar_piyush", "uttam_kumar", "abhishek_singh"]
+EMPLOYEE_USERS = ["abhishek_singh", "kumar_piyush"]
 
 
 

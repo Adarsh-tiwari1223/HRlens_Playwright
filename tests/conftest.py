@@ -102,13 +102,44 @@ def pytest_collection_modifyitems(items):
     items[:] = login_items + other_items
 
 
+def _count_matching_test_files(config) -> int:
+    """Estimates the number of distinct test files matching CLI filters or markers."""
+    file_args = [arg for arg in config.args if arg.endswith('.py')]
+    if file_args:
+        return len(file_args)
+
+    markexpr = getattr(config.option, "markexpr", "") or ""
+    if markexpr:
+        tokens = re.findall(r'\b[a-zA-Z_]\w*\b', markexpr)
+        target_markers = [t for t in tokens if t not in ('and', 'or', 'not')]
+        if target_markers:
+            patterns = [re.compile(rf'@pytest\.mark\.{m}\b') for m in target_markers]
+            test_dir = os.path.dirname(__file__)
+            matched_files = set()
+            for root, _, files in os.walk(test_dir):
+                for f in files:
+                    if f.startswith('test_') and f.endswith('.py'):
+                        path = os.path.join(root, f)
+                        try:
+                            with open(path, 'r', encoding='utf-8', errors='ignore') as fp:
+                                content = fp.read()
+                                if any(p.search(content) for p in patterns):
+                                    matched_files.add(path)
+                        except Exception:
+                            pass
+            if matched_files:
+                return len(matched_files)
+
+    return 4
+
+
 @pytest.hookimpl(optionalhook=True)
 def pytest_xdist_auto_num_workers(config):
     """
     Parallel Worker Allocation:
     - Assigns 1 worker when --headed flag is passed or HEADLESS is False.
     - Assigns 1 worker when executing a single test file.
-    - Scales workers to min(test_files, cpu_cores, 4) in headless mode.
+    - Scales workers to min(target_files, cpu_cores, 4) in headless mode.
     """
     is_headed = getattr(config.option, "headed", False) or not settings.HEADLESS
     if is_headed:
@@ -119,8 +150,8 @@ def pytest_xdist_auto_num_workers(config):
         return 1
 
     cpu_cores = os.cpu_count() or 4
-    num_files = len(file_args) if file_args else cpu_cores
-    return min(num_files, cpu_cores, 4)
+    num_files = _count_matching_test_files(config)
+    return max(1, min(num_files, cpu_cores, 4))
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)

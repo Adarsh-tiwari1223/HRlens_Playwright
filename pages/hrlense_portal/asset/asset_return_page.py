@@ -125,19 +125,28 @@ class AssetReturnPage(BasePage):
                     recovery_mode = kwargs.get("recovery_type", "recover").lower()
                     rec_amount = kwargs.get("recovery_amount", "3500")
                     if "recover" in recovery_mode:
-                        rec_radio = dialog.locator("input[type='radio'][value*='recover' i], label:has-text('Recover Amount'), label:has-text('Recover')").first
-                        if rec_radio.is_visible(timeout=1000):
-                            rec_radio.click(force=True)
-                            logger.info(f"Selected Recovery Option: 'Recover Amount' for condition '{condition}'")
+                        rec_btn = dialog.locator(
+                            "p:has-text('Yes, recover amount'), div:has-text('Yes, recover amount'), "
+                            "label:has-text('Yes, recover amount'), input[type='radio'][value*='recover' i]"
+                        ).last
+                        if rec_btn.is_visible(timeout=2000):
+                            rec_btn.click(force=True)
+                            logger.info(f"Selected Recovery Option: 'Yes, recover amount' for condition '{condition}'")
+                            self.page.wait_for_timeout(500)
                             amt_in = dialog.locator("input[type='number'], input[placeholder*='amount' i], input[placeholder*='0' i]").first
-                            if amt_in.is_visible(timeout=1000):
+                            if not amt_in.is_visible(timeout=1000):
+                                amt_in = dialog.locator("input[type='text'], input").filter(has_not=dialog.locator("input[type='date']")).first
+                            if amt_in.is_visible(timeout=2000):
                                 amt_in.fill(str(rec_amount))
                                 logger.info(f"Entered Recovery Amount: ₹{rec_amount}")
                     else: # Waived Off
-                        waived_radio = dialog.locator("input[type='radio'][value*='waive' i], label:has-text('Waived Off'), label:has-text('Waive')").first
-                        if waived_radio.is_visible(timeout=1000):
-                            waived_radio.click(force=True)
-                            logger.info(f"Selected Recovery Option: 'Waived Off' for condition '{condition}'")
+                        waived_btn = dialog.locator(
+                            "p:has-text('No, waive it'), div:has-text('No, waive it'), "
+                            "label:has-text('No, waive it'), input[type='radio'][value*='waive' i]"
+                        ).last
+                        if waived_btn.is_visible(timeout=2000):
+                            waived_btn.click(force=True)
+                            logger.info(f"Selected Recovery Option: 'No, waive it' for condition '{condition}'")
                 except Exception as ex:
                     logger.warning(f"Recovery selection note for '{condition}': {ex}")
 

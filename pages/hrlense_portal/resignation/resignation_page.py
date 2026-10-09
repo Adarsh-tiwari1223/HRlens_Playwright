@@ -6,6 +6,7 @@ Strictly UI layer — contains no business logic workflows.
 """
 
 import os
+import re
 import logging
 from typing import Dict, Union
 from playwright.sync_api import Page
@@ -165,6 +166,14 @@ class ResignationPage(BasePage):
         is_email_visible = email_label.is_visible(timeout=5000)
         is_contact_visible = contact_input.is_visible(timeout=5000)
         contact_val = contact_input.input_value() if is_contact_visible else ""
+
+        # Ensure contact number only contains digits if prefilled with symbols (e.g. +91-)
+        if is_contact_visible and any(not c.isdigit() for c in contact_val):
+            digits_only = re.sub(r"\D", "", contact_val)
+            valid_number = digits_only[-10:] if len(digits_only) >= 10 else (digits_only or "9876543210")
+            logger.info(f"UI Action: Sanitizing contact number from '{contact_val}' to digits only '{valid_number}'")
+            contact_input.fill(valid_number)
+            contact_val = valid_number
 
         return {
             "email_label_visible": is_email_visible,
@@ -454,54 +463,85 @@ class ResignationPage(BasePage):
 
         return False
 
-    def process_hr_withdrawal_request(self, employee_name: str, approve: bool = True) -> dict:
+    def open_hr_review_withdrawal_modal(self, employee_name: str) -> bool:
         """
-        HR searches employee on /resignation-approval, checks status, and approves or rejects Withdrawal.
-        Can process via Actions hamburger menu or via Resignation Details modal.
+        Navigates to /resignation-approval, locates employee row, opens Actions menu (=),
+        and clicks 'Review Withdrawal Request' to open the modal.
         """
-        logger.info(f"UI Action: HR processing Withdrawal for '{employee_name}' (approve={approve})")
+        logger.info(f"UI Action: Opening 'Review Withdrawal Request' modal for '{employee_name}'")
         self.navigate_to_hr_resignation_approval()
         self.search_employee_in_hr_table(employee_name)
 
         row = self.page.locator(f"tr:has-text('{employee_name}')").first
-        row.wait_for(state="visible", timeout=5000)
+        if not row.is_visible(timeout=5000):
+            logger.error(f"Row for '{employee_name}' not found on /resignation-approval")
+            return False
 
-        initial_status = self.get_hr_table_employee_status(employee_name)
-        logger.info(f"HR Resignation table status for '{employee_name}': '{initial_status}'")
+        action_btn = row.locator("td").last.locator("button").first
+        if not action_btn.is_visible(timeout=3000):
+            logger.error(f"Actions button not found on row for '{employee_name}'")
+            return False
 
-        action_keyword = "Approve" if approve else "Reject"
-        processed = False
+        action_btn.click()
+        self.page.wait_for_timeout(500)
 
-        # Attempt 1: Via Actions hamburger menu in row
-        try:
-            action_btn = row.locator("td").last.locator("button").first
-            if action_btn.is_visible(timeout=2000):
-                action_btn.click()
-                self.page.wait_for_timeout(500)
-                menu_item = self.page.locator(
-                    f"[role='menuitem']:has-text('{action_keyword}'), button:has-text('{action_keyword}')"
-                ).first
-                if menu_item.is_visible(timeout=2000):
-                    menu_item.click()
-                    processed = True
-        except Exception:
-            pass
-
-        # Attempt 2: Via Resignation Details modal
-        if not processed:
+        review_item = self.page.locator(
+            "[role='menuitem']:has-text('Review Withdrawal Request'), button:has-text('Review Withdrawal Request')"
+        ).first
+        if not review_item.is_visible(timeout=3000):
+            logger.warning(f"'Review Withdrawal Request' menu item not visible for '{employee_name}'")
             try:
-                self.open_hr_resignation_details_modal(employee_name)
-                modal = self.page.locator("[role='dialog'], .chakra-modal__content").first
-                btn = modal.locator(f"button:has-text('{action_keyword}')").first
-                if btn.is_visible(timeout=3000):
-                    btn.click()
-                    processed = True
+                self.page.keyboard.press("Escape")
             except Exception:
                 pass
+            return False
+
+        review_item.click()
+        self.page.wait_for_timeout(1000)
+
+        modal = self.page.locator("[role='dialog'], .chakra-modal__content").filter(
+            has_text=re.compile(r"Review Withdrawal Request", re.I)
+        ).first
+        is_opened = modal.is_visible(timeout=5000)
+        logger.info(f"'Review Withdrawal Request' modal opened: {is_opened}")
+        return is_opened
+
+    def process_hr_withdrawal_request(self, employee_name: str, approve: bool = True) -> dict:
+        """
+        HR searches employee on /resignation-approval, opens 'Review Withdrawal Request' modal,
+        and clicks 'Approve Withdrawal' or 'Reject Withdrawal'.
+        """
+        action_keyword = "Approve Withdrawal" if approve else "Reject Withdrawal"
+        logger.info(f"UI Action: HR processing Withdrawal for '{employee_name}' -> Action: '{action_keyword}'")
+
+        initial_status = self.get_hr_table_employee_status(employee_name)
+        logger.info(f"HR Resignation table initial status for '{employee_name}': '{initial_status}'")
+
+        modal_opened = self.open_hr_review_withdrawal_modal(employee_name)
+        if not modal_opened:
+            logger.error(f"Could not open 'Review Withdrawal Request' modal for '{employee_name}'")
+            return {
+                "success": False,
+                "processed": False,
+                "initial_status": initial_status,
+                "final_status": initial_status,
+                "toast": "Modal not opened"
+            }
+
+        modal = self.page.locator("[role='dialog'], .chakra-modal__content").filter(
+            has_text=re.compile(r"Review Withdrawal Request", re.I)
+        ).first
+        action_btn = modal.locator(f"button:has-text('{action_keyword}')").first
+        assert action_btn.is_visible(timeout=3000), f"Button '{action_keyword}' not visible in modal"
+
+        action_btn.click()
+        self.page.wait_for_timeout(500)
 
         # Handle any confirmation dialog
         try:
-            confirm_btn = self.page.locator("[role='alertdialog'] button:has-text('Confirm'), [role='alertdialog'] button:has-text('Yes'), button:has-text('Confirm')").first
+            confirm_btn = self.page.locator(
+                "[role='alertdialog'] button:has-text('Confirm'), [role='alertdialog'] button:has-text('Yes'), button:has-text('Confirm')"
+            ).first
             if confirm_btn.is_visible(timeout=2000):
                 confirm_btn.click()
         except Exception:
@@ -513,7 +553,8 @@ class ResignationPage(BasePage):
         logger.info(f"HR Withdrawal processing completed -> Initial: '{initial_status}', Final: '{final_status}', Toast: '{toast}'")
 
         return {
-            "processed": processed,
+            "success": bool(toast and "error" not in toast.lower() and "fail" not in toast.lower()),
+            "processed": True,
             "initial_status": initial_status,
             "final_status": final_status,
             "toast": toast

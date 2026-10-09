@@ -121,80 +121,75 @@ class AssetProcurementPage(BasePage):
         if invoice_file_path:
             self.upload_invoice(invoice_file_path)
 
+        modal = self.page.locator("[role='dialog'], .chakra-modal__content").first
+        if not modal.is_visible(timeout=500):
+            modal = self.page
+
         def _select_option(select_locator, label_val=None):
-            if label_val is not None:
-                if label_val == "":
-                    try:
-                        select_locator.select_option(index=0)
-                    except Exception:
-                        pass
-                    return
+            if label_val is not None and label_val != "":
+                # 1. Exact label match
                 try:
                     select_locator.select_option(label=label_val)
+                    logger.info(f"Selected option with label='{label_val}'")
                     return
                 except Exception:
                     pass
-            try:
-                select_locator.locator("option:not([value=''])").first.wait_for(state="attached", timeout=2000)
-            except Exception:
-                pass
-            try:
-                options = select_locator.locator("option").all()
-                for opt in options[1:]:
-                    val = opt.get_attribute("value")
-                    txt = opt.inner_text().strip()
-                    if val and val.strip() != "" and "select" not in txt.lower():
-                        select_locator.select_option(value=val)
-                        return
-                if len(options) > 1:
-                    select_locator.select_option(index=1)
-            except Exception:
-                pass
+                # 2. Case-insensitive or substring match on option text
+                try:
+                    options = select_locator.locator("option").all()
+                    for opt in options:
+                        txt = opt.inner_text().strip()
+                        val = opt.get_attribute("value")
+                        if val and (txt.lower() == label_val.lower() or label_val.lower() in txt.lower()):
+                            select_locator.select_option(value=val)
+                            logger.info(f"Selected option value='{val}', text='{txt}' (matching '{label_val}')")
+                            return
+                except Exception:
+                    pass
+            # 3. Fallback to first valid non-empty option
+            self._select_first_valid_option(select_locator)
 
         # 1. Vendor Selection
         try:
-            v_select = self.page.locator("select").filter(has=self.page.locator("option", has_text=re.compile(r"Select vendor", re.I))).first
+            v_select = modal.locator("select").filter(has=modal.locator("option", has_text=re.compile(r"Select vendor", re.I))).first
             if not v_select.is_visible(timeout=500):
-                v_select = self.page.get_by_label("Vendor", exact=False).first
-            if not v_select.is_visible(timeout=500):
-                v_select = self.page.locator("select").nth(0)
+                v_select = modal.get_by_label("Vendor", exact=False).first
             if v_select.is_visible(timeout=500):
+                curr = v_select.input_value().strip()
                 if vendor_label is not None:
                     _select_option(v_select, vendor_label)
-                elif not v_select.input_value() or v_select.input_value().strip() == "":
+                elif not curr:
                     self._select_first_valid_option(v_select)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Vendor selection note: {e}")
 
         # 2. Branch Selection
         try:
-            b_select = self.page.locator("select").filter(has=self.page.locator("option", has_text=re.compile(r"Select branch", re.I))).first
+            b_select = modal.locator("select").filter(has=modal.locator("option", has_text=re.compile(r"Select branch", re.I))).first
             if not b_select.is_visible(timeout=500):
-                b_select = self.page.get_by_label("Branch", exact=False).first
-            if not b_select.is_visible(timeout=500):
-                b_select = self.page.locator("select").nth(1)
+                b_select = modal.get_by_label("Branch", exact=False).first
             if b_select.is_visible(timeout=500):
+                curr = b_select.input_value().strip()
                 if branch_label is not None:
                     _select_option(b_select, branch_label)
-                elif not b_select.input_value() or b_select.input_value().strip() == "":
+                elif not curr:
                     self._select_first_valid_option(b_select)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Branch selection note: {e}")
 
         # 3. Payroll Company Selection
         try:
-            c_select = self.page.locator("select").filter(has=self.page.locator("option", has_text=re.compile(r"Select payroll company", re.I))).first
+            c_select = modal.locator("select").filter(has=modal.locator("option", has_text=re.compile(r"Select payroll company", re.I))).first
             if not c_select.is_visible(timeout=500):
-                c_select = self.page.get_by_label("Payroll Company", exact=False).first
-            if not c_select.is_visible(timeout=500):
-                c_select = self.page.locator("select").nth(2)
+                c_select = modal.get_by_label("Payroll Company", exact=False).first
             if c_select.is_visible(timeout=500):
+                curr = c_select.input_value().strip()
                 if company_label is not None:
                     _select_option(c_select, company_label)
-                elif not c_select.input_value() or c_select.input_value().strip() == "":
+                elif not curr:
                     self._select_first_valid_option(c_select)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Payroll Company selection note: {e}")
 
         # Check and populate missing fields on Step 1:
         try:
@@ -224,34 +219,38 @@ class AssetProcurementPage(BasePage):
             pass
 
         try:
-            amt_input = self.page.get_by_label("Amount Before GST", exact=False).first
+            amt_input = self.page.locator(".chakra-form-control, div").filter(
+                has=self.page.locator("label").filter(has_text=re.compile(r"^Amount\s*\(?₹\)?", re.I))
+            ).locator("input").first
             if not amt_input.is_visible(timeout=500):
-                amt_ctrl = self.page.locator(".chakra-form-control, div").filter(has_text=re.compile(r"Amount Before GST", re.I)).first
-                amt_input = amt_ctrl.locator("input").first
+                amt_input = self.page.get_by_label(re.compile(r"^Amount\s*\(?₹\)?", re.I), exact=False).first
             if not amt_input.is_visible(timeout=500):
-                amt_input = self.page.locator("input[placeholder*='0.00'], input[placeholder*='Amount']").first
+                amt_input = self.page.locator("input[placeholder*='0.00']").first
             if amt_input.is_visible(timeout=500):
                 val = amt_input.input_value().strip()
                 if not val or val in ["0", "0.00", "0.0"]:
-                    amt_val = str(amount_before_gst or "50000")
-                    amt_input.fill(amt_val)
-                    logger.info(f"Filled missing Amount Before GST: ₹{amt_val}")
+                    if amount_before_gst:
+                        amt_val = str(amount_before_gst)
+                        amt_input.fill(amt_val)
+                        logger.info(f"Filled missing Amount Before GST: ₹{amt_val}")
         except Exception:
             pass
 
         try:
-            gst_input = self.page.get_by_label("GST Amount", exact=False).first
+            gst_input = self.page.locator(".chakra-form-control, div").filter(
+                has=self.page.locator("label").filter(has_text=re.compile(r"GST\s*Amount", re.I))
+            ).locator("input").first
             if not gst_input.is_visible(timeout=500):
-                gst_ctrl = self.page.locator(".chakra-form-control, div").filter(has_text=re.compile(r"GST Amount", re.I)).first
-                gst_input = gst_ctrl.locator("input").first
+                gst_input = self.page.get_by_label("GST Amount", exact=False).first
             if not gst_input.is_visible(timeout=500):
                 gst_input = self.page.locator("input[placeholder*='GST']").first
             if gst_input.is_visible(timeout=500):
                 val = gst_input.input_value().strip()
                 if not val or val in ["0", "0.00", "0.0"]:
-                    gst_val = str(gst_amount or "9000")
-                    gst_input.fill(gst_val)
-                    logger.info(f"Filled missing GST Amount: ₹{gst_val}")
+                    if gst_amount:
+                        gst_val = str(gst_amount)
+                        gst_input.fill(gst_val)
+                        logger.info(f"Filled missing GST Amount: ₹{gst_val}")
         except Exception:
             pass
 
@@ -268,21 +267,49 @@ class AssetProcurementPage(BasePage):
             except Exception as ex:
                 logger.debug(f"Remarks fill note: {ex}")
 
-    def get_total_amount_value(self) -> str:
-        """Reads auto-calculated Total Amount from Step 1 form."""
+    def get_amount_before_gst_value(self) -> str:
+        """Reads prefilled or entered Amount(₹) (Amount Before GST) from Step 1 form."""
+        modal = self.page.locator("[role='dialog'], .chakra-modal__content").first
+        if not modal.is_visible(timeout=500):
+            modal = self.page
+
         candidates = [
-            self.page.get_by_label("Total Amount", exact=False).first,
-            self.page.locator(".chakra-form-control, div").filter(has_text=re.compile(r"Total Amount", re.I)).locator("input, p, span").first,
-            self.page.locator("input[placeholder*='Total' i], input[name*='total' i]").first
+            modal.locator(".chakra-form-control").filter(
+                has=modal.locator("label").filter(has_text=re.compile(r"^Amount\s*\(?₹\)?", re.I))
+            ).locator("input[type='number']").first,
+            modal.get_by_label(re.compile(r"^Amount\s*\(?₹\)?", re.I), exact=False).locator("input[type='number']").first,
+            modal.locator("input[placeholder='0.00'][type='number']").first,
         ]
         for loc in candidates:
             try:
                 if loc.is_visible(timeout=500):
-                    val = loc.input_value() if hasattr(loc, "input_value") else ""
-                    if not val:
-                        val = loc.inner_text()
-                    val = val.strip()
-                    if val:
+                    val = loc.input_value().strip() if hasattr(loc, "input_value") else ""
+                    if val and float(re.sub(r"[^\d.]", "", val) or 0) > 0:
+                        logger.info(f"Read Amount Before GST (Amount(₹)): '{val}'")
+                        return val
+            except Exception:
+                continue
+        return ""
+
+    def get_total_amount_value(self) -> str:
+        """Reads auto-calculated Total Amount from Step 1 form."""
+        modal = self.page.locator("[role='dialog'], .chakra-modal__content").first
+        if not modal.is_visible(timeout=500):
+            modal = self.page
+
+        candidates = [
+            modal.locator(".chakra-form-control").filter(
+                has=modal.locator("label").filter(has_text=re.compile(r"Total\s*Amount", re.I))
+            ).locator("input[type='number']").first,
+            modal.get_by_label("Total Amount", exact=False).locator("input[type='number']").first,
+            modal.locator("input[placeholder*='Auto-calculated' i][type='number']").first,
+            modal.locator("input[placeholder*='Total' i][type='number']").first
+        ]
+        for loc in candidates:
+            try:
+                if loc.is_visible(timeout=500):
+                    val = loc.input_value().strip() if hasattr(loc, "input_value") else ""
+                    if val and float(re.sub(r"[^\d.]", "", val) or 0) > 0:
                         logger.info(f"Read Total Amount: '{val}'")
                         return val
             except Exception:
@@ -327,6 +354,11 @@ class AssetProcurementPage(BasePage):
         btn = modal.locator("button").filter(has_text=re.compile(r"Next", re.I)).first
         if not btn.is_visible(timeout=2000):
             btn = self.page.locator("button").filter(has_text=re.compile(r"Next", re.I)).first
+
+        amt_before_gst = self.get_amount_before_gst_value()
+        if amt_before_gst:
+            self.step1_amount_before_gst = amt_before_gst
+            logger.info(f"Captured Step 1 Amount Before GST: '{amt_before_gst}'")
 
         total_val = self.get_total_amount_value()
         if total_val:
@@ -374,11 +406,37 @@ class AssetProcurementPage(BasePage):
         if not modal.is_visible(timeout=500):
             modal = self.page
 
-        # 1. Read Target Total Amount (Grand Total)
+        # 1. Read Target Total Amount (Amount Before GST)
         total_amount = 0.0
         if target_total is not None and float(target_total) > 0:
             total_amount = float(target_total)
-            logger.info(f"Target Grand Total Amount (Explicit): ₹{total_amount:,.2f}")
+            logger.info(f"Target Line Total Sum (Explicit target_total): ₹{total_amount:,.2f}")
+
+        if total_amount <= 0:
+            stored_amt_before_gst = getattr(self, "step1_amount_before_gst", "")
+            if stored_amt_before_gst:
+                try:
+                    clean_str = re.sub(r"[^\d.]", "", stored_amt_before_gst)
+                    if clean_str:
+                        val = float(clean_str)
+                        if val > 0:
+                            total_amount = val
+                            logger.info(f"Target Line Total Sum (from Step 1 Amount Before GST): ₹{total_amount:,.2f}")
+                except Exception:
+                    pass
+
+        if total_amount <= 0:
+            try:
+                amt_val = self.get_amount_before_gst_value()
+                if amt_val:
+                    clean_str = re.sub(r"[^\d.]", "", amt_val)
+                    if clean_str:
+                        val = float(clean_str)
+                        if val > 0:
+                            total_amount = val
+                            logger.info(f"Target Line Total Sum (from Current View Amount Before GST): ₹{total_amount:,.2f}")
+            except Exception:
+                pass
 
         if total_amount <= 0:
             stored_total = getattr(self, "step1_total_amount", "")
@@ -389,25 +447,15 @@ class AssetProcurementPage(BasePage):
                         val = float(clean_str)
                         if val > 0:
                             total_amount = val
-                            logger.info(f"Target Grand Total Amount (from Step 1): ₹{total_amount:,.2f}")
+                            logger.info(f"Target Line Total Sum (from Step 1 Total Amount): ₹{total_amount:,.2f}")
                 except Exception:
                     pass
 
         if total_amount <= 0:
-            try:
-                amt_val = self.get_total_amount_value()
-                if amt_val:
-                    clean_str = re.sub(r"[^\d.]", "", amt_val)
-                    if clean_str:
-                        val = float(clean_str)
-                        if val > 0:
-                            total_amount = val
-                            logger.info(f"Target Grand Total Amount (from Current View): ₹{total_amount:,.2f}")
-            except Exception:
-                pass
-
-        if total_amount <= 0:
-            total_amount = 59000.0
+            raise ValueError(
+                "Unable to capture Amount Before GST from Step 1 form for line item reconciliation. "
+                "Hardcoded fallback logic (59,000.0) has been removed."
+            )
 
         # 2. Add Item cards until 5 cards exist
         add_item_btn = modal.get_by_role("button", name=re.compile(r"\+ Add Item|Add Item|Add Another Item", re.I)).first
@@ -591,50 +639,72 @@ class AssetProcurementPage(BasePage):
 
     def inspect_and_log_step1_fields(self) -> dict[str, str]:
         """Inspects all Step 1 form fields after invoice upload and logs field-by-field status to terminal."""
+        modal = self.page.locator("[role='dialog'], .chakra-modal__content").first
+        if not modal.is_visible(timeout=500):
+            modal = self.page
+
         field_status = {}
 
         try:
-            v_val = self.page.get_by_label("Vendor*", exact=True).input_value()
-            field_status["Vendor"] = v_val if v_val and v_val.strip() != "" else "EMPTY"
+            v_input = modal.locator(".chakra-form-control").filter(
+                has=modal.locator("label").filter(has_text=re.compile(r"Vendor", re.I))
+            ).locator("select").first
+            v_val = v_input.input_value().strip()
+            field_status["Vendor"] = v_val if v_val else "EMPTY"
         except Exception:
             field_status["Vendor"] = "NOT FOUND"
 
         try:
-            b_val = self.page.get_by_label("Branch*", exact=True).input_value()
-            field_status["Branch"] = b_val if b_val and b_val.strip() != "" else "EMPTY"
+            b_input = modal.locator(".chakra-form-control").filter(
+                has=modal.locator("label").filter(has_text=re.compile(r"Branch", re.I))
+            ).locator("select").first
+            b_val = b_input.input_value().strip()
+            field_status["Branch"] = b_val if b_val else "EMPTY"
         except Exception:
             field_status["Branch"] = "NOT FOUND"
 
         try:
-            c_input = self.page.get_by_label("Company*", exact=False).first
-            if not c_input.is_visible():
-                c_input = self.page.locator("select[name*='company'], select[aria-label*='Company']").first
-            c_val = c_input.input_value()
-            field_status["Payroll Company"] = c_val if c_val and c_val.strip() != "" else "EMPTY"
+            c_input = modal.locator(".chakra-form-control").filter(
+                has=modal.locator("label").filter(has_text=re.compile(r"Payroll\s*Company", re.I))
+            ).locator("select").first
+            c_val = c_input.input_value().strip()
+            field_status["Payroll Company"] = c_val if c_val else "EMPTY"
         except Exception:
             field_status["Payroll Company"] = "NOT FOUND"
 
         try:
-            inv_val = self.page.get_by_label("Invoice No.", exact=False).first.input_value()
-            field_status["Invoice No"] = inv_val if inv_val and inv_val.strip() != "" else "EMPTY"
+            inv_input = modal.locator(".chakra-form-control").filter(
+                has=modal.locator("label").filter(has_text=re.compile(r"Invoice\s*No", re.I))
+            ).locator("input").first
+            inv_val = inv_input.input_value().strip()
+            field_status["Invoice No"] = inv_val if inv_val else "EMPTY"
         except Exception:
             field_status["Invoice No"] = "NOT FOUND"
 
         try:
-            d_val = self.page.get_by_label("Purchase Date*", exact=True).first.input_value()
-            field_status["Purchase Date"] = d_val if d_val and d_val.strip() != "" else "EMPTY"
+            d_input = modal.locator(".chakra-form-control").filter(
+                has=modal.locator("label").filter(has_text=re.compile(r"Purchase\s*Date", re.I))
+            ).locator("input").first
+            d_val = d_input.input_value().strip()
+            field_status["Purchase Date"] = d_val if d_val else "EMPTY"
         except Exception:
             field_status["Purchase Date"] = "NOT FOUND"
 
         try:
-            amt_val = self.page.locator("div").filter(has_text=re.compile(r"^Amount Before GST \(₹\)$")).locator("input").first.input_value()
-            field_status["Amount Before GST"] = amt_val if amt_val and amt_val.strip() != "" else "EMPTY"
+            amt_input = modal.locator(".chakra-form-control").filter(
+                has=modal.locator("label").filter(has_text=re.compile(r"^Amount\s*\(?₹\)?", re.I))
+            ).locator("input[type='number']").first
+            amt_val = amt_input.input_value().strip()
+            field_status["Amount Before GST"] = amt_val if amt_val else "EMPTY"
         except Exception:
             field_status["Amount Before GST"] = "NOT FOUND"
 
         try:
-            gst_val = self.page.locator("div").filter(has_text=re.compile(r"^GST Amount \(₹\)$")).locator("input").first.input_value()
-            field_status["GST Amount"] = gst_val if gst_val and gst_val.strip() != "" else "EMPTY"
+            gst_input = modal.locator(".chakra-form-control").filter(
+                has=modal.locator("label").filter(has_text=re.compile(r"GST\s*Amount", re.I))
+            ).locator("input[type='number']").first
+            gst_val = gst_input.input_value().strip()
+            field_status["GST Amount"] = gst_val if gst_val else "EMPTY"
         except Exception:
             field_status["GST Amount"] = "NOT FOUND"
 

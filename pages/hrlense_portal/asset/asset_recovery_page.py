@@ -164,10 +164,14 @@ class AssetRecoveryPage(BasePage):
         self.search_record(identifier)
 
         row = self.page.locator(f"table tbody tr:has-text('{identifier}')").first
-        row.wait_for(state="visible", timeout=5000)
+        if not row.is_visible(timeout=5000):
+            logger.info(f"Recovery row for '{identifier}' not visible.")
+            return False
 
         settle_btn = row.locator("button:has-text('Settle')").first
-        settle_btn.wait_for(state="visible", timeout=3000)
+        if not settle_btn.is_visible(timeout=3000):
+            logger.info(f"'Settle' button for '{identifier}' not visible on row.")
+            return False
         settle_btn.click()
 
         modal = self.page.locator("[role='dialog'], .chakra-modal__content").first

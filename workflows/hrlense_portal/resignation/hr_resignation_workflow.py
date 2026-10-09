@@ -214,6 +214,13 @@ class HrResignationWorkflow:
         logger.info(f"HR {action_str} Withdrawal Result for '{employee_name}': {result}")
         return result
 
+    def open_review_withdrawal_modal_workflow(self, employee_name: str) -> bool:
+        """
+        Navigates to /resignation-approval and opens the 'Review Withdrawal Request' modal for employee.
+        """
+        logger.info(f"HR Workflow: Opening 'Review Withdrawal Request' modal for '{employee_name}'")
+        return self.res_page.open_hr_review_withdrawal_modal(employee_name)
+
     def get_hr_available_actions_workflow(self, employee_name: str) -> list:
         """
         Reads all available action options in the HR Resignation table row menu for an employee.

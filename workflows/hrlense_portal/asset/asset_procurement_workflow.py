@@ -97,11 +97,17 @@ class AssetProcurementWorkflow:
             )
 
         # Step 5: Advance to Step 2 (Add Items)
-        next_res = self.procurement_page.click_next()
-        if not self.procurement_page.is_step2_active():
-            # If still on Step 1, retry fill_step1_details and click next
-            self.procurement_page.fill_step1_details(vendor_label=vendor_label, branch_label=branch_label, company_label=company_label)
+        max_step1_attempts = 3
+        next_res = {}
+        for attempt in range(max_step1_attempts):
             next_res = self.procurement_page.click_next()
+            if self.procurement_page.is_step2_active():
+                break
+            toast = next_res.get("toast", "") if isinstance(next_res, dict) else ""
+            logger.warning(f"Step 1 advance attempt {attempt+1} blocked (toast='{toast}'). Re-filling missing Step 1 details...")
+            self.procurement_page.fill_step1_details(vendor_label=vendor_label, branch_label=branch_label, company_label=company_label)
+
+        assert self.procurement_page.is_step2_active(), f"Failed to advance to Step 2 form. Last toast: '{next_res.get('toast', '') if isinstance(next_res, dict) else ''}'"
 
         if story:
             story.log_step(
@@ -129,13 +135,13 @@ class AssetProcurementWorkflow:
         toast = self.procurement_page.wait_for_toast_message()
         logger.info(f"[WORKFLOW] Captured Procurement Toast: '{toast}'")
 
-        # Self-Healing Check: If backend returns Total Amount validation mismatch
-        # e.g., 'Total Amount ₹12,09,237.00 must equal the sum of all asset line totals ₹6,04,325.00'
-        match = re.search(r"Total Amount\s*[₹Rs.]*\s*([\d,]+\.?\d*)\s*must equal", toast, re.I)
+        # Self-Healing Check: If backend returns Amount Before GST / Total Amount validation mismatch
+        # e.g., 'Amount Before GST ₹10,24,777.00 must equal the sum of all asset line totals ₹59,000.00'
+        match = re.search(r"(?:Amount Before GST|Total Amount)\s*[₹Rs.]*\s*([\d,]+\.?\d*)\s*must equal", toast, re.I)
         if match:
             raw_target = match.group(1)
             target_amt = float(re.sub(r"[^\d.]", "", raw_target))
-            logger.info(f"[SELF-HEALING] Detected required Total Amount from backend: ₹{target_amt:,.2f}. Automatically re-balancing cards...")
+            logger.info(f"[SELF-HEALING] Detected required Amount from backend toast: ₹{target_amt:,.2f}. Automatically re-balancing cards...")
             self.procurement_page.select_step2_dropdowns(target_total=target_amt)
             self.procurement_page.click_create()
             toast = self.procurement_page.wait_for_toast_message()

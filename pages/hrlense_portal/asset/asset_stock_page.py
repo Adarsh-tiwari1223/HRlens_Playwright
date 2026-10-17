@@ -218,6 +218,49 @@ class AssetStockPage(BasePage):
             logger.warning(f"Error reading table rows: {e}")
         return rows
 
+    def select_category(self, category_name: str):
+        """Clicks a specific category quick-filter button (e.g. 'Hardware', 'Software', 'All Categories')."""
+        logger.info(f"Selecting category filter: '{category_name}' on /asset-stock")
+        cat_btn = self.page.locator("button").filter(
+            has_text=re.compile(rf"^{re.escape(category_name)}(\s*·\s*\d+)?$", re.I)
+        ).first
+        if not cat_btn.is_visible(timeout=3000):
+            cat_btn = self.page.locator("button").filter(has_text=re.compile(re.escape(category_name), re.I)).first
+        cat_btn.scroll_into_view_if_needed()
+        cat_btn.click()
+        self.page.wait_for_timeout(1200)
+
+    def select_status_card(self, status_name: str):
+        """Clicks a top status metric card (e.g. 'All Assets', 'Available', 'Damaged')."""
+        logger.info(f"Selecting status card: '{status_name}' on /asset-stock")
+        card_btn = self.page.locator("button").filter(
+            has=self.page.locator("p", has_text=re.compile(rf"^{re.escape(status_name)}$", re.I))
+        ).first
+        if not card_btn.is_visible(timeout=3000):
+            card_btn = self.page.locator("button, div").filter(has_text=re.compile(rf"^{re.escape(status_name)}$", re.I)).first
+        card_btn.scroll_into_view_if_needed()
+        card_btn.click()
+        self.page.wait_for_timeout(1200)
+
+    def get_active_category_text(self) -> str:
+        """Returns the text of the currently highlighted/active category button."""
+        try:
+            # Active button usually has distinct dark background or aria/data attribute
+            cat_container = self.page.locator(".chakra-stack").filter(
+                has=self.page.locator("button", has_text=re.compile(r"All Categories", re.I))
+            ).first
+            if cat_container.is_visible(timeout=2000):
+                buttons = cat_container.locator("button").all()
+                for btn in buttons:
+                    bg = btn.evaluate("el => window.getComputedStyle(el).backgroundColor")
+                    color = btn.evaluate("el => window.getComputedStyle(el).color")
+                    # Check if dark background or white text indicating selection
+                    if "rgb(26, 43, 61)" in bg or "rgb(0, 0, 0)" in bg or "255, 255, 255" in color:
+                        return btn.inner_text().strip()
+        except Exception as e:
+            logger.warning(f"Error checking active category text: {e}")
+        return ""
+
     def get_pagination_summary(self) -> str:
         """Reads pagination text, e.g. 'Showing 1-20 of 20 records'."""
         try:

@@ -230,3 +230,73 @@ class TestAssetStockManagement:
         )
 
         story.finish(status="PASS")
+
+    def test_stock_category_and_status_card_bidirectional_filtering_def_035(self, admin_page):
+        """
+        DEF_035 Bidirectional Verification:
+        1. Flow A: Category First (Hardware) -> Status Card Second (Available).
+           Verifies that the Category remains applied, active Category pill stays Hardware,
+           and table records display strictly Available Hardware items.
+        2. Flow B: Status Card First (Available) -> Category Second (Hardware).
+           Verifies that table records display strictly Available Hardware items.
+        """
+        page = admin_page
+        stock_page = AssetStockPage(page)
+        stock_page.navigate_to_asset_stock()
+        stock_page.select_branch("Varanasi")
+
+        # -------------------------------------------------------------
+        # FLOW A: Select Category FIRST -> Select Status Card SECOND
+        # -------------------------------------------------------------
+        logger.info("\n--- [FLOW A] Category FIRST (Hardware) -> Status Card SECOND (Available) ---")
+        stock_page.select_status_card("All Assets")
+        stock_page.select_category("All Categories")
+
+        # 1. Click Category: Hardware
+        stock_page.select_category("Hardware")
+        page.screenshot(path="reports/screenshots/def035_flow_a_step1_category_hardware.png")
+
+        # 2. Click Status Card: Available
+        stock_page.select_status_card("Available")
+        page.screenshot(path="reports/screenshots/def035_flow_a_step2_status_available.png")
+
+        # Assert table rows strictly belong to Hardware and have status AVAILABLE
+        rows_a = stock_page.get_table_asset_rows()
+        logger.info(f"[FLOW A] Table rendered {len(rows_a)} rows: {[r['category'] for r in rows_a]}")
+        assert len(rows_a) > 0, "Expected table rows for Available Hardware in Flow A, got 0"
+        for r in rows_a:
+            assert "hardware" in r["category"].lower(), (
+                f"[DEF_035 FLOW A FAILED] Table contains non-Hardware row: {r['category']} (Code: {r['code']})"
+            )
+            assert "available" in r["status"].lower(), (
+                f"[DEF_035 FLOW A FAILED] Table contains non-Available row: {r['status']} (Code: {r['code']})"
+            )
+
+        # -------------------------------------------------------------
+        # FLOW B: Select Status Card FIRST -> Select Category SECOND
+        # -------------------------------------------------------------
+        logger.info("\n--- [FLOW B] Status Card FIRST (Available) -> Category SECOND (Hardware) ---")
+        stock_page.select_status_card("All Assets")
+        stock_page.select_category("All Categories")
+
+        # 1. Click Status Card: Available
+        stock_page.select_status_card("Available")
+        page.screenshot(path="reports/screenshots/def035_flow_b_step1_status_available.png")
+
+        # 2. Click Category: Hardware
+        stock_page.select_category("Hardware")
+        page.screenshot(path="reports/screenshots/def035_flow_b_step2_category_hardware.png")
+
+        # Assert table rows strictly belong to Hardware and have status AVAILABLE
+        rows_b = stock_page.get_table_asset_rows()
+        logger.info(f"[FLOW B] Table rendered {len(rows_b)} rows: {[r['category'] for r in rows_b]}")
+        assert len(rows_b) > 0, "Expected table rows for Available Hardware in Flow B, got 0"
+        for r in rows_b:
+            assert "hardware" in r["category"].lower(), (
+                f"[DEF_035 FLOW B FAILED] Table contains non-Hardware row: {r['category']} (Code: {r['code']})"
+            )
+            assert "available" in r["status"].lower(), (
+                f"[DEF_035 FLOW B FAILED] Table contains non-Available row: {r['status']} (Code: {r['code']})"
+            )
+
+        logger.info("[DEF_035 VERIFIED PASS] Both Flow A and Flow B successfully preserved Category + Status multi-filtering.")

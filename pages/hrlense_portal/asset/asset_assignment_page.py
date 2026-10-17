@@ -43,19 +43,31 @@ class AssetAssignmentPage(BasePage):
         emp_search.fill(employee_name)
         self.page.wait_for_timeout(1000)
 
-        # Select first matching result from suggestion popover/portal
+        # Select matching result from suggestion popover/portal (prioritizing Varanasi / TEK for exact candidate)
         try:
-            opt = self.page.locator(
-                ".chakra-portal, [role='listbox'], [role='option'], .chakra-menu__menu-list"
-            ).get_by_text(employee_name, exact=False).first
-            if opt.is_visible(timeout=1500):
-                opt.click(force=True)
+            matching_opts = self.page.locator(
+                ".chakra-portal div, [role='listbox'] div, [role='option'], .chakra-menu__menu-list button"
+            ).all()
+            chosen_opt = None
+            for o in matching_opts:
+                t = o.inner_text().strip()
+                if employee_name.lower() in t.lower() and ("tek" in t.lower() or "varanasi" in t.lower()):
+                    chosen_opt = o
+                    break
+            if not chosen_opt:
+                for o in matching_opts:
+                    t = o.inner_text().strip()
+                    if employee_name.lower() in t.lower() and len(t) < 80:
+                        chosen_opt = o
+                        break
+            if chosen_opt and chosen_opt.is_visible(timeout=1500):
+                chosen_opt.click(force=True)
             else:
-                fallback = self.page.locator(".chakra-portal div, [role='option'], p, li").filter(
-                    has_text=re.compile(employee_name.split()[0], re.I)
-                ).first
-                if fallback.is_visible(timeout=1500):
-                    fallback.click(force=True)
+                opt = self.page.locator(
+                    ".chakra-portal, [role='listbox'], [role='option'], .chakra-menu__menu-list"
+                ).get_by_text(employee_name, exact=False).first
+                if opt.is_visible(timeout=1500):
+                    opt.click(force=True)
                 else:
                     self.page.keyboard.press("ArrowDown")
                     self.page.keyboard.press("Enter")

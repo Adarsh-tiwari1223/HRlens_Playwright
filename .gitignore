@@ -91,3 +91,5 @@ specs/
 scratch/
 TODO.md
 credentials.json
+client_sec.json
+token.json

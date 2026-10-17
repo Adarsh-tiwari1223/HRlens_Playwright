@@ -115,11 +115,11 @@ class ResignationPage(BasePage):
 
         current_origin = "/".join(self.page.url.split("/")[:3])
         target_url = f"{current_origin}/resignation-approval"
-        self.page.goto(target_url, wait_until="domcontentloaded")
+        self.page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
         self.dismiss_all_floating_alerts()
 
-        search_input = self.page.locator("input[placeholder*='Search employee by name']").first
-        search_input.wait_for(state="visible", timeout=10000)
+        search_input = self.page.locator("input[placeholder*='Search employee by name' i], input[placeholder*='Search' i]").first
+        search_input.wait_for(state="visible", timeout=15000)
 
 
 
@@ -360,18 +360,15 @@ class ResignationPage(BasePage):
         buyout_btn.click()
 
     def search_employee_in_hr_table(self, employee_name: str) -> None:
-        """Types employee name in HR Resignation search input ('Search employee by name...'), presses Enter, and waits for table row."""
+        """Types employee name in HR Resignation search input ('Search...'), presses Enter, and waits for table row."""
         logger.info(f"UI Action: HR searching employee by name -> '{employee_name}'")
         self.dismiss_all_floating_alerts()
-        search_input = self.page.locator("input[placeholder*='Search employee by name']").first
+        search_input = self.page.locator("input[placeholder*='Search' i]").first
         search_input.wait_for(state="visible", timeout=5000)
-        try:
-            search_input.click()
-        except Exception:
-            self.dismiss_all_floating_alerts()
-            search_input.click(force=True)
+        search_input.click(force=True)
         search_input.fill(employee_name)
         search_input.press("Enter")
+        self.page.wait_for_timeout(1000)
         # Wait for filtered row to appear instead of fixed 2s sleep
         try:
             self.page.locator(f"tr:has-text('{employee_name}')").first.wait_for(state="visible", timeout=5000)
@@ -739,8 +736,10 @@ class ResignationPage(BasePage):
         target_url = f"{current_origin}/accounts-buyout-processing"
         if not self.page.url.endswith("/accounts-buyout-processing"):
             self.page.goto(target_url, timeout=30000, wait_until="domcontentloaded")
+        self.dismiss_all_floating_alerts()
+        self.page.wait_for_timeout(500)
 
-        search_input = self.page.locator("input[placeholder*='Search Employee by name']").first
+        search_input = self.page.locator("input[placeholder*='Search Employee by name'], input[placeholder*='Search' i]").first
         search_input.wait_for(state="visible", timeout=10000)
 
     def search_employee_in_accountant_table(self, employee_name: str) -> None:
@@ -748,8 +747,12 @@ class ResignationPage(BasePage):
         Types employee name in 'Search Employee by name....' input field and presses Enter.
         """
         logger.info(f"UI Action: Accountant searching employee by name -> '{employee_name}'")
-        search_input = self.page.locator("input[placeholder*='Search Employee by name']").first
-        search_input.wait_for(state="visible", timeout=5000)
+        self.dismiss_all_floating_alerts()
+        self.page.wait_for_timeout(500)
+        search_input = self.page.locator("input[placeholder*='Search Employee by name'], input[placeholder*='Search' i]").first
+        search_input.wait_for(state="visible", timeout=10000)
+        search_input.click(force=True)
+        search_input.fill("")
         search_input.fill(employee_name)
         search_input.press("Enter")
         # Wait for table row instead of fixed sleep
@@ -968,14 +971,43 @@ class ResignationPage(BasePage):
                 return "Already Approved"
 
             btn.click()
-            self.page.wait_for_timeout(500)
+            self.page.wait_for_timeout(1000)
 
-            # Handle Confirmation Modal ('Confirm Buyout Approval' -> click 'Confirm' button)
-            confirm_modal_header = self.page.locator("header:has-text('Confirm Buyout Approval'), header:has-text('Confirm'), header:has-text('Approve')").first
-            if confirm_modal_header.is_visible(timeout=4000):
-                confirm_btn = self.page.locator(".chakra-modal__footer button:has-text('Confirm'), .chakra-modal__content button:has-text('Confirm'), button:has-text('Confirm')").first
+            # Handle Confirmation Dialog ('Confirm Buyout Approval' / alertdialog -> click 'Confirm' / 'Yes' / 'Approve')
+            confirm_dialog = None
+            alert_loc = self.page.locator("section[role='alertdialog'], div[role='alertdialog'], [role='alertdialog']").first
+            if alert_loc.is_visible(timeout=3000):
+                confirm_dialog = alert_loc
+            else:
+                modals = self.page.locator(".chakra-modal__content, section.chakra-modal__content").all()
+                if len(modals) > 1:
+                    confirm_dialog = modals[-1]
+                elif len(modals) == 1:
+                    hdr = modals[0].locator(".chakra-modal__header, header, h2").inner_text()
+                    if any(w in hdr.lower() for w in ["confirm", "approve", "sure"]):
+                        confirm_dialog = modals[0]
+
+            if confirm_dialog and confirm_dialog.is_visible(timeout=3000):
+                confirm_btn = confirm_dialog.locator(
+                    ".chakra-modal__footer button:has-text('Confirm'), .chakra-modal__footer button:has-text('Approve'), .chakra-modal__footer button:has-text('Yes'), "
+                    "footer button:has-text('Confirm'), footer button:has-text('Approve'), footer button:has-text('Yes'), "
+                    "button:has-text('Confirm'), button:has-text('Yes'), button:has-text('Approve')"
+                ).first
                 if confirm_btn.is_visible(timeout=3000):
+                    logger.info(f"UI Action: Confirming Buyout Approval via '{confirm_btn.inner_text().strip()}' button")
                     confirm_btn.click()
+            else:
+                # Fallback: check page-level confirmation buttons
+                page_confirm_btn = self.page.locator(
+                    "[role='alertdialog'] button:has-text('Confirm'), "
+                    "[role='alertdialog'] button:has-text('Yes'), "
+                    "[role='alertdialog'] button:has-text('Approve'), "
+                    ".chakra-modal__footer button:has-text('Confirm'), "
+                    "button:has-text('Confirm')"
+                ).first
+                if page_confirm_btn.is_visible(timeout=2000):
+                    logger.info(f"UI Action: Confirming Buyout Approval via fallback '{page_confirm_btn.inner_text().strip()}' button")
+                    page_confirm_btn.click()
         else:
             logger.info("UI Action: Clicking 'Reject' button inside modal")
             btn = modal_container.locator(
@@ -1009,6 +1041,7 @@ class ResignationPage(BasePage):
         employee_name: str,
         asset_condition: str = "Good",
         asset_conditions: list = None,
+        recovery_amount: str = None,
         remarks: str = "IT Asset clearance verified & returned in specified condition"
     ) -> Dict[str, Union[bool, str]]:
         """
@@ -1060,12 +1093,12 @@ class ResignationPage(BasePage):
         checklist_modal = self.page.locator("section.chakra-modal__content, div[role='dialog']").first
         checklist_modal.wait_for(state="visible", timeout=5000)
 
-        # Check if 'Manage Asset Return' button is visible inside checklist modal
+        # Check if 'Manage Asset Return' button is visible and enabled inside checklist modal
         manage_asset_btn = checklist_modal.locator("button:has-text('Manage Asset Return'), button:has-text('Asset Return')").first
-        has_assets = manage_asset_btn.is_visible(timeout=3000)
+        has_assets = manage_asset_btn.is_visible(timeout=3000) and manage_asset_btn.is_enabled(timeout=3000)
 
         if has_assets:
-            logger.info(f"[IT ASSET FLOW] 'Manage Asset Return' button IS VISIBLE for '{employee_name}' -> Employee HAS assigned assets")
+            logger.info(f"[IT ASSET FLOW] 'Manage Asset Return' button IS VISIBLE & ENABLED for '{employee_name}' -> Employee HAS assigned assets")
             manage_asset_btn.click()
             self.page.wait_for_timeout(800)
 
@@ -1114,14 +1147,30 @@ class ResignationPage(BasePage):
                 if radio.is_visible(timeout=2000):
                     radio.click(force=True)
 
-                # If condition is Lost, select Waived Off option if present
-                if target_cond.lower() == "lost":
-                    try:
-                        lost_waive = return_dialog.locator("input[type='radio'][value*='waive' i], label:has-text('Waived Off'), label:has-text('Waive')").first
-                        if lost_waive.is_visible(timeout=1000):
-                            lost_waive.click(force=True)
-                    except Exception:
-                        pass
+                # Handle Recovery Option if recovery_amount specified or condition is Damaged/Lost/Repair Required
+                if target_cond.lower() in ["lost", "damaged", "repair required"]:
+                    if recovery_amount:
+                        try:
+                            rec_btn = return_dialog.locator(
+                                "p:has-text('Yes, recover amount'), div:has-text('Yes, recover amount'), "
+                                "label:has-text('Yes, recover amount'), input[type='radio'][value*='recover' i]"
+                            ).last
+                            if rec_btn.is_visible(timeout=2000):
+                                rec_btn.click(force=True)
+                                self.page.wait_for_timeout(500)
+                                amt_in = return_dialog.locator("input[type='number'], input[placeholder*='amount' i]").first
+                                if amt_in.is_visible(timeout=2000):
+                                    amt_in.fill(str(recovery_amount))
+                                    logger.info(f"Entered Recovery Amount: ₹{recovery_amount}")
+                        except Exception as ex:
+                            logger.warning(f"Recovery option selection note: {ex}")
+                    elif target_cond.lower() == "lost":
+                        try:
+                            lost_waive = return_dialog.locator("input[type='radio'][value*='waive' i], label:has-text('Waived Off'), label:has-text('Waive')").first
+                            if lost_waive.is_visible(timeout=1000):
+                                lost_waive.click(force=True)
+                        except Exception:
+                            pass
 
                 # Fill Remarks textarea
                 remarks_area = return_dialog.locator("textarea").first
@@ -1345,6 +1394,11 @@ class ResignationPage(BasePage):
         self.navigate_to_hr_resignation_approval()
         self.search_employee_in_hr_table(employee_name)
 
+        current_status = self.get_hr_table_employee_status(employee_name)
+        if "fnf" in current_status.lower() and "processed" in current_status.lower():
+            logger.info(f"Employee '{employee_name}' is ALREADY in status '{current_status}'. FnF process was already initiated!")
+            return "FnF process already initiated"
+
         row = self.page.locator(f"tr:has-text('{employee_name}')").first
         row.wait_for(state="visible", timeout=5000)
 
@@ -1395,6 +1449,63 @@ class ResignationPage(BasePage):
         logger.info(f"Start FnF Toast: '{toast}'")
         return toast
 
+    def trigger_release_employee(self, employee_name: str, reason: str = "Exit clearance completed and FnF settlement processed.") -> str:
+        """
+        HR Action on /resignation-approval:
+        When status is 'FNF APPROVED' or manual release is available:
+        1. Searches employee on /resignation-approval.
+        2. Clicks Actions (≡) menu.
+        3. Clicks 'Release Employee' menuitem.
+        4. In the 'Release Employee' modal:
+           - Fills mandatory 'Reason / Comment *' textarea
+           - Clicks 'Release' button.
+        5. Captures and returns toast message.
+        """
+        logger.info(f"UI Action: HR releasing employee '{employee_name}' on /resignation-approval")
+        self.navigate_to_hr_resignation_approval()
+        self.search_employee_in_hr_table(employee_name)
+
+        row = self.page.locator(f"tr:has-text('{employee_name}')").first
+        row.wait_for(state="visible", timeout=8000)
+
+        # Check if already RELEASED
+        if "RELEASED" in row.inner_text().upper():
+            logger.info(f"Employee '{employee_name}' is already marked as RELEASED on /resignation-approval.")
+            return "Employee already released"
+
+        # Actions hamburger button in table row
+        actions_btn = row.locator("td:last-child button, button.chakra-menu__menu-button").first
+        actions_btn.wait_for(state="visible", timeout=5000)
+        actions_btn.click()
+        self.page.wait_for_timeout(500)
+
+        release_item = self.page.locator("button[role='menuitem']:has-text('Release Employee')").first
+        if not release_item.is_visible(timeout=3000):
+            logger.info(f"'Release Employee' option not visible for '{employee_name}' (may already be processed).")
+            return "Release Employee not available or already processed"
+        release_item.click()
+        self.page.wait_for_timeout(800)
+
+        # Handle 'Release Employee' Modal
+        modal = self.page.locator("section.chakra-modal__content:has-text('Release Employee'), div.chakra-modal__content:has-text('Release Employee')").first
+        modal.wait_for(state="visible", timeout=5000)
+
+        # Fill mandatory Reason / Comment textarea
+        reason_area = modal.locator("textarea[placeholder*='reason' i], textarea").first
+        reason_area.wait_for(state="visible", timeout=3000)
+        reason_area.fill(reason)
+        self.page.wait_for_timeout(500)
+
+        # Click Release button
+        release_btn = modal.locator("button:has-text('Release')").first
+        release_btn.wait_for(state="visible", timeout=3000)
+        release_btn.click()
+
+        toast = self.wait_for_toast(timeout=8000)
+        logger.info(f"Release Employee Toast: '{toast}'")
+        self.page.wait_for_timeout(2000)
+        return toast
+
     def navigate_to_accounts_fnf_requests(self) -> None:
         """
         Navigates to /accounts-buyout-processing and switches to the 'FnF Requests' tab.
@@ -1407,13 +1518,24 @@ class ResignationPage(BasePage):
 
         current_origin = "/".join(self.page.url.split("/")[:3])
         target_url = f"{current_origin}/accounts-buyout-processing"
-        if target_url not in self.page.url:
-            self.page.goto(target_url, wait_until="domcontentloaded")
+        self.dismiss_all_floating_alerts()
+        self.page.goto(target_url, timeout=30000, wait_until="domcontentloaded")
+        self.dismiss_all_floating_alerts()
+        self.page.wait_for_timeout(800)
 
         # Click 'FnF Requests' tab
-        fnf_tab = self.page.locator("button[role='tab']:has-text('FnF Requests')").first
+        fnf_tab = self.page.locator(
+            "button[role='tab']:has-text('FnF Requests'), "
+            "button[role='tab']:has-text('FnF'), "
+            "[role='tab']:has-text('FnF Requests'), "
+            "[role='tab']:has-text('FnF'), "
+            "button:has-text('FnF Requests')"
+        ).first
         fnf_tab.wait_for(state="visible", timeout=10000)
-        fnf_tab.click()
+        try:
+            fnf_tab.click(timeout=3000)
+        except Exception:
+            fnf_tab.click(force=True)
         self.page.wait_for_timeout(1000)
 
     def open_accountant_fnf_modal(self, employee_name: str) -> bool:
@@ -1580,7 +1702,7 @@ class ResignationPage(BasePage):
         self.page.wait_for_timeout(1500)
 
         row = self.page.locator(f"tr:has-text('{employee_name}')").first
-        row.wait_for(state="visible", timeout=5000)
+        row.wait_for(state="visible", timeout=10000)
         row.scroll_into_view_if_needed()
 
         # Actions menu button

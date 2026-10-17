@@ -578,8 +578,8 @@ class AssetProcurementPage(BasePage):
             except Exception:
                 pass
 
-            # C. Quantity Input (2 units per card)
-            q_val = 2
+            # C. Quantity Input (1 unit per card for exact cent reconciliation)
+            q_val = 1
             try:
                 qty_in = card.locator("input[placeholder*='0'], input[name*='quantity' i]").first
                 if not qty_in.is_visible(timeout=300):

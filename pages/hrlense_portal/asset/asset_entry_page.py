@@ -71,6 +71,12 @@ class AssetEntryPage(BasePage):
             item_select = self.page.locator("label:has-text('Procurement Item')").locator("..").locator("select").first
         item_select.wait_for(state="visible", timeout=10000)
 
+        # Wait for procurement dropdown options to load asynchronously
+        try:
+            proc_select.locator("option:not([value=''])").first.wait_for(state="attached", timeout=10000)
+        except Exception:
+            pass
+
         selected_proc = ""
         selected_item = ""
 

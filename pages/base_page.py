@@ -14,7 +14,7 @@ Page objects should interact directly with self.page / self.page.locator().
 
 import logging
 import re
-from playwright.sync_api import Page
+from playwright.sync_api import Page, Locator
 from core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -595,4 +595,52 @@ class BasePage:
                 self.page.wait_for_timeout(1000)
         except Exception:
             pass
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # CHAKRA UI COMPONENT HELPERS (MODAL / DRAWER / TABLE)
+    # ──────────────────────────────────────────────────────────────────────────
+
+    def wait_for_modal(self, timeout: int = 5000) -> Locator:
+        """Waits for and returns active Chakra Modal or Drawer dialog."""
+        modal = self.page.locator("section.chakra-modal__content, div.chakra-drawer__content, [role='dialog']").first
+        modal.wait_for(state="visible", timeout=timeout)
+        return modal
+
+    def close_modal(self, modal: Locator = None, timeout: int = 3000) -> None:
+        """Closes active modal/drawer via close button or Escape key and waits for it to hide."""
+        target = modal if modal else self.page.locator("section.chakra-modal__content, div.chakra-drawer__content, [role='dialog']").first
+        try:
+            close_btn = target.locator("button.chakra-modal__close-btn, button[aria-label*='Close' i], footer button:has-text('Cancel'), footer button:has-text('Close')").first
+            if close_btn.is_visible(timeout=500):
+                close_btn.click(force=True)
+            else:
+                self.page.keyboard.press("Escape")
+            target.wait_for(state="hidden", timeout=timeout)
+        except Exception as e:
+            logger.debug(f"close_modal note: {e}")
+
+    def confirm_modal(self, modal: Locator = None, button_text: str = "Confirm", timeout: int = 5000) -> None:
+        """Finds confirmation button in modal footer, clicks it, and waits for modal to hide."""
+        target = modal if modal else self.page.locator("section.chakra-modal__content, div.chakra-drawer__content, [role='dialog']").first
+        btn = target.locator(f"footer button:has-text('{button_text}'), footer button:has-text('Approve'), footer button:has-text('Submit'), button:has-text('{button_text}')").first
+        btn.wait_for(state="visible", timeout=timeout)
+        btn.click()
+        try:
+            target.wait_for(state="hidden", timeout=timeout)
+        except Exception:
+            pass
+
+    def get_table_row(self, text: str, timeout: int = 5000) -> Locator:
+        """Finds table row containing specified text."""
+        row = self.page.locator(f"table tr:has-text('{text}'), div[role='row']:has-text('{text}')").first
+        row.wait_for(state="visible", timeout=timeout)
+        return row
+
+    def get_row_badge_text(self, row: Locator) -> str:
+        """Extracts text from Chakra badge within a table row."""
+        badge = row.locator(".chakra-badge, span[class*='badge']").first
+        if badge.is_visible(timeout=2000):
+            return badge.inner_text().strip()
+        return ""
+
 

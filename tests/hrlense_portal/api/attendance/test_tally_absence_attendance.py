@@ -1,5 +1,5 @@
 """
-Production API Verification & Tally Report:
+Absence & Attendance API Tally Report:
 Cross-references Absence Cases against Employee Attendance Summary (Aug 1, 2026 to Aug 12, 2026).
 STRICTLY READ-ONLY (ONLY GET REQUESTS).
 """
@@ -8,6 +8,7 @@ import json
 import logging
 import pytest
 from datetime import datetime
+from core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +18,8 @@ def test_tally_absence_vs_attendance_report(admin_page):
     """
     STRICTLY READ-ONLY (GET ONLY):
     Fetches:
-    1. GET https://hrmsapi.jobvritta.com/api/AbsenceCase/list
-    2. GET https://hrmsapi.jobvritta.com/api/Hrlense_Attendance/employee-attendance-summary (2026-08-01 to 2026-08-12)
+    1. GET {settings.API_BASE_URL}/AbsenceCase/list
+    2. GET {settings.API_BASE_URL}/Hrlense_Attendance/employee-attendance-summary (2026-08-01 to 2026-08-12)
     Tallies absence cases with attendance summary records and logs full report.
     """
     logger.info("Starting strictly READ-ONLY GET tally report (2026-08-01 to 2026-08-12)...")
@@ -51,7 +52,7 @@ def test_tally_absence_vs_attendance_report(admin_page):
         logger.info(f"Retrieved active Bearer token from browser context (prefix: {token[:10]}...).")
 
     # 1. GET AbsenceCase/list
-    abs_url = "https://hrmsapi.jobvritta.com/api/AbsenceCase/list"
+    abs_url = f"{settings.API_BASE_URL}/AbsenceCase/list"
     abs_params = {
         "lazyParams": '{"first":0,"rows":500,"page":0,"sortField":"","sortOrder":1}',
         "search": "",
@@ -63,7 +64,7 @@ def test_tally_absence_vs_attendance_report(admin_page):
     abs_json = abs_response.json() if abs_response.ok else {}
 
     # 2. GET Hrlense_Attendance/employee-attendance-summary
-    att_url = "https://hrmsapi.jobvritta.com/api/Hrlense_Attendance/employee-attendance-summary"
+    att_url = f"{settings.API_BASE_URL}/Hrlense_Attendance/employee-attendance-summary"
     att_params = {
         "name": "",
         "from": "2026-08-01",
@@ -80,7 +81,7 @@ def test_tally_absence_vs_attendance_report(admin_page):
     reg_json = {}
     for reg_endpoint in ["Regularization/regularization", "Regularization/RegularizationRequests", "Regularization/list"]:
         try:
-            r_url = f"https://hrmsapi.jobvritta.com/api/{reg_endpoint}"
+            r_url = f"{settings.API_BASE_URL}/{reg_endpoint}"
             logger.info(f"Executing ONLY GET: {r_url}")
             r_resp = admin_page.request.get(r_url, params={"lazyParams": '{"first":0,"rows":500,"page":0}', "status": ""}, headers=req_headers)
             if r_resp.ok:
@@ -94,7 +95,7 @@ def test_tally_absence_vs_attendance_report(admin_page):
     rem_json = {}
     for rem_endpoint in ["Remote/remote", "Remote/RemoteRequests", "Remote/list"]:
         try:
-            rem_url = f"https://hrmsapi.jobvritta.com/api/{rem_endpoint}"
+            rem_url = f"{settings.API_BASE_URL}/{rem_endpoint}"
             logger.info(f"Executing ONLY GET: {rem_url}")
             rem_resp = admin_page.request.get(rem_url, params={"status": "all", "lazyParams": '{"first":0,"rows":500,"page":0}'}, headers=req_headers)
             if rem_resp.ok:
@@ -108,7 +109,7 @@ def test_tally_absence_vs_attendance_report(admin_page):
     leave_json = {}
     for leave_endpoint in ["Hrlense_Leave/LeaveRequests", "Hrlense_Leave/leaves"]:
         try:
-            l_url = f"https://hrmsapi.jobvritta.com/api/{leave_endpoint}"
+            l_url = f"{settings.API_BASE_URL}/{leave_endpoint}"
             logger.info(f"Executing ONLY GET: {l_url}")
             l_resp = admin_page.request.get(l_url, params={"lazyParams": '{"first":0,"rows":500,"page":0,"sortField":"","sortOrder":1}', "filter": "{}", "search": ""}, headers=req_headers)
             if l_resp.ok:
@@ -140,7 +141,7 @@ def test_tally_absence_vs_attendance_report(admin_page):
     leave_list = extract_records(leave_json)
 
     print("\n" + "=" * 90)
-    print("           PRODUCTION TALLY REPORT: ABSENCE CASES VS ATTENDANCE SUMMARY")
+    print("           ABSENCE CASES VS ATTENDANCE SUMMARY TALLY REPORT")
     print("                     PERIOD: 2026-08-01 to 2026-08-12")
     print("=" * 90)
 
@@ -235,7 +236,7 @@ def test_tally_absence_vs_attendance_report(admin_page):
 
     # Print Formatted Table
     print("\n" + "=" * 140)
-    print("                     PRODUCTION ABSENCE & ATTENDANCE TALLY REPORT (AUG 1 - PRESENT)")
+    print("                     ABSENCE & ATTENDANCE TALLY REPORT (AUG 1 - PRESENT)")
     print("=" * 140)
     print(f"{'Employee Name':<22} | {'Emp ID':<8} | {'Branch':<12} | {'Company':<12} | {'Date':<10} | {'Present':<7} | {'Absent':<7} | {'Regularization':<16} | {'Remote Req':<12} | {'Leave Req':<16}")
     print("-" * 140)
@@ -281,7 +282,7 @@ def test_tally_absence_vs_attendance_report(admin_page):
 
     md_path = "reports/absence_vs_attendance_tally_report.md"
     with open(md_path, "w", encoding="utf-8") as f:
-        f.write("# Production Absence & Attendance Tally Report (Aug 1, 2026 - Present)\n\n")
+        f.write("# Absence & Attendance Tally Report (Aug 1, 2026 - Present)\n\n")
         f.write("| Employee Name | Employee ID | Branch | Company | Date | Present | Absent | Regularization | Remote Req | Leave Req | Status |\n")
         f.write("|---------------|-------------|--------|---------|------|---------|--------|----------------|------------|-----------|--------|\n")
         for r in report_rows:

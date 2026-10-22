@@ -33,7 +33,7 @@ Enterprise-grade end-to-end test automation, parallel execution engine, and API 
   - Unique `DRAFT-N` invariant anchoring for draft title rules and updates.
   - Automatic conversion to **Paid Intern** modal validation when Gross Salary $< ₹15,000$.
 * **Parallel Execution Engine (`pytest-xdist`)**: Smart multi-worker allocation engine (`-n auto`) dynamically scaling across CPU cores.
-* **Strict Environment Scoping Policy**: Whitelisted environment enforcement (`ALLOWED_ENVS = {"stg", "prod"}`). Defaults to **Stage (`stg`)**; requires explicit user opt-in (`-e ENV=prod`) for Production.
+* **Strict Environment Scoping Policy**: Dedicated strictly to **Stage (`stg`)** (`https://stg-hrlense.jobvritta.com`). Production execution is disabled to guarantee testing safety.
 * **Centralized Stage Email Verification (Gmail API & MCP Integration)**:
   - The Stage environment (`stg`) routes all outgoing emails (candidate offboarding, resignation notifications, offer letters/LOIs, meeting invites, and approval alerts) through a centralized QA mailbox.
   - Integrated with the **Gmail REST API** (`utils/mail/gmail_client.py`) and **Gmail MCP** to programmatically fetch, inspect, and verify transactional mail delivery, extract OTPs/verification links, and assert against email headers and HTML bodies in automated test suites.
@@ -132,7 +132,7 @@ source venv/bin/activate
 
 ### 4. Configure Environment Variables (`.env`)
 The setup script automatically copies `.env.example` to `.env`. Open `.env` to customize settings or test credentials:
-- **`ENV`**: Set to `stg` (default) or `prod`.
+- **`ENV`**: Set to `stg` (dedicated Stage environment).
 - **`HEADLESS`**: Set `False` for visible browser execution, or `True` for headless runs.
 - **Persona Credentials**: Fill in your test credentials (`ADMIN_USERNAME_STG`, `ADMIN_PASSWORD_STG`, etc.). Real credentials are gitignored and never committed.
 - **Gmail OAuth OTP (Optional)**: If testing MFA/OTP flows, place Google OAuth credentials (`client_sec.json`, `token.json`) inside the gitignored directory `core/auth/credentials/`.

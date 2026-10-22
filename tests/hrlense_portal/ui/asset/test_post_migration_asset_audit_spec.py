@@ -255,7 +255,7 @@ class TestPostMigrationAssetAuditSpec:
 
         logger.info(f"==> POST-UPLOAD PREFILLED VALUES -> Invoice No: '{inv_no_val}' | Amount: '{amt_val}'")
 
-        # Close / cancel modal to prevent dirtying production data
+        # Close / cancel modal to prevent dirtying staging data
         close_btn = page.locator("button:has-text('Cancel'), [aria-label='Close'], button.chakra-modal__close-btn").first
         if close_btn.is_visible(timeout=2000):
             close_btn.click()

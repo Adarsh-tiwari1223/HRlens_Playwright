@@ -1,5 +1,6 @@
 import re
 import logging
+from playwright.sync_api import Locator
 from pages.base_page import BasePage
 from core.config import settings
 
@@ -12,6 +13,24 @@ class AssetAssignmentPage(BasePage):
     CANCEL_BTN = "role=button[name='Cancel']"
     TOAST = "#chakra-toast-manager-top-right"
 
+    @property
+    def assign_asset_button(self) -> Locator:
+        btn = self.page.locator("button:has-text('Assign Asset'), button.chakra-button:has-text('Assign Asset')").first
+        if not btn.is_visible(timeout=1000):
+            return self.page.get_by_role("button", name="Assign Asset").first
+        return btn
+
+    @property
+    def modal(self) -> Locator:
+        return self.page.locator(".chakra-modal__content, .chakra-drawer__content, [role='dialog']").first
+
+    @property
+    def employee_search_input(self) -> Locator:
+        inp = self.page.get_by_placeholder("Search employee name…").first
+        if not inp.is_visible(timeout=1000):
+            return self.page.locator("input[placeholder*='Search employee' i]").first
+        return inp
+
     def navigate_to_asset_assignment(self):
         """Navigates to the Asset Assignment page."""
         logger.info("Navigating to Asset Assignment page")
@@ -21,17 +40,12 @@ class AssetAssignmentPage(BasePage):
             self.page.goto(f"{settings.BASE_URL}/asset-assignment", timeout=30000)
         self.page.wait_for_load_state("domcontentloaded")
 
-    def click_assign_asset(self):
+    def click_assign_asset(self) -> Locator:
         """Clicks 'Assign Asset' button to open direct assignment modal."""
-        btn = self.page.locator("button:has-text('Assign Asset'), button.chakra-button:has-text('Assign Asset')").first
-        if not btn.is_visible(timeout=3000):
-            btn = self.page.get_by_role("button", name="Assign Asset").first
-
+        btn = self.assign_asset_button
         btn.wait_for(state="visible", timeout=10000)
         btn.click()
-        modal = self.page.locator(".chakra-modal__content, .chakra-drawer__content, [role='dialog']").first
-        modal.wait_for(state="visible", timeout=10000)
-        self.page.wait_for_timeout(500)
+        return self.wait_for_modal(timeout=10000)
 
     def fill_assignment_details(self, employee_name: str, category: str, sub_category: str, asset_name_or_code: str = None, expected_return_date: str = None, remarks: str = None) -> dict:
         logger.info(f"Filling assignment details: Employee={employee_name}, Category={category}, SubCategory={sub_category}")

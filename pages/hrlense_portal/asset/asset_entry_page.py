@@ -1,6 +1,7 @@
 import re
 import random
 import logging
+from playwright.sync_api import Locator
 from pages.base_page import BasePage
 from core.config import settings
 
@@ -13,35 +14,43 @@ class AssetEntryPage(BasePage):
     CANCEL_BTN = "role=button[name='Cancel']"
     TOAST = "#chakra-toast-manager-top-right, .chakra-toast, [role='status'], [role='alert']"
 
+    @property
+    def add_asset_button(self) -> Locator:
+        btn = self.page.get_by_role("button", name=re.compile(r"Add\s*(Manual|New\s*Asset|Asset)", re.I)).first
+        if not btn.is_visible(timeout=1000):
+            return self.page.locator("button:has-text('Add Manual'), button:has-text('Add Asset'), button:has-text('Add New Asset')").first
+        return btn
+
+    @property
+    def generate_assets_button(self) -> Locator:
+        btn = self.page.get_by_text("Generate Assets", exact=True).first
+        if not btn.is_visible(timeout=1000):
+            return self.page.locator("button:has-text('Generate Assets')").first
+        return btn
+
+    @property
+    def modal(self) -> Locator:
+        return self.page.locator(".chakra-modal__content, .chakra-drawer__content, [role='dialog']").first
+
     def navigate_to_asset_entry(self):
         """Navigates to Asset Entry page and ensures DOM is fully loaded."""
         logger.info("Navigating to Asset Entry page")
         self.page.goto(f"{settings.BASE_URL}/asset-entry", timeout=30000, wait_until="domcontentloaded")
-        self.page.wait_for_timeout(1000)
 
-    def click_add_asset(self):
+    def click_add_asset(self) -> Locator:
         """Opens standard Add Asset / Add Manual creation modal."""
         logger.info("Clicking 'Add Manual' / 'Add Asset' button...")
-        btn = self.page.get_by_role("button", name=re.compile(r"Add\s*(Manual|New\s*Asset|Asset)", re.I)).first
-        if not btn.is_visible(timeout=2000):
-            btn = self.page.locator("button").filter(has_text=re.compile(r"Add\s*(Manual|New\s*Asset|Asset)", re.I)).first
-        if not btn.is_visible(timeout=2000):
-            btn = self.page.locator("button:has-text('Add Manual'), button:has-text('Add Asset'), button:has-text('Add New Asset')").first
-
+        btn = self.add_asset_button
         btn.wait_for(state="visible", timeout=10000)
         btn.click()
-        self.page.locator("[role='dialog'][aria-modal='true'], .chakra-modal__content").wait_for(state="visible", timeout=10000)
+        modal = self.wait_for_modal(timeout=10000)
         logger.info("Verified 'Add Asset' / 'Add Manual' modal is visible.")
+        return modal
 
-    def click_generate_assets_button(self):
+    def click_generate_assets_button(self) -> Locator:
         """Clicks the 'Generate Assets' button and waits for drawer/modal with header 'Generate Assets' to open."""
         logger.info("Clicking 'Generate Assets' button...")
-        btn = self.page.get_by_text("Generate Assets", exact=True).first
-        if not btn.is_visible(timeout=2000):
-            btn = self.page.locator("button").filter(has_text=re.compile(r"^Generate Assets$", re.I)).first
-        if not btn.is_visible(timeout=2000):
-            btn = self.page.locator("button:has-text('Generate Assets')").first
-
+        btn = self.generate_assets_button
         btn.wait_for(state="visible", timeout=10000)
         btn.click()
 
@@ -49,6 +58,7 @@ class AssetEntryPage(BasePage):
         header_el = self.page.locator("header:has-text('Generate Assets'), [role='dialog'] header:has-text('Generate Assets'), .chakra-modal__header:has-text('Generate Assets')").first
         header_el.wait_for(state="visible", timeout=10000)
         logger.info("Verified 'Generate Assets' modal/drawer header is visible.")
+        return self.modal
 
     def fill_generate_assets_form(self, procurement_code: str = None) -> dict:
         """

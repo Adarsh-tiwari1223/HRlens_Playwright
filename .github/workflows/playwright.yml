@@ -105,10 +105,12 @@ jobs:
       - name: "Pre-flight: Test Collection & Import Validation"
         run: |
           echo "🔍 Validating Python syntax, test imports, and fixtures..."
-          pytest --collect-only -q || {
-            echo "::error::Pytest collection failed! Check imports or syntax errors above."
+          OUTPUT=$(pytest --collect-only -q 2>&1) || {
+            echo "::error::Pytest collection failed!"
+            echo "$OUTPUT"
             exit 1
           }
+          echo "$OUTPUT" | grep -E "tests collected|deselected" || echo "Test collection completed."
           echo "✅ All tests, POMs, workflows, and fixtures collected cleanly."
 
       # Run Dynamic Test Suite (-n auto)

@@ -34,6 +34,9 @@ Enterprise-grade end-to-end test automation, parallel execution engine, and API 
   - Automatic conversion to **Paid Intern** modal validation when Gross Salary $< ₹15,000$.
 * **Parallel Execution Engine (`pytest-xdist`)**: Smart multi-worker allocation engine (`-n auto`) dynamically scaling across CPU cores.
 * **Strict Environment Scoping Policy**: Whitelisted environment enforcement (`ALLOWED_ENVS = {"stg", "prod"}`). Defaults to **Stage (`stg`)**; requires explicit user opt-in (`-e ENV=prod`) for Production.
+* **Centralized Stage Email Verification (Gmail API & MCP Integration)**:
+  - The Stage environment (`stg`) routes all outgoing emails (candidate offboarding, resignation notifications, offer letters/LOIs, meeting invites, and approval alerts) through a centralized QA mailbox.
+  - Integrated with the **Gmail REST API** (`utils/mail/gmail_client.py`) and **Gmail MCP** to programmatically fetch, inspect, and verify transactional mail delivery, extract OTPs/verification links, and assert against email headers and HTML bodies in automated test suites.
 * **Visual Playwright Tracing & Reports**: Automatic step-by-step DOM visual tracing (`reports/trace_*.zip`), Allure Reporting, and self-contained HTML reports (`reports/report.html`).
 
 ---
@@ -126,6 +129,13 @@ venv\Scripts\activate
 # Linux / Mac / WSL
 source venv/bin/activate
 ```
+
+### 4. Configure Environment Variables (`.env`)
+The setup script automatically copies `.env.example` to `.env`. Open `.env` to customize settings or test credentials:
+- **`ENV`**: Set to `stg` (default) or `prod`.
+- **`HEADLESS`**: Set `False` for visible browser execution, or `True` for headless runs.
+- **Persona Credentials**: Fill in your test credentials (`ADMIN_USERNAME_STG`, `ADMIN_PASSWORD_STG`, etc.). Real credentials are gitignored and never committed.
+- **Gmail OAuth OTP (Optional)**: If testing MFA/OTP flows, place Google OAuth credentials (`client_sec.json`, `token.json`) inside the gitignored directory `core/auth/credentials/`.
 
 ---
 
@@ -241,4 +251,54 @@ The `.github/workflows/docker-publish.yml` workflow automatically builds and pus
 - **Manual Trigger**: Can be dispatched on-demand with 1 click from the GitHub **Actions** tab.
 - **Layer Caching**: Uses GitHub Actions cloud cache (`type=gha`) for fast builds.
 - **Authentication**: Authenticates securely using repository secrets (`DOCKERHUB_TOKEN` and `DOCKERHUB_USERNAME`).
+
+### 3. Automated Test Pipeline (`.github/workflows/playwright.yml`)
+The framework includes an enterprise GitHub Actions CI pipeline:
+- **Containerized Test Runs**: Executes tests directly inside the pre-built `adarsh7777/hrlense_playwright:latest` container on `ubuntu-latest`.
+- **Parallel Workers**: Runs parallel tests dynamically across CPU cores using `pytest-xdist` (`-n auto`).
+- **Automated Pull Request Creation**: Automatically opens comparison PRs against `main` when feature branches are pushed.
+- **Artifact Archiving**: Automatically captures and uploads test execution logs, Playwright traces (`reports/trace_*.zip`), and HTML test reports on any test failure.
+
+---
+
+## 🤖 AI Agent & MCP Integration
+
+The HRlens automation repository is natively optimized for autonomous AI coding agents (such as **Google Antigravity**, **Claude Code**, **Cursor**, and **GitHub Copilot**). It features a dedicated Model Context Protocol (MCP) toolchain and standardized architectural guardrails:
+
+### 1. Zero-Touch Model Context Protocol (`.agents/mcp_config.json`)
+AI agents working inside this repository automatically discover workspace MCP servers without manual user configuration:
+- **Google Sheets MCP Server (`mcp-gsheets`)**: Dynamically launched via `npx -y mcp-gsheets`.
+- **Capabilities**:
+  - **Test Plan & Matrix Syncing**: Agents directly read test scenario definitions, user stories, and test data requirements from project Google Sheets.
+  - **Live Defect & Status Logging**: Agents update execution matrices, log pass/fail status, record bug references, and format cell ranges automatically.
+  - **Zero Hardcoded Paths**: Configured via universal `npx` execution, ensuring it works seamlessly on any developer's machine immediately upon cloning.
+
+```json
+{
+  "mcpServers": {
+    "google-sheets": {
+      "command": "npx",
+      "args": ["-y", "mcp-gsheets"]
+    }
+  }
+}
+```
+
+- **Centralized Email Delivery Verification (Gmail API & MCP)**:
+  - Because the Stage environment routes all outgoing emails centrally to a designated QA test inbox, AI agents leverage the integrated Gmail REST API client (`utils/mail/gmail_client.py`) and Gmail MCP tools.
+  - Agents can autonomously query transactional message threads, verify delivery status, validate HTML email contents (such as resignation notifications, candidate LOI links, and interview invites), and extract OTP tokens during end-to-end testing without manual human intervention.
+
+### 2. Standardized Agent Rules (`.agents/rules/hrlense-v1.md`)
+AI assistants operating on this codebase are bounded by strict engineering rules to maintain test reliability and framework integrity:
+* **Strict 3-Tier Layer Separation**: Page Objects own DOM locators and actionability; Workflows orchestrate business logic; Tests own assertions. Agents are forbidden from placing test assertions inside Page Objects.
+* **Zero Hardcoded Sleeps**: Prohibits `time.sleep()`. All waiting logic must use Playwright's web-first reactive auto-waits (`expect(locator).to_be_visible()`, `to_be_hidden()`).
+* **Credential & Secret Protection**: Strict prohibition against leaking or committing real employee emails, API keys, or passwords. All tests use sanitized `.env` variables and dummy mock templates.
+* **Hard Business Assertions**: Enforces deterministic, high-integrity assertions over soft assertions or silent warning suppressions.
+
+### 3. Verification & Diagnostic Workflows (`.agents/workflows/hrlense-v1.md`)
+Standardized step-by-step diagnostic workflows empower AI agents to:
+1. Inspect trace artifacts (`reports/trace_*.zip`) and per-test logs (`logs/*/*.log`) before attempting fixes.
+2. Form evidence-backed hypotheses before making code modifications.
+3. Validate fixes with targeted pytest runs and markers before reporting completion.
+
 

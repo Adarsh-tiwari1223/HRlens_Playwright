@@ -26,17 +26,24 @@ logger = logging.getLogger(__name__)
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-TOKEN_PATH = os.path.join(BASE_DIR, "token.json")
+CREDENTIALS_DIR = os.path.join(BASE_DIR, "core", "auth", "credentials")
+TOKEN_PATH = (
+    os.path.join(CREDENTIALS_DIR, "token.json")
+    if os.path.exists(CREDENTIALS_DIR)
+    else os.path.join(BASE_DIR, "token.json")
+)
 
 
 def _find_client_secret_file() -> str:
-    """Finds client_sec.json or client_secret.json in project root."""
-    for filename in ["client_sec.json", "client_secret.json"]:
-        path = os.path.join(BASE_DIR, filename)
-        if os.path.exists(path):
-            return path
+    """Finds client_sec.json or client_secret.json in core/auth/credentials/ or project root."""
+    search_dirs = [CREDENTIALS_DIR, BASE_DIR]
+    for directory in search_dirs:
+        for filename in ["client_sec.json", "client_secret.json"]:
+            path = os.path.join(directory, filename)
+            if os.path.exists(path):
+                return path
     raise FileNotFoundError(
-        f"OAuth client file (client_sec.json or client_secret.json) not found in {BASE_DIR}"
+        f"OAuth client file (client_sec.json or client_secret.json) not found in {search_dirs}"
     )
 
 

@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "google-sheets": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-gsheets"
+      ],
+      "env": {
+        "GOOGLE_PROJECT_ID": "affable-berm-475308-b5",
+        "GOOGLE_APPLICATION_CREDENTIALS": "core/auth/credentials/credentials.json"
+      }
+    }
+  }
+}

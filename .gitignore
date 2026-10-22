@@ -64,7 +64,9 @@ coverage.xml
 # Secrets
 *.env
 .env.*
+!.env.example
 secrets.py
+core/auth/credentials/
 
 # Playwright auth state
 .auth/

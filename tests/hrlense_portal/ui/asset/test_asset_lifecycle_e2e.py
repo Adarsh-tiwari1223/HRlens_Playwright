@@ -12,7 +12,6 @@ Execution:
 
 import os
 import re
-import time
 import base64
 import logging
 import pytest
@@ -59,7 +58,7 @@ class TestAssetLifecycleE2E:
         emp_page, _ = logged_in_page("adarsh_tiwari")
         emp_page.goto(f"{settings.BASE_URL}/asset-request")
         emp_page.wait_for_load_state("domcontentloaded")
-        time.sleep(2)
+        emp_page.locator("button:has-text('New Request'), button:has-text('+ Request'), table").first.wait_for(state="visible", timeout=10000)
 
         # Count existing active assets before new flow
         rows_before = emp_page.locator("table tbody tr").all_inner_texts()
@@ -70,7 +69,6 @@ class TestAssetLifecycleE2E:
         req_btn = emp_page.locator("button:has-text('New Request'), button:has-text('+ Request')").first
         expect(req_btn).to_be_visible(timeout=5000)
         req_btn.click()
-        time.sleep(1)
 
         modal = emp_page.locator("[role='dialog'], .chakra-modal__content").last
         expect(modal).to_be_visible(timeout=5000)
@@ -78,11 +76,10 @@ class TestAssetLifecycleE2E:
         # Select Software Licenses -> Operating System License
         cat_select = modal.locator("select").first
         cat_select.select_option(label="Software Licenses")
-        time.sleep(1)
 
         sub_select = modal.locator("select").nth(1)
+        sub_select.wait_for(state="visible", timeout=5000)
         sub_select.select_option(label="Operating System License")
-        time.sleep(1)
 
         reason_input = modal.locator("textarea, input[placeholder*='reason' i]").first
         if reason_input.is_visible():
@@ -90,12 +87,12 @@ class TestAssetLifecycleE2E:
 
         submit_btn = modal.locator("button:has-text('Submit Request'), button:has-text('Submit')").first
         submit_btn.click()
-        time.sleep(3)
+        expect(modal).to_be_hidden(timeout=10000)
 
         # Verify new pending request row appeared
         emp_page.goto(f"{settings.BASE_URL}/asset-request")
         emp_page.wait_for_load_state("domcontentloaded")
-        time.sleep(2)
+        emp_page.locator("table tbody tr").first.wait_for(state="visible", timeout=10000)
 
         req_rows = emp_page.locator("table tbody tr").all_inner_texts()
         has_pending = any("PENDING" in r.upper() and "SOFTWARE" in r.upper() for r in req_rows)
@@ -106,21 +103,19 @@ class TestAssetLifecycleE2E:
         it_page, _ = logged_in_page("it_varanasi_ashutosh")
         it_page.goto(f"{settings.BASE_URL}/asset-assignment")
         it_page.wait_for_load_state("domcontentloaded")
-        time.sleep(2)
+        it_page.locator("[role='tab'], table").first.wait_for(state="visible", timeout=10000)
 
         # Switch to Requested Assignment tab
         req_tab = it_page.locator("button[role='tab']:has-text('Requested Assignment'), button[role='tab']:has-text('Employee Requests')").first
         if not req_tab.is_visible(timeout=3000):
             req_tab = it_page.locator("[role='tab']").nth(1)
         req_tab.click()
-        time.sleep(2)
 
         target_row = it_page.locator("table tbody tr").filter(has_text=re.compile(r"Adarsh.*Software", re.I)).first
-        expect(target_row).to_be_visible(timeout=5000)
+        expect(target_row).to_be_visible(timeout=10000)
 
         fulfil_btn = target_row.locator("button:has-text('Fulfil'), button:has-text('Assign')").first
         fulfil_btn.click()
-        time.sleep(2)
 
         drawer = it_page.locator("[role='dialog'], .chakra-drawer__content, .chakra-modal__content").first
         expect(drawer).to_be_visible(timeout=5000)
@@ -128,40 +123,37 @@ class TestAssetLifecycleE2E:
         # Open Stock Asset Dropdown & check available asset
         asset_btn = drawer.locator("button.chakra-menu__menu-button, button:has-text('Select assets to assign')").first
         asset_btn.click()
-        time.sleep(1)
 
         first_cb = it_page.locator(".chakra-menu__menu-list input[type='checkbox']").first
         expect(first_cb).to_be_visible(timeout=5000)
         first_cb.check(force=True)
-        time.sleep(1)
 
         # Submit fulfillment
         assign_submit = drawer.locator("button:has-text('Assign Asset'), button[type='submit']").last
         assign_submit.click(force=True)
-        time.sleep(4)
+        expect(drawer).to_be_hidden(timeout=10000)
         story.log_step("Step 3: IT Stock Fulfillment", record="Selected Available Stock Asset", actual="Fulfilled successfully", status="PASS")
 
         # Step 4: Employee Accepts Assigned Asset
         emp_page2, _ = logged_in_page("adarsh_tiwari")
         emp_page2.goto(f"{settings.BASE_URL}/asset-request")
         emp_page2.wait_for_load_state("domcontentloaded")
-        time.sleep(2)
+        emp_page2.locator("table tbody tr, button:has-text('Accept Asset')").first.wait_for(state="visible", timeout=10000)
 
         accept_btn = emp_page2.locator("button:has-text('Accept Asset'), button:has-text('Accept')").first
         if accept_btn.is_visible(timeout=5000):
             accept_btn.click()
-            time.sleep(1)
             confirm_dialog = emp_page2.locator("[role='dialog'], .chakra-modal__content").first
-            if confirm_dialog.is_visible(timeout=2000):
+            if confirm_dialog.is_visible(timeout=3000):
                 confirm_btn = confirm_dialog.locator("button:has-text('Accept'), button:has-text('Confirm')").first
                 if confirm_btn.is_visible():
                     confirm_btn.click()
-                    time.sleep(2)
+                    expect(confirm_dialog).to_be_hidden(timeout=10000)
 
         # Step 5: Assert employee holds multiple ACTIVE assets in Software Licenses
         emp_page2.reload()
         emp_page2.wait_for_load_state("domcontentloaded")
-        time.sleep(2)
+        emp_page2.locator("table tbody tr").first.wait_for(state="visible", timeout=10000)
 
         final_rows = emp_page2.locator("table tbody tr").all_inner_texts()
         active_assets = [r for r in final_rows if "ACTIVE" in r.upper() and "SOFTWARE" in r.upper()]
@@ -187,14 +179,13 @@ class TestAssetLifecycleE2E:
         it_page, _ = logged_in_page("it_varanasi_ashutosh")
         it_page.goto(f"{settings.BASE_URL}/asset-assignment")
         it_page.wait_for_load_state("domcontentloaded")
-        time.sleep(2)
+        it_page.locator("[role='tab'], table").first.wait_for(state="visible", timeout=10000)
 
         # Switch to Requested Assignment tab to inspect drawer
         req_tab = it_page.locator("button[role='tab']:has-text('Requested Assignment'), button[role='tab']:has-text('Employee Requests')").first
         if not req_tab.is_visible(timeout=3000):
             req_tab = it_page.locator("[role='tab']").nth(1)
         req_tab.click()
-        time.sleep(2)
 
         # Open fulfillment drawer or direct assignment drawer to inspect Assignment Type controls
         pending_rows = it_page.locator("table tbody tr").filter(
@@ -220,7 +211,6 @@ class TestAssetLifecycleE2E:
 
         # Select Temporary
         duration_select.select_option(label="Temporary")
-        time.sleep(1)
 
         # Assert Expected Return Date field is dynamically rendered
         date_input = drawer.locator("input[type='date']").first
@@ -234,6 +224,7 @@ class TestAssetLifecycleE2E:
         # Close drawer
         close_btn = drawer.locator("button[aria-label='Close'], button:has-text('Cancel')").first
         close_btn.click()
+        expect(drawer).to_be_hidden(timeout=5000)
         story.finish(status="PASS")
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -254,7 +245,7 @@ class TestAssetLifecycleE2E:
         it_page, _ = logged_in_page("it_varanasi_ashutosh")
         it_page.goto(f"{settings.BASE_URL}/asset-return")
         it_page.wait_for_load_state("domcontentloaded")
-        time.sleep(2)
+        it_page.locator(".chakra-card, div[class*='card'], table, [role='tab']").first.wait_for(state="visible", timeout=10000)
 
         # Check KPI Cards
         cards = it_page.locator(".chakra-card, div[class*='card']").all_inner_texts()
@@ -265,9 +256,9 @@ class TestAssetLifecycleE2E:
         assigned_tab = it_page.locator("button[role='tab']:has-text('Assigned Assets')").first
         expect(assigned_tab).to_be_visible(timeout=3000)
         assigned_tab.click()
-        time.sleep(2)
 
         # Check table columns & structure
+        it_page.locator("table thead th").first.wait_for(state="visible", timeout=10000)
         headers = it_page.locator("table thead th").all_inner_texts()
         cleaned_headers = [h.strip().replace('\n', ' ') for h in headers if h.strip()]
         story.log_step("Step 2: Table Columns", record=str(cleaned_headers), status="PASS")
@@ -300,12 +291,13 @@ class TestAssetLifecycleE2E:
         it_page, _ = logged_in_page("it_varanasi_ashutosh")
         it_page.goto(f"{settings.BASE_URL}/asset-return")
         it_page.wait_for_load_state("domcontentloaded")
-        time.sleep(2)
+        it_page.locator("[role='tab']").first.wait_for(state="visible", timeout=10000)
 
         assigned_tab = it_page.locator("button[role='tab']:has-text('Assigned Assets')").first
+        expect(assigned_tab).to_be_visible(timeout=5000)
         assigned_tab.click()
-        time.sleep(2)
 
+        it_page.locator("table tbody tr").first.wait_for(state="visible", timeout=10000)
         rows = it_page.locator("table tbody tr").all()
         if not rows:
             pytest.skip("No assigned assets available to test return clearance.")
@@ -313,7 +305,6 @@ class TestAssetLifecycleE2E:
         # Click return action button on first active row
         action_btn = rows[0].locator("button").first
         action_btn.click()
-        time.sleep(2)
 
         modal = it_page.locator("[role='dialog'], .chakra-modal__content").first
         expect(modal).to_be_visible(timeout=5000)
@@ -329,7 +320,6 @@ class TestAssetLifecycleE2E:
         # 2. Select Repair Required
         repair_radio = modal.locator("input[type='radio'][value='Repair Required']").first
         repair_radio.check(force=True)
-        time.sleep(1)
 
         # 3. Verify Evidence Upload becomes mandatory
         evidence_label = modal.locator("label:has-text('EVIDENCE'), p:has-text('EVIDENCE')").first
@@ -341,7 +331,6 @@ class TestAssetLifecycleE2E:
         _create_temp_evidence_image(temp_img)
         file_input = modal.locator("input[type='file']").first
         file_input.set_input_files(temp_img)
-        time.sleep(1)
 
         # 5. Fill Remarks
         remarks = modal.locator("textarea, input[placeholder*='Remarks' i]").first
@@ -351,13 +340,13 @@ class TestAssetLifecycleE2E:
         # 6. Submit Return
         submit_btn = modal.locator("button:has-text('Return Asset')").last
         submit_btn.click(force=True)
-        time.sleep(4)
+        expect(modal).to_be_hidden(timeout=10000)
         story.log_step("Step 4: Submit Return Clearance", actual="Return Asset submitted", status="PASS")
 
         # 7. Verify asset routed to /asset-maintenance
         it_page.goto(f"{settings.BASE_URL}/asset-maintenance")
         it_page.wait_for_load_state("domcontentloaded")
-        time.sleep(2)
+        it_page.locator("table tbody tr").first.wait_for(state="visible", timeout=10000)
 
         maint_rows = it_page.locator("table tbody tr").all_inner_texts()
         has_maintenance_asset = any("Repair Required" in r or "MAINTENANCE" in r.upper() for r in maint_rows)

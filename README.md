@@ -15,6 +15,10 @@ Enterprise-grade end-to-end test automation, parallel execution engine, and API 
   1. **Page Object Model (`pages/`)**: Encapsulates raw DOM locators, actionability checks, and UI interactions with zero hardcoded sleeps.
   2. **Workflow Layer (`workflows/`)**: Orchestrates complex multi-step business logic (e.g. Job Creation, Candidate Pipeline, Interview Scheduling, Salary Calculations).
   3. **Test Suite Layer (`tests/`)**: Houses clean, declarative pytest test cases separated into `hrlense_portal/` and `recruitment_portal/`.
+* **Zero-Touch Onboarding & Auto-Configuration**:
+  - One-click setup scripts (`setup.bat` for Windows, `setup.sh` for Linux/Mac/WSL) automatically create the virtual environment, install requirements, download Playwright Chromium, and initialize `.env` from `.env.example`.
+* **Model Context Protocol (MCP) Workspace Integration**:
+  - Auto-discovered workspace configuration (`.agents/mcp_config.json`) connects AI coding assistants directly to the Google Sheets MCP server (`npx -y mcp-gsheets`) for automated test execution tracking and defect syncing without machine-specific setup.
 * **Portal-Specific Per-Test Logging Engine**:
   - Automatically isolates logs per test case into dedicated files:
     - `logs/hrlense_portal/{test_name}.log`
@@ -38,11 +42,20 @@ Enterprise-grade end-to-end test automation, parallel execution engine, and API 
 
 ```
 HRlens_Playwright/
+├── .agents/                          # AI Agent Rules, Workflows & MCP Discovery
+│   ├── mcp_config.json               # Auto-discovered Google Sheets MCP configuration
+│   ├── rules/                        # Agent execution & QA methodology rules
+│   └── workflows/                    # Standard agent verification workflows
+├── .github/workflows/                # CI/CD & Automation Pipelines
+│   ├── playwright.yml                # Parallel test execution & automated PR pipeline
+│   └── docker-publish.yml            # Automated Docker Hub cloud build & push pipeline
 ├── docker/                           # Production Containerization Layer
 │   ├── Dockerfile                    # Optimized Playwright Python base image
 │   └── compose.yaml                  # Docker Compose orchestration
 ├── core/                             # Framework Infrastructure & Config
-│   ├── auth/auth_manager.py          # Session authentication & token management
+│   ├── auth/                         # Authentication & session pooling
+│   │   ├── auth_manager.py           # Multi-persona authentication engine
+│   │   └── credentials/              # Isolated, gitignored OAuth credentials
 │   ├── browser/browser_manager.py    # Playwright browser lifecycle & context
 │   ├── config/settings.py            # Environment settings & user credentials
 │   └── reporting/trace_manager.py    # Playwright visual trace capture
@@ -51,50 +64,67 @@ HRlens_Playwright/
 │   ├── login_page.py                 # Authentication page object
 │   ├── hrlense_portal/               # HRlens Portal page objects
 │   │   ├── admin_control/            # Hierarchy & settings
+│   │   ├── asset/                    # Asset management page objects
 │   │   ├── attendance/               # Leave & attendance tracking
 │   │   ├── employee/                 # Salary settings, onboarding & profile
 │   │   ├── master/                   # Company master configurations
-│   │   └── payroll/                  # Salary & payroll configuration
+│   │   ├── payroll/                  # Salary & payroll configuration
+│   │   └── resignation/              # Employee & HR resignation lifecycle
 │   └── recruitment_portal/           # Recruitment Portal page objects
 │       └── active_job/               # Job opening, drafts & candidate pages
 ├── workflows/                        # Layer 2: Business Process Workflows
-│   ├── hrlense_portal/               # Multi-role attendance & leave workflows
+│   ├── hrlense_portal/               # Multi-role cross-page business workflows
 │   └── recruitment_portal/           # End-to-end recruitment & job workflows
 ├── tests/                            # Layer 3: Test Suites
 │   ├── conftest.py                   # Hooks, per-test logging & fixtures
-│   ├── hrlense_portal/               # HRlens Portal Test Suites
-│   │   ├── ui/                       # Domain test suites (tagged with @pytest.mark.e2e)
-│   │   │   ├── admin_control/        # Settings & hierarchy tests
-│   │   │   ├── asset/                # Asset lifecycle & master E2E flows
-│   │   │   ├── attendance/           # Leave application & approval E2E flows
-│   │   │   ├── auth/                 # Authentication & security tests
-│   │   │   ├── employee/             # Onboarding & salary calculation tests
-│   │   │   ├── increment/            # Increment & appraisal E2E flows
-│   │   │   ├── master/               # Company master configurations
-│   │   │   ├── meeting/              # Calendar & meeting scheduling tests
-│   │   │   └── payroll/              # Salary settings & UI payroll tests
-│   │   ├── api/                      # REST API contract & backend validation tests
-│   │   │   ├── asset/                # Asset API contract tests
-│   │   │   ├── attendance/           # Leave, attendance & absence API tests
-│   │   │   └── payroll/              # Payroll & ESIC calculation API tests
-│   │   └── test_payroll_comparison.py# Dynamic Excel vs API payroll reconciliation
+│   ├── hrlense_portal/               # HRlens Portal Test Suites (UI & API)
+│   │   ├── ui/                       # Domain UI test suites
+│   │   └── api/                      # REST API contract & validation tests
 │   └── recruitment_portal/           # Recruitment Portal Test Suites
-│       └── ui/active_job/            # Drafts, creation, candidate & offer E2E flows
 ├── utils/                            # Helper Utilities & API Clients
-│   └── api/                          # Domain API Clients
-│       ├── asset/                    # Asset management API client
-│       ├── attendance/               # Attendance, leave & absence API clients
-│       ├── employee/                 # Candidate & director API clients
-│       ├── increment/                # Increment API client
-│       ├── master/                   # Company & role master API clients
-│       └── payroll/                  # Payroll & salary settings API clients
-├── scripts/                          # Standalone Reporting & Seeding Scripts
-├── logs/                             # Automatic Per-Test Execution Logs
-│   ├── hrlense_portal/               # Dedicated logs for HRlens portal tests
-│   └── recruitment_portal/           # Dedicated logs for Recruitment portal tests
-├── testdata/                         # Static templates & dynamic Faker generators
+│   ├── api/                          # Domain API Clients
+│   └── mail/gmail_client.py          # Gmail OAuth OTP & notification reader
+├── testdata/                         # Static templates & dynamic Faker factories
+├── .env.example                      # Template environment configuration
+├── setup.bat                         # Automated 1-click Windows setup
+├── setup.sh                          # Automated 1-click Mac/Linux/WSL setup
 ├── pytest.ini                        # Marker registry & default exclusion options
 └── requirements.txt                  # Locked Python dependencies
+```
+
+---
+
+## 🚀 Getting Started (1-Click Clone & Setup)
+
+Getting started requires **zero manual configuration**:
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/Adarsh-tiwari1223/HRlens_Playwright.git
+cd HRlens_Playwright
+```
+
+### 2. Run Automated Setup
+The setup script automatically creates the virtual environment, installs dependencies, downloads Playwright Chromium, initializes `.env` from `.env.example`, and prepares all runtime logging directories:
+
+**Windows:**
+```powershell
+.\setup.bat
+```
+
+**Linux / Mac / WSL:**
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+### 3. Activate Virtual Environment
+```powershell
+# Windows
+venv\Scripts\activate
+
+# Linux / Mac / WSL
+source venv/bin/activate
 ```
 
 ---
@@ -194,7 +224,8 @@ allure serve reports/allure
 
 ## 🐳 Docker Execution
 
-Run the entire automation suite inside containerized environments using Docker Desktop or Docker Engine:
+### 1. Local Container Execution (Optional)
+Run the automation suite inside containerized environments using Docker Desktop or Docker Engine:
 
 ```powershell
 # Run regression suite inside Docker container
@@ -203,3 +234,11 @@ docker compose --progress quiet -f docker/compose.yaml run --rm tests pytest -m 
 # Rebuild image and run smoke suite
 docker compose --progress quiet -f docker/compose.yaml run --rm --build tests pytest -m smoke
 ```
+
+### 2. Automated Cloud Publishing (CI/CD)
+The `.github/workflows/docker-publish.yml` workflow automatically builds and pushes the container image `adarsh7777/hrlense_playwright:latest` to Docker Hub directly in the cloud:
+- **Triggers**: Automatically runs on push to `main` or `develop` when changes are made to `requirements.txt` or `docker/Dockerfile`.
+- **Manual Trigger**: Can be dispatched on-demand with 1 click from the GitHub **Actions** tab.
+- **Layer Caching**: Uses GitHub Actions cloud cache (`type=gha`) for fast builds.
+- **Authentication**: Authenticates securely using repository secrets (`DOCKERHUB_TOKEN` and `DOCKERHUB_USERNAME`).
+

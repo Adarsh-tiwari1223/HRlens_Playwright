@@ -66,11 +66,18 @@ jobs:
         run: |
           echo "🔍 Checking for merge conflicts with origin/main..."
           git fetch origin main --quiet
-          if git merge-tree --write-tree HEAD origin/main > /dev/null 2>&1; then
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          if git merge --no-commit --no-ff origin/main; then
+            if [ -f .git/MERGE_HEAD ]; then
+              git merge --abort
+            fi
             echo "✅ No merge conflicts detected with origin/main."
           else
             echo "::error::Branch has merge conflicts with origin/main! Please merge origin/main and resolve conflicts."
-            git merge-tree --write-tree HEAD origin/main
+            if [ -f .git/MERGE_HEAD ]; then
+              git merge --abort
+            fi
             exit 1
           fi
 

@@ -67,6 +67,9 @@ coverage.xml
 !.env.example
 secrets.py
 core/auth/credentials/
+credentials.json
+*.json_key
+service_account*.json
 
 # Playwright auth state
 .auth/
@@ -92,6 +95,5 @@ specs/
 # Scratch files
 scratch/
 TODO.md
-credentials.json
 client_sec.json
 token.json

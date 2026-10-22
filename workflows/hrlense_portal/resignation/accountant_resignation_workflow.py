@@ -194,10 +194,43 @@ class AccountantResignationWorkflow:
     # MAIN WORKFLOW
     # ──────────────────────────────────────────────────────────────────────────
 
+    def get_employee_buyout_api_details(self, employee_name: str) -> Dict[str, Union[float, int, str]]:
+        """
+        Queries GET /api/Resignation/BuyoutList to fetch employee financial details:
+        leave_Balance, buyout_Days, buyout_Amount, empId, leave_Payout, etc.
+        """
+        import requests, os
+        from core.config.environments import ENV
+        api_base = os.getenv("API_BASE_URL", "https://audit.jobvritta.com/api")
+        admin_user = os.getenv(f"ADMIN_USERNAME_{ENV.upper()}", "admin@tek.com")
+        admin_pass = os.getenv(f"ADMIN_PASSWORD_{ENV.upper()}", "Admin@ST2001")
+
+        try:
+            login_resp = requests.post(
+                f"{api_base}/user/login",
+                json={"email": admin_user, "user": admin_user, "password": admin_pass},
+                verify=False,
+                timeout=15
+            )
+            token = login_resp.json().get("token")
+            headers = {"Authorization": f"Bearer {token}"}
+
+            res = requests.get(f"{api_base}/Resignation/BuyoutList", headers=headers, verify=False, timeout=15)
+            if res.status_code == 200:
+                data = res.json().get("data", [])
+                for record in data:
+                    if employee_name.lower() in (record.get("empName") or "").lower():
+                        logger.info(f"API Details retrieved for '{employee_name}': {record}")
+                        return record
+        except Exception as e:
+            logger.warning(f"Failed to fetch buyout API details: {e}")
+        return {}
+
     def process_accountant_buyout_workflow(
         self,
         employee_name: str,
-        calculated_salary: str = "0",
+        calculated_salary: str = "1000",
+        leave_payout: str = "500",
         remarks: str = "Buyout Approved by Accountant",
         confirm_recovery: bool = True,
         approve: bool = True
@@ -310,6 +343,8 @@ class AccountantResignationWorkflow:
         # STEP 7 — Fill form and submit
         toast = self.res_page.process_accountant_buyout(
             calculated_salary=calculated_salary,
+            leave_payout=leave_payout,
+            buyout_amount=str(val_buyout_amount) if val_buyout_amount > 0 else None,
             remarks=remarks,
             confirm_recovery=confirm_recovery,
             approve=approve

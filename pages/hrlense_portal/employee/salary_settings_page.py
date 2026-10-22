@@ -74,63 +74,10 @@ class SalarySettingsPage(BasePage):
 
     def filter_by_employment_type(self, condition: str = "Contains", value: str = "Employee") -> None:
         """
-        Locates 'Employment Type' column header, clicks its Filter button,
-        selects condition (e.g. 'Contains'), fills the Value input with 'Employee',
-        and applies the filter to exclude Intern/Paid.
+        Filters table by Employment Type using generic BasePage table header filter.
         """
-        th = self.page.locator("//th[contains(., 'Employment Type') or contains(., 'EMPLOYMENT TYPE')]").first
-        th.wait_for(state="visible", timeout=10000)
-        th.scroll_into_view_if_needed()
+        self.filter_custom_table_column("Employment Type", value, condition=condition)
 
-        filter_btn = th.locator("button[aria-label='Filter']").first
-        filter_btn.wait_for(state="visible", timeout=5000)
-        filter_btn.scroll_into_view_if_needed()
-
-        aria_controls = filter_btn.get_attribute("aria-controls")
-        filter_btn.click()
-        self.page.wait_for_timeout(600)
-
-        # Locate exact popover: prioritize by aria-controls ID, fallback to :visible section
-        if aria_controls:
-            popover = self.page.locator(f"#{aria_controls}")
-            if not popover.is_visible():
-                popover = self.page.locator("section.chakra-popover__content:visible, [role='dialog']:visible").first
-        else:
-            popover = self.page.locator("section.chakra-popover__content:visible, [role='dialog']:visible").first
-
-        popover.wait_for(state="visible", timeout=5000)
-
-        # Select condition if select element exists, or if dropdown needs opening
-        select_el = popover.locator("select").first
-        if select_el.count() > 0 and select_el.is_visible():
-            try:
-                select_el.select_option(label=condition)
-            except Exception:
-                try:
-                    select_el.select_option(value=condition.lower())
-                except Exception:
-                    pass
-        else:
-            cond_trigger = popover.locator("button, [role='button'], div.css-1tsdjac, div[class*='select']").first
-            if cond_trigger.is_visible() and condition.lower() not in cond_trigger.inner_text().lower():
-                cond_trigger.click()
-                self.page.wait_for_timeout(300)
-                self.page.locator(f"//div[normalize-space()='{condition}'] | //button[normalize-space()='{condition}'] | [role='option']:has-text('{condition}')").first.click()
-                self.page.wait_for_timeout(300)
-
-        # Fill filter Value input (Image 2 shows input with placeholder='Value')
-        val_input = popover.locator("input[placeholder='Value'], input[placeholder*='Value'], input[type='text']").first
-        val_input.wait_for(state="visible", timeout=5000)
-        val_input.click()
-        val_input.fill(value)
-        self.page.wait_for_timeout(300)
-        self.page.keyboard.press("Enter")
-        self.page.wait_for_timeout(500)
-
-        # Close popover
-        self.page.keyboard.press("Escape")
-        self.page.wait_for_timeout(1000)
-        self.page.wait_for_load_state("domcontentloaded")
 
     def get_all_visible_employment_types(self) -> list:
         """Reads the 'Employment Type' column value from all visible table rows."""

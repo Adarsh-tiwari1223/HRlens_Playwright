@@ -16,8 +16,7 @@ class AssetEntryPage(BasePage):
     def navigate_to_asset_entry(self):
         """Navigates to Asset Entry page and ensures DOM is fully loaded."""
         logger.info("Navigating to Asset Entry page")
-        self.page.goto(f"{settings.BASE_URL}/asset-entry")
-        self.page.wait_for_load_state("domcontentloaded")
+        self.page.goto(f"{settings.BASE_URL}/asset-entry", timeout=30000, wait_until="domcontentloaded")
         self.page.wait_for_timeout(1000)
 
     def click_add_asset(self):

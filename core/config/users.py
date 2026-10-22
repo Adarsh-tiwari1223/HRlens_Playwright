@@ -18,8 +18,8 @@ def _get_env(key: str, default: str = None) -> str:
 
 USERS = {
     "admin": {
-        "username": _get_env("ADMIN_USERNAME"),
-        "password": _get_env("ADMIN_PASSWORD")
+        "username": (_get_env("ADMIN_USERNAME", "admin@tek.com") if "@" in (_get_env("ADMIN_USERNAME", "") or "") else "admin@tek.com"),
+        "password": _get_env("ADMIN_PASSWORD", "Admin@ST2001")
     },
     "employee": {
         "username": _get_env("SANIDHY_USERNAME") or _get_env("ADARSH_TIWARI"),

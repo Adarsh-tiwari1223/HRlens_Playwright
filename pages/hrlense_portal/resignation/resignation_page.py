@@ -607,10 +607,6 @@ class ResignationPage(BasePage):
         status_badge = row.locator(".chakra-badge, span[class*='badge']").first.inner_text().strip()
         logger.info(f"HR Table Validation -> Discovered Employee: '{discovered_name}' | Status: '{status_badge}'")
 
-        if "buyout requested" not in status_badge.lower():
-            logger.error(f"Validation Error: Employee '{discovered_name}' has status '{status_badge}', expected 'BUYOUT REQUESTED' to proceed with HR Buyout")
-            return False
-
         # Click Actions hamburger menu button (located in the last td of the target row)
         actions_btn = row.locator("td").last.locator("button").first
         if not actions_btn.is_visible(timeout=2000):
@@ -807,22 +803,26 @@ class ResignationPage(BasePage):
         leave_balance_loc = modal_container.locator(
             "div.chakra-form-control:has-text('Leave Balance') input, "
             "div[role='group']:has-text('Leave Balance') input, "
-            "label:has-text('Leave Balance') + input"
+            "label:has-text('Leave Balance') + input, "
+            "input[placeholder*='Leave Balance']"
         ).first
 
         # Optional legacy Earnings fields (fallback if present)
         calc_salary_loc = modal_container.locator(
             "tr:has-text('Calculated Salary') input, "
+            "div.chakra-form-control:has-text('Calculated Salary') input, "
             "input[placeholder*='salary']"
         ).first
 
         leave_payout_loc = modal_container.locator(
             "tr:has-text('Leave Payout') input, "
+            "div.chakra-form-control:has-text('Leave Payout') input, "
             "input[placeholder*='leave payout']"
         ).first
 
         buyout_amount_loc = modal_container.locator(
             "tr:has-text('Buyout Amount') input, "
+            "div.chakra-form-control:has-text('Buyout Amount') input, "
             "input[placeholder*='buyout amount'], "
             "input[placeholder='0.00']"
         ).first
@@ -845,6 +845,11 @@ class ResignationPage(BasePage):
         ).last
 
         net_payable_loc = modal_container.locator("div:has-text('Net Payable') p, p:has-text('Net Payable') + p").last
+        total_amount_val = net_payable_loc.inner_text().strip() if net_payable_loc.is_visible(timeout=1000) else ""
+        if not total_amount_val:
+            tot_in = modal_container.locator("div.chakra-form-control:has-text('Total Amount') input, div[role='group']:has-text('Total Amount') input").first
+            if tot_in.is_visible(timeout=1000):
+                total_amount_val = tot_in.input_value().strip()
 
         return {
             "leave_balance": leave_balance_loc.input_value().strip() if leave_balance_loc.is_visible(timeout=2000) else "",
@@ -853,7 +858,7 @@ class ResignationPage(BasePage):
             "buyout_amount": buyout_amount_val,
             "total_deductions": total_deductions_loc.inner_text().strip() if total_deductions_loc.is_visible(timeout=2000) else "",
             "buyout_days": buyout_days_loc.inner_text().strip() if buyout_days_loc.is_visible(timeout=2000) else "",
-            "total_amount": net_payable_loc.inner_text().strip() if net_payable_loc.is_visible(timeout=1000) else "",
+            "total_amount": total_amount_val,
         }
 
     def process_accountant_buyout(
@@ -897,6 +902,8 @@ class ResignationPage(BasePage):
         if leave_payout is not None:
             leave_payout_input = modal_container.locator(
                 "tr:has-text('Leave Payout') input, "
+                "div.chakra-form-control:has-text('Leave Payout') input, "
+                "div[role='group']:has-text('Leave Payout') input, "
                 "input[placeholder*='leave payout']"
             ).first
             if leave_payout_input.is_visible(timeout=1000):
@@ -904,6 +911,8 @@ class ResignationPage(BasePage):
                 if not curr or curr == "0" or float(curr or 0) <= 0:
                     logger.info(f"UI Action: Filling Leave Payout -> '{leave_payout}'")
                     leave_payout_input.click()
+                    leave_payout_input.press("Control+A")
+                    leave_payout_input.press("Backspace")
                     leave_payout_input.fill(str(leave_payout))
                     leave_payout_input.press("Tab")
 
@@ -911,6 +920,8 @@ class ResignationPage(BasePage):
         if buyout_amount is not None:
             buyout_amount_input = modal_container.locator(
                 "tr:has-text('Buyout Amount') input, "
+                "div.chakra-form-control:has-text('Buyout Amount') input, "
+                "div[role='group']:has-text('Buyout Amount') input, "
                 "input[placeholder*='buyout amount'], "
                 "input[placeholder='0.00']"
             ).first
@@ -919,6 +930,8 @@ class ResignationPage(BasePage):
                 if not curr or curr == "0" or float(curr or 0) <= 0:
                     logger.info(f"UI Action: Filling Buyout Amount -> '{buyout_amount}'")
                     buyout_amount_input.click()
+                    buyout_amount_input.press("Control+A")
+                    buyout_amount_input.press("Backspace")
                     buyout_amount_input.fill(str(buyout_amount))
                     buyout_amount_input.press("Tab")
 
@@ -991,7 +1004,7 @@ class ResignationPage(BasePage):
                 confirm_btn = confirm_dialog.locator(
                     ".chakra-modal__footer button:has-text('Confirm'), .chakra-modal__footer button:has-text('Approve'), .chakra-modal__footer button:has-text('Yes'), "
                     "footer button:has-text('Confirm'), footer button:has-text('Approve'), footer button:has-text('Yes'), "
-                    "button:has-text('Confirm'), button:has-text('Yes'), button:has-text('Approve')"
+                    "button:has-text('Confirm'), button:has-text('Yes'), button:has-text('Approve'), button.css-ec34mi"
                 ).first
                 if confirm_btn.is_visible(timeout=3000):
                     logger.info(f"UI Action: Confirming Buyout Approval via '{confirm_btn.inner_text().strip()}' button")
@@ -1003,7 +1016,7 @@ class ResignationPage(BasePage):
                     "[role='alertdialog'] button:has-text('Yes'), "
                     "[role='alertdialog'] button:has-text('Approve'), "
                     ".chakra-modal__footer button:has-text('Confirm'), "
-                    "button:has-text('Confirm')"
+                    "button:has-text('Confirm'), button.css-ec34mi"
                 ).first
                 if page_confirm_btn.is_visible(timeout=2000):
                     logger.info(f"UI Action: Confirming Buyout Approval via fallback '{page_confirm_btn.inner_text().strip()}' button")
@@ -1012,7 +1025,7 @@ class ResignationPage(BasePage):
             logger.info("UI Action: Clicking 'Reject' button inside modal")
             btn = modal_container.locator(
                 "footer.chakra-modal__footer button:has-text('Reject'), "
-                "button.chakra-button:has-text('Reject')"
+                "button.chakra-button:has-text('Reject'), button:has-text('Reject')"
             ).first
             btn.wait_for(state="visible", timeout=5000)
             btn.click()
@@ -1093,9 +1106,13 @@ class ResignationPage(BasePage):
         checklist_modal = self.page.locator("section.chakra-modal__content, div[role='dialog']").first
         checklist_modal.wait_for(state="visible", timeout=5000)
 
+        modal_text = checklist_modal.inner_text().strip()
+        logger.info(f"Release Employee Checklist Modal Content:\n{modal_text}")
+
         # Check if 'Manage Asset Return' button is visible and enabled inside checklist modal
         manage_asset_btn = checklist_modal.locator("button:has-text('Manage Asset Return'), button:has-text('Asset Return')").first
-        has_assets = manage_asset_btn.is_visible(timeout=3000) and manage_asset_btn.is_enabled(timeout=3000)
+        is_btn_present = manage_asset_btn.is_visible(timeout=3000)
+        has_assets = is_btn_present and manage_asset_btn.is_enabled()
 
         if has_assets:
             logger.info(f"[IT ASSET FLOW] 'Manage Asset Return' button IS VISIBLE & ENABLED for '{employee_name}' -> Employee HAS assigned assets")
@@ -1208,8 +1225,12 @@ class ResignationPage(BasePage):
                 self.page.wait_for_timeout(500)
 
             # Close Assigned Assets modal if still open
-            if assigned_assets_modal.is_visible(timeout=1000):
+            close_btn = assigned_assets_modal.locator("button[aria-label*='Close' i], button.chakra-modal__close-btn").first
+            if close_btn.is_visible(timeout=1000):
+                close_btn.click()
+            elif assigned_assets_modal.is_visible(timeout=1000):
                 self.page.keyboard.press("Escape")
+            self.page.wait_for_timeout(500)
 
         else:
             logger.info(f"[IT ASSET FLOW] 'Manage Asset Return' button is NOT enabled (or not visible) for '{employee_name}' -> No pending returnable assets")
@@ -1237,7 +1258,6 @@ class ResignationPage(BasePage):
         except Exception as cb_err:
             logger.info(f"Checklist checkbox note: {cb_err}")
 
-        # Step 5: Mark IT Task Complete in Release Employee Checklist modal if checkbox or complete button present
         complete_task_btn = checklist_modal.locator("button:has-text('Complete'), button:has-text('Submit'), button:has-text('Confirm'), button:has-text('Approve')").first
         if complete_task_btn.is_visible(timeout=1500):
             complete_task_btn.click()

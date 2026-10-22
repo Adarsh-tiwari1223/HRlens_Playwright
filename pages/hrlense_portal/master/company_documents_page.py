@@ -7,6 +7,7 @@ URL Route: /company-documents
 import os
 import re
 import logging
+from playwright.sync_api import Locator
 from pages.base_page import BasePage
 from core.config import settings
 
@@ -17,7 +18,7 @@ class CompanyDocumentsPage(BasePage):
     # Route URL
     ROUTE_URL = f"{settings.BASE_URL}/master/company-document"
 
-    # Locators
+    # Locators (Role & Accessibility Driven with CSS Fallbacks)
     ADD_DOC_BTN = "button:has-text('Add Doc'), button:has-text('Add Document'), button:has-text('Upload')"
     HEADER_CHECKBOX = "thead th:nth-child(1) .chakra-checkbox__control, thead th:nth-child(1) input[type='checkbox']"
     ROW_CHECKBOXES = "tbody td:nth-child(1) .chakra-checkbox__control, tbody td:nth-child(1) input[type='checkbox']"
@@ -39,15 +40,18 @@ class CompanyDocumentsPage(BasePage):
         logger.info(f"Retrieving Company Document Module validation rules for '{doc_name}'...")
         return get_document_validation_rules_api(doc_name=doc_name, category_id=category_id)
 
-    def navigate_to_company_documents(self):
+    def navigate_to_company_documents(self) -> None:
         """Navigates to Company Documents page via Global Master Menu Helper."""
         logger.info("Navigating to Company Documents...")
         self.navigate_to_master_menu("Company Document")
 
-    def search_document(self, query: str):
-        """Searches for specific document by title in search input."""
+    def search_document(self, query: str) -> None:
+        """Searches for specific document by title using accessible placeholder locator."""
         logger.info(f"Filtering company documents search query: '{query}'")
-        search_input = self.page.locator("input[placeholder*='Search']").first
+        search_input = self.page.get_by_placeholder(re.compile(r"Search", re.IGNORECASE)).first
+        if not search_input.is_visible():
+            search_input = self.page.locator("input[placeholder*='Search']").first
+
         if search_input.is_visible():
             search_input.fill("")
             search_input.press_sequentially(query, delay=30)
@@ -114,7 +118,7 @@ class CompanyDocumentsPage(BasePage):
 
         return selected_names
 
-    def select_all_header_checkbox(self):
+    def select_all_header_checkbox(self) -> None:
         """Selects the master checkbox in table header using dynamic column index."""
         chk_col, _ = self._get_column_indices()
         logger.info(f"Selecting header 'Select All' checkbox at dynamic index {chk_col}...")
@@ -123,18 +127,17 @@ class CompanyDocumentsPage(BasePage):
             chk.click(force=True)
             self.page.wait_for_timeout(300)
 
-    def wait_and_get_bulk_delete_button(self, timeout: int = 10000):
+    def wait_and_get_bulk_delete_button(self, timeout: int = 10000) -> Locator:
         """
         Reusable helper to wait for the dynamically rendered bulk delete button.
+        Prefers role-based locator with text filter and fallback.
         """
         logger.info("Waiting for dynamic bulk delete action button to render...")
-        btn_locator = self.page.locator("button, .chakra-button").filter(
-            has_text=re.compile(r"Delete|Remove|Selected", re.IGNORECASE)
-        ).first
+        btn_locator = self.page.get_by_role("button", name=re.compile(r"Delete|Remove|Selected", re.IGNORECASE)).first
 
         if not btn_locator.is_visible(timeout=1000):
-            btn_locator = self.page.locator("button[aria-label*='delete'], button:has(svg), .chakra-button").filter(
-                has_text=re.compile(r"Delete", re.IGNORECASE)
+            btn_locator = self.page.locator("button, .chakra-button").filter(
+                has_text=re.compile(r"Delete|Remove|Selected", re.IGNORECASE)
             ).first
 
         try:
@@ -169,7 +172,7 @@ class CompanyDocumentsPage(BasePage):
         if modal_msg.is_visible():
             logger.info(f"Modal Confirmation Message: '{modal_msg.inner_text().strip()}'")
 
-        # 3. Click modal Delete button
+        # 3. Click modal Delete button (Role-based)
         confirm_btn = self.page.get_by_role("button", name="Delete").first
         if not confirm_btn.is_visible():
             confirm_btn = self.page.locator(".chakra-modal__content button:has-text('Delete'), [role='dialog'] button:has-text('Delete')").first
@@ -187,7 +190,10 @@ class CompanyDocumentsPage(BasePage):
         logger.info(f"Uploading company document '{doc_name}'...")
         self.navigate_to_company_documents()
 
-        add_btn = self.page.locator(self.ADD_DOC_BTN).first
+        add_btn = self.page.get_by_role("button", name=re.compile(r"Add Doc|Add Document|Upload", re.IGNORECASE)).first
+        if not add_btn.is_visible():
+            add_btn = self.page.locator(self.ADD_DOC_BTN).first
+
         if add_btn.is_visible():
             add_btn.click()
             self.page.wait_for_timeout(300)
@@ -203,7 +209,10 @@ class CompanyDocumentsPage(BasePage):
             if file_input.is_visible():
                 file_input.set_input_files(file_path)
 
-        save_btn = self.page.locator(".chakra-modal__content button[type='submit'], [role='dialog'] button:has-text('Save')").first
+        save_btn = self.page.get_by_role("button", name=re.compile(r"Save|Confirm|Submit", re.IGNORECASE)).first
+        if not save_btn.is_visible():
+            save_btn = self.page.locator(".chakra-modal__content button[type='submit'], [role='dialog'] button:has-text('Save')").first
+
         if save_btn.is_visible():
             save_btn.click(force=True)
 

@@ -91,13 +91,14 @@ def test_accountant_process_buyout_flow(target_employee_name, get_accountant_res
     )
 
     assert result.get("success"), f"Failed to process Buyout modal for '{resolved_name}'"
+    if "leave_balance_match" in result:
+        assert result.get("leave_balance_match"), f"UI Leave Balance does not match API record for '{resolved_name}'"
+    if "formula_match" in result:
+        assert result.get("formula_match"), f"Mathematical formula Total Amount = (Leave Payout + Calculated Salary) - Buyout Amount failed for '{resolved_name}'"
+
     toast_msg = str(result.get("toast", "")).strip()
     assert toast_msg != "", "Toast message must be captured after Accountant Buyout approval"
     assert "required" not in toast_msg.lower(), f"Accountant buyout approval failed with validation error toast: '{toast_msg}'"
     assert "approved" in toast_msg.lower() or "success" in toast_msg.lower() or "processed" in toast_msg.lower(), \
         f"Expected buyout approval success toast, got: '{toast_msg}'"
     logger.info(f"[PASS ACCOUNTANT] Accountant successfully processed Buyout for '{resolved_name}'! Toast: '{toast_msg}'")
-
-
-
-

@@ -146,21 +146,27 @@ class CompanyPage(BasePage):
             except Exception as e:
                 logger.warning(f"Error filling Zip Code: {e}")
 
-        # Order 6: State (Auto-filled from Zip Code)
+        # Order 6: State (Auto-filled from Zip Code, with parameter fallback if empty)
         try:
             state_inp = modal.locator("input[name='state']").first
             if state_inp.is_visible():
-                state_val = state_inp.input_value()
-                logger.info(f"Order 6 - Auto-filled State read as: '{state_val}'")
+                state_val = state_inp.input_value().strip()
+                if not state_val and state:
+                    state_inp.fill(state)
+                    state_val = state
+                logger.info(f"Order 6 - State value: '{state_val}'")
         except Exception:
             pass
 
-        # Order 7: City (Auto-filled from Zip Code)
+        # Order 7: City (Auto-filled from Zip Code, with parameter fallback if empty)
         try:
             city_inp = modal.locator("input[name='city']").first
             if city_inp.is_visible():
-                city_val = city_inp.input_value()
-                logger.info(f"Order 7 - Auto-filled City read as: '{city_val}'")
+                city_val = city_inp.input_value().strip()
+                if not city_val and city:
+                    city_inp.fill(city)
+                    city_val = city
+                logger.info(f"Order 7 - City value: '{city_val}'")
         except Exception:
             pass
 
@@ -222,15 +228,28 @@ class CompanyPage(BasePage):
 
     def click_add_company(self):
         logger.info("Clicking Add Company button")
-        try:
-            self.page.locator("header:has-text('Add New Company'), .chakra-modal__header").first.click(timeout=1000)
-        except Exception:
-            pass
-
         modal = self._get_modal()
-        btn = modal.locator("button:has-text('Add Company')").first
+        btn = modal.get_by_role("button", name="Add Company", exact=True)
+        if not btn.is_visible(timeout=1500):
+            btn = modal.locator("button:has-text('Add Company')").first
+        if not btn.is_visible(timeout=1500):
+            btn = self.page.locator("button:has-text('Add Company')").first
         btn.click()
         logger.info("Clicked Add Company button")
+
+    def click_update_company(self):
+        logger.info("Clicking Update Company button")
+        modal = self._get_modal()
+        btn = modal.get_by_role("button", name="Update Company", exact=True)
+        if not btn.is_visible(timeout=1500):
+            btn = modal.locator("button:has-text('Update Company')").first
+        if not btn.is_visible(timeout=1500):
+            btn = self.page.locator("button:has-text('Update Company')").first
+        btn.click()
+        logger.info("Clicked Update Company button")
+
+
+
 
     def verify_director_in_dropdown(self, director_name: str) -> bool:
         """
@@ -279,37 +298,61 @@ class CompanyPage(BasePage):
 
     def edit_company(self, company_name: str):
         logger.info(f"Editing company: {company_name}")
-        row_locator = f"role=row[name*='{company_name}']"
-        self.page.locator(row_locator).get_by_label("edit").click()
+        row = self.page.locator("tbody tr").filter(has_text=company_name).first
+        if not row.is_visible(timeout=1500):
+            self.search_company(company_name)
+            row = self.page.locator("tbody tr").filter(has_text=company_name).first
+            if not row.is_visible(timeout=2000):
+                row = self.page.locator("tbody tr").first
 
-    def click_update_company(self):
-        logger.info("Clicking Update Company button")
-        try:
-            self.page.get_by_role("button", name="Update Company", exact=False).click(timeout=3000)
-        except Exception:
-            self.page.get_by_role("button", name="Update", exact=False).click()
+        row.wait_for(state="visible", timeout=5000)
 
-    def delete_company(self, company_name: str):
-        logger.info(f"Deleting company: {company_name}")
-        row_locator = f"role=row[name*='{company_name}']"
-        self.page.locator(row_locator).get_by_label("delete").click()
+        edit_btn = row.locator("button[aria-label*='edit' i], button[title*='edit' i], a[aria-label*='edit' i]").first
+        if not edit_btn.is_visible(timeout=1000):
+            edit_btn = row.locator("td").last.locator("button, a").first
 
-    def confirm_delete_company(self):
-        logger.info("Confirming company deletion")
-        # Click Delete button in the confirmation modal/dialog
-        dialog = self.page.locator("[role='alertdialog'], [role='dialog']").first
-        dialog.get_by_role("button", name="Delete", exact=True).click()
+        edit_btn.click(force=True)
+        self.page.wait_for_timeout(500)
+
+    def toggle_company_status(self, company_name: str, target_status: str = "Inactive") -> str | None:
+        """
+        Company Master does not support hard deletion.
+        Status is managed by toggling from Active to Inactive (or vice versa) in the table row.
+        """
+        logger.info(f"Toggling company '{company_name}' status to '{target_status}'...")
+        row = self.page.locator("tbody tr").filter(has_text=company_name).first
+        if not row.is_visible(timeout=1500):
+            self.search_company(company_name)
+            row = self.page.locator("tbody tr").filter(has_text=company_name).first
+            if not row.is_visible(timeout=2000):
+                row = self.page.locator("tbody tr").first
+
+        row.wait_for(state="visible", timeout=5000)
+
+        # Locate status toggle switch / radio / button inside row
+        toggle = row.locator("input[type='checkbox'], span.chakra-switch__track, label.chakra-switch, [role='switch']").first
+        if not toggle.is_visible(timeout=1500):
+            toggle = row.locator(f"button:has-text('{target_status}'), label:has-text('{target_status}')").first
+
+        if toggle.is_visible():
+            toggle.click(force=True)
+            self.page.wait_for_timeout(500)
+            return self.wait_for_toast_message()
+
+        logger.warning(f"Status toggle element not found for company '{company_name}'.")
+        return None
+
+    def delete_company(self, company_name: str) -> str | None:
+        """Alias for toggle_company_status to Inactive."""
+        return self.toggle_company_status(company_name, target_status="Inactive")
 
     def search_company(self, query: str):
-        logger.info(f"Searching for company: {query}")
-        search_field = self.page.get_by_placeholder("Search Company Name", exact=False)
-        if not search_field.is_visible(timeout=1000):
-            search_field = self.page.locator("input[placeholder*='Search Company Name' i], input[placeholder*='Search' i]").first
-        search_field.wait_for(state="visible", timeout=3000)
-        search_field.click()
-        search_field.fill("")
-        search_field.fill(query)
-        self.page.wait_for_timeout(1200)
+        """
+        Filters table by Company Name using the BasePage custom table header filter ("COMPANY").
+        """
+        logger.info(f"Filtering company table by company name: '{query}'")
+        self.filter_custom_table_column("COMPANY", query)
+
 
     def is_company_listed_in_table(self, company_name: str) -> bool:
         """Verifies if company name appears in table rows after search."""

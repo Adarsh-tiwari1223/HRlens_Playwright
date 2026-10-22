@@ -17,14 +17,47 @@ class AssetDisposalPage(BasePage):
     TOAST = "#chakra-toast-manager-top-right"
 
     def navigate_to_asset_disposal(self):
-        """Navigates directly to Asset Disposal / Scrap page."""
+        """Navigates to Asset Disposal / Scrap page via submenu item if visible, otherwise directly redirects using URL."""
         logger.info("Navigating to Asset Disposal / Scrap page")
-        self.page.goto(f"{settings.BASE_URL}/asset-disposal")
+        target_url = f"{settings.BASE_URL}/asset-disposal"
+        try:
+            # 1. Look for submenu link directly
+            link = self.page.locator("a.submenu_item[href*='/asset-disposal'], a[href*='/asset-disposal']").first
+            if not link.is_visible(timeout=1000):
+                # Expand parent Asset sidebar menu if present
+                for parent_sel in ["Asset", "Assets", "Asset Management"]:
+                    parent = self.page.locator(".sidebar, nav, aside").locator("div, p, a, button").filter(has_text=re.compile(rf"^{parent_sel}$", re.I)).first
+                    if parent.is_visible(timeout=500):
+                        parent.scroll_into_view_if_needed()
+                        parent.click()
+                        self.page.wait_for_timeout(500)
+                        break
+
+            link = self.page.locator("a.submenu_item[href*='/asset-disposal'], a[href*='/asset-disposal']").first
+            if link.is_visible(timeout=1500):
+                link.scroll_into_view_if_needed()
+                link.click()
+                logger.info("Clicked submenu item for /asset-disposal")
+            else:
+                logger.info("Submenu UI link hidden; directly redirecting to /asset-disposal using URL")
+                self.page.goto(target_url, wait_until="domcontentloaded")
+        except Exception as ex:
+            logger.info(f"Submenu note ({ex}); directly redirecting to /asset-disposal using URL")
+            self.page.goto(target_url, wait_until="domcontentloaded")
+
         self.page.wait_for_load_state("domcontentloaded")
+        self.page.wait_for_timeout(1000)
+
+        # Ensure page is on /asset-disposal
+        if "/asset-disposal" not in self.page.url:
+            logger.info("Page URL not /asset-disposal; executing direct URL redirect")
+            self.page.goto(target_url, wait_until="domcontentloaded")
+            self.page.wait_for_load_state("domcontentloaded")
+            self.page.wait_for_timeout(1000)
         
         # Verify page header
         try:
-            self.page.get_by_text("Asset Disposal / Scrap", exact=True).wait_for(state="visible", timeout=5000)
+            self.page.get_by_text("Asset Disposal / Scrap", exact=False).wait_for(state="visible", timeout=5000)
         except Exception:
             pass
 
@@ -32,19 +65,42 @@ class AssetDisposalPage(BasePage):
         """Reads metric card values: Disposal Queue, Disposed Assets, Recovery Value, Lost Assets."""
         metrics = {}
         try:
-            cards = self.page.locator(".chakra-stat, .css-1c250ic, div.chakra-stack").all()
-            for c in cards:
-                txt = c.inner_text().strip()
-                if "Disposal Queue" in txt:
-                    metrics["disposal_queue"] = txt.split("\n")[0]
-                elif "Disposed Assets" in txt:
-                    metrics["disposed_assets"] = txt.split("\n")[0]
-                elif "Recovery Value" in txt:
-                    metrics["recovery_value"] = txt.split("\n")[0]
-                elif "Lost Assets" in txt:
-                    metrics["lost_assets"] = txt.split("\n")[0]
+            self.page.wait_for_timeout(1000)
+            for label_key, label_text in [
+                ("disposal_queue", "Disposal Queue"),
+                ("disposed_assets", "Disposed Assets"),
+                ("recovery_value", "Recovery Value"),
+                ("lost_assets", "Lost Assets"),
+            ]:
+                card = self.page.locator(f"div:has(> p:has-text('{label_text}'))").first
+                if not card.is_visible(timeout=1000):
+                    card = self.page.locator("div").filter(has_text=re.compile(rf"{label_text}", re.I)).first
+                if card.is_visible(timeout=1000):
+                    txt = card.inner_text().strip()
+                    lines = [l.strip() for l in txt.split("\n") if l.strip()]
+                    val = [l for l in lines if label_text.lower() not in l.lower()]
+                    metrics[label_key] = val[0] if val else "0"
         except Exception as ex:
             logger.warning(f"Metrics read note: {ex}")
+
+        # Fallback to general stat classes if empty
+        if not metrics:
+            try:
+                cards = self.page.locator(".chakra-stat, .css-1c250ic, div.chakra-stack").all()
+                for c in cards:
+                    txt = c.inner_text().strip()
+                    lines = [l.strip() for l in txt.split("\n") if l.strip()]
+                    for label_key, label_text in [
+                        ("disposal_queue", "Disposal Queue"),
+                        ("disposed_assets", "Disposed Assets"),
+                        ("recovery_value", "Recovery Value"),
+                        ("lost_assets", "Lost Assets"),
+                    ]:
+                        if any(label_text in l for l in lines):
+                            val = [l for l in lines if label_text not in l]
+                            metrics[label_key] = val[0] if val else "0"
+            except Exception as ex:
+                logger.warning(f"General stat fallback note: {ex}")
 
         logger.info(f"[DISPOSAL METRICS] {metrics}")
         return metrics
@@ -64,6 +120,25 @@ class AssetDisposalPage(BasePage):
         if tab.is_visible(timeout=2000):
             tab.click()
             self.page.wait_for_timeout(500)
+
+    def has_disposal_requests_data(self) -> bool:
+        """
+        Checks whether the 'Disposal Requests' table has data rows.
+        Returns False if the table is empty or displays 'No pending disposal requests'.
+        """
+        self.navigate_to_disposal_requests_tab()
+        
+        empty_state = self.page.locator("p, div").filter(has_text=re.compile(r"No pending disposal requests|No data", re.I)).first
+        if empty_state.is_visible(timeout=1500):
+            logger.info("Disposal Requests tab displays empty state: 'No pending disposal requests'")
+            return False
+
+        table_rows = self.page.locator("table tbody tr")
+        if table_rows.first.is_visible(timeout=2000):
+            count = table_rows.count()
+            logger.info(f"Disposal Requests table has {count} row(s)")
+            return count > 0
+        return False
 
     def review_disposal_request(
         self,
@@ -180,7 +255,13 @@ class AssetDisposalPage(BasePage):
         """
         self.navigate_to_disposal_requests_tab()
         
-        search_input = self.page.get_by_placeholder("Search asset / category…")
+        # Guard against empty state
+        empty_state = self.page.locator("p, div").filter(has_text=re.compile(r"No pending disposal requests|No data", re.I)).first
+        if empty_state.is_visible(timeout=1500):
+            logger.info(f"verify_disposal_request_row: Empty state active, no rows available for '{asset_code_or_name}'")
+            return {}
+
+        search_input = self.page.locator("input[placeholder*='Search asset / category' i], input[placeholder*='Search' i]").first
         if search_input.is_visible(timeout=2000):
             search_input.fill(asset_code_or_name)
             search_input.press("Enter")
@@ -202,8 +283,54 @@ class AssetDisposalPage(BasePage):
                 "reason": cells[5].inner_text().strip()
             }
             logger.info(f"[DISPOSAL REQUEST VERIFIED] {row_data}")
+            return row_data
+        return {}
 
-        return row_data
+    def is_asset_in_disposal_requests(self, asset_code_or_name: str) -> bool:
+        """
+        Navigates to Disposal Requests tab and checks that target asset is listed in the table.
+        Guarded against empty state so it never crashes with TimeoutError.
+        """
+        self.navigate_to_disposal_requests_tab()
+        clean_code = asset_code_or_name.strip()
+        
+        # Guard against empty state
+        empty_state = self.page.locator("p, div").filter(has_text=re.compile(r"No pending disposal requests|No data", re.I)).first
+        if empty_state.is_visible(timeout=1500):
+            logger.info(f"Disposal Requests tab displays empty state; asset '{clean_code}' is not listed.")
+            return False
+
+        search_input = self.page.locator("input[placeholder*='Search asset / category' i], input[placeholder*='Search' i]").first
+        if search_input.is_visible(timeout=2000):
+            search_input.click()
+            search_input.fill("")
+            search_input.fill(clean_code)
+            search_input.press("Enter")
+            self.page.wait_for_timeout(1200)
+
+        row = self.page.locator("table tbody tr").filter(has_text=clean_code).first
+        if row.is_visible(timeout=2500):
+            logger.info(f"Asset '{clean_code}' found in Disposal Requests table row.")
+            return True
+
+        table = self.page.locator("table tbody").first
+        if table.is_visible(timeout=2000):
+            if clean_code.lower() in table.inner_text().lower():
+                logger.info(f"Asset '{clean_code}' found in Disposal Requests table text.")
+                return True
+
+        # Fallback: clear search and check default table
+        if search_input.is_visible(timeout=1000):
+            search_input.fill("")
+            self.page.wait_for_timeout(1000)
+            table_fb = self.page.locator("table tbody").first
+            if table_fb.is_visible(timeout=1500):
+                if clean_code.lower() in table_fb.inner_text().lower():
+                    logger.info(f"Asset '{clean_code}' found in default Disposal Requests table.")
+                    return True
+
+        logger.info(f"Asset '{clean_code}' was NOT found in Disposal Requests table.")
+        return False
 
     def wait_for_toast_message(self) -> str:
         return self.wait_for_toast(self.TOAST)

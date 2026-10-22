@@ -61,7 +61,7 @@ jobs:
       - name: Configure Git Safe Directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Pre-flight: Check for Merge Conflicts with Main
+      - name: "Pre-flight: Check for Merge Conflicts with Main"
         if: github.ref_name != 'main'
         run: |
           echo "🔍 Checking for merge conflicts with origin/main..."
@@ -74,7 +74,7 @@ jobs:
             exit 1
           fi
 
-      - name: Pre-flight: Check for Conflict Markers in Code
+      - name: "Pre-flight: Check for Conflict Markers in Code"
         run: |
           echo "🔍 Checking for unresolved git conflict markers..."
           if git grep -nE "^<{7} |^={7}$|^>{7} " -- ':!*.md' ':!*.log'; then
@@ -95,7 +95,7 @@ jobs:
             pip install --quiet --no-cache-dir -r requirements.txt
           fi
 
-      - name: Pre-flight: Test Collection & Import Validation
+      - name: "Pre-flight: Test Collection & Import Validation"
         run: |
           echo "🔍 Validating Python syntax, test imports, and fixtures..."
           pytest --collect-only -q || {

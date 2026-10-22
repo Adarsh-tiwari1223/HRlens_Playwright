@@ -55,6 +55,34 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4.3.1
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git Safe Directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Pre-flight: Check for Merge Conflicts with Main
+        if: github.ref_name != 'main'
+        run: |
+          echo "🔍 Checking for merge conflicts with origin/main..."
+          git fetch origin main --quiet
+          if git merge-tree --write-tree HEAD origin/main > /dev/null 2>&1; then
+            echo "✅ No merge conflicts detected with origin/main."
+          else
+            echo "::error::Branch has merge conflicts with origin/main! Please merge origin/main and resolve conflicts."
+            git merge-tree --write-tree HEAD origin/main
+            exit 1
+          fi
+
+      - name: Pre-flight: Check for Conflict Markers in Code
+        run: |
+          echo "🔍 Checking for unresolved git conflict markers..."
+          if git grep -nE "^<{7} |^={7}$|^>{7} " -- ':!*.md' ':!*.log'; then
+            echo "::error::Unresolved conflict markers found in repository files!"
+            exit 1
+          else
+            echo "✅ Zero conflict markers detected."
+          fi
 
       - name: Create .env file
         env:
@@ -66,6 +94,15 @@ jobs:
           if [ -f requirements.txt ]; then
             pip install --quiet --no-cache-dir -r requirements.txt
           fi
+
+      - name: Pre-flight: Test Collection & Import Validation
+        run: |
+          echo "🔍 Validating Python syntax, test imports, and fixtures..."
+          pytest --collect-only -q || {
+            echo "::error::Pytest collection failed! Check imports or syntax errors above."
+            exit 1
+          }
+          echo "✅ All tests, POMs, workflows, and fixtures collected cleanly."
 
       # Run Dynamic Test Suite (-n auto)
       - name: Run Test Suite

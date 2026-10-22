@@ -9,7 +9,7 @@ from core.config.environments import ENV
 
 def _get_env(key: str, default: str = None) -> str:
     """
-    Resolves environment-scoped key (e.g. KEY_STG or KEY_PROD) or falls back to generic KEY.
+    Resolves environment-scoped key (e.g. KEY_STG) or falls back to generic KEY.
     """
     env_key = f"{key}_{ENV.upper()}"
     val = os.getenv(env_key) or os.getenv(key, default)

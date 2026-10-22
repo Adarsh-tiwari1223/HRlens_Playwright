@@ -15,9 +15,6 @@ from core.config.environments import (
     API_BASE_URL,
     BASE_URL_STG,
     API_BASE_URL_STG,
-    BASE_URL_PROD,
-    API_BASE_URL_PROD,
-    API_BASE_URL_LEGACY,
 )
 from core.config.constants import (
     DEFAULT_TIMEOUT,

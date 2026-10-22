@@ -115,27 +115,102 @@ def test_apply_and_approve_regularization(page):
 @pytest.mark.regression
 @pytest.mark.attendance
 def test_reg_002_reapplication_after_rejection(page):
-    """REG_002: Validate Reapplication After Rejection."""
-    log_test_start(module="Attendance", phase="REG_002", test="Validate Reapplication After Rejection")
+    """
+    REG_002: Rejection & Reapplication Prevention Workflow
+    Rule: Employee Apply → Pending → Approver Rejects → Rejected (cant reapply)
+    
+    Phase 1: Employee applies for regularization on eligible date -> State: Pending
+    Phase 2: Approver (Admin) rejects the request with reason -> State: Rejected
+    Phase 3: Employee logs back in and attempts to reapply for the same date ->
+             Asserts that reapplication is blocked / prohibited (cannot reapply).
+    """
+    log_test_start(module="Attendance", phase="REG_002", test="Regularization Rejection & Blocked Reapplication")
 
-    # 1. Employee submits request
-    login_as_user(page, "sanidhy")
+    valid_employees = [
+        k for k in EMPLOYEE_USER_KEYS
+        if settings.USERS.get(k, {}).get("username") and settings.USERS.get(k, {}).get("password")
+    ]
+    emp_user = "uttam_kumar" if "uttam_kumar" in valid_employees else (valid_employees[0] if valid_employees else "sanidhy")
+
+    # =========================================================================
+    # PHASE 1: Employee Submits Regularization Request (Status -> Pending)
+    # =========================================================================
+    log_step("Phase 1", value=f"Employee '{emp_user}' applies for regularization")
+    login_as_user(page, emp_user)
     emp_workflow = RegularizationWorkflow(page)
-    employee_name, toast, selected_date = emp_workflow.apply_regularization_workflow()
+    employee_name, apply_toast, selected_date = emp_workflow.apply_regularization_workflow(user_key=emp_user)
 
-    if not toast or "already exists" in toast.lower():
-        pytest.skip("Regularization request already exists for target date.")
+    log_debug(f"Employee '{employee_name}' applied for {selected_date.strftime('%Y-%m-%d')}, Toast='{apply_toast}'")
+    if apply_toast and ("already present" in apply_toast.lower() or "already marked present" in apply_toast.lower()):
+        pytest.skip(f"Date already marked present: {apply_toast}")
 
-    # 2. Admin rejects request
-    login_as_user(page, "admin")
+    # =========================================================================
+    # PHASE 2: Approver (Admin) Rejects Regularization Request (Status -> Rejected)
+    # =========================================================================
+    log_step("Phase 2", value=f"Admin rejects regularization request for '{employee_name}'")
+    login_as_user(page, APPROVER_USER_KEY)
     admin_workflow = RegularizationWorkflow(page)
-    rejection_toast = admin_workflow.reject_regularization_workflow(employee_name, selected_date, remark="Rejection test for REG_002")
+    rejection_toast = admin_workflow.reject_regularization_workflow(
+        employee_name,
+        selected_date,
+        remark="Duty hours unverified - rejected per attendance policy"
+    )
+    log_debug(f"Admin captured rejection toast: '{rejection_toast}'")
 
-    # 3. Employee re-applies for the same date
-    login_as_user(page, "sanidhy")
-    employee_name_2, reapply_toast, _ = emp_workflow.apply_regularization_workflow()
+    # Verify status in Approver table is 'Rejected'
+    admin_page = admin_workflow.reg_page
+    status_in_table = admin_page.get_regularization_status(employee_name, selected_date)
+    log_step("Approver Table Regularization Status", value=status_in_table)
+    assert "reject" in status_in_table.lower(), f"Expected table status to be Rejected, got '{status_in_table}'"
 
-    assert reapply_toast, "No response received when re-applying after rejection."
+    # =========================================================================
+    # PHASE 3: Employee Session - Verify Cannot Reapply for Rejected Date
+    # =========================================================================
+    log_step("Phase 3", value=f"Employee '{emp_user}' verifies reapplication is blocked for {selected_date.strftime('%Y-%m-%d')}")
+    login_as_user(page, emp_user)
+    page.goto(f"{settings.BASE_URL}/regularizationRequest", timeout=60000)
+    page.wait_for_load_state("domcontentloaded")
+
+    emp_page = RegularizationPage(page)
+    day_num = selected_date.day
+
+    # 1. Inspect rendered status badge / tooltip on calendar for the rejected date
+    rendered_status = emp_page.get_rendered_attendance_status(day_num)
+    log_debug(f"Calendar Day {day_num} rendered status: '{rendered_status}'")
+
+    # 2. Pick the rejected date on calendar
+    emp_page.date_pick(day_num)
+    page.wait_for_timeout(500)
+
+    # 3. Check actionability: Apply button should be disabled, or submission should be rejected
+    apply_btn = page.get_by_role("button", name="Apply", exact=True).first
+    if not apply_btn.is_visible(timeout=1000):
+        apply_btn = page.locator("button:has-text('Apply')").first
+
+    is_apply_disabled = False
+    if apply_btn.is_visible(timeout=1500):
+        is_apply_disabled = apply_btn.is_disabled() or apply_btn.get_attribute("disabled") is not None or apply_btn.get_attribute("aria-disabled") == "true"
+
+    if is_apply_disabled:
+        log_step("Reapplication Blocked Check", value=f"Apply button is strictly disabled for rejected Day {day_num}")
+        assert is_apply_disabled, f"Expected Apply button to be disabled for rejected date {day_num}"
+    else:
+        # If button is clickable, attempt submission and verify system rejection / error toast
+        log_debug("Apply button clickable; attempting reapplication to verify backend block...")
+        emp_page.in_time_input("09:30")
+        emp_page.out_time_input("18:30")
+        emp_page.enter_reason("Attempting reapplication after rejection")
+        emp_page.click_apply_btn()
+        emp_page.click_confirm_btn()
+
+        reapply_toast = emp_page.get_pop_msg() or ""
+        log_step("Reapplication Attempt Response Toast", value=reapply_toast)
+
+        # Must not succeed: verify blocked toast or rejected state
+        assert not any(pos in reapply_toast.lower() for pos in ["successfully applied", "success", "submitted successfully"]) or any(
+            blk in reapply_toast.lower() for blk in ["already", "reject", "cannot", "not allowed", "exist"]
+        ), f"System unexpectedly allowed reapplication for rejected date! Toast: '{reapply_toast}'"
+
     log_pass()
 
 

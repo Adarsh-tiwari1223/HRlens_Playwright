@@ -360,6 +360,7 @@ class TestAssetBranchScopingValidation:
                 # Check cross-branch leak: do any Agra assets appear in Varanasi employee request fulfillment?
                 agra_leaked = [a for a in assets if "AGRA" in a.upper()]
                 logger.info(f"[CROSS-BRANCH LEAK CHECK] Agra assets visible in drawer: {agra_leaked}")
+                assert len(assets) > 0, "No available assets found in fulfillment drawer for branch!"
 
                 story.log_step(
                     "Admin Request Fulfillment Drawer Inspection",

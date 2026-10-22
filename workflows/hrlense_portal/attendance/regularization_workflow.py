@@ -30,7 +30,7 @@ class RegularizationWorkflow:
         except Exception:
             pass
 
-    def apply_regularization_workflow(self, user_key: str = "sanidhy", month: int = 8, year: int = 2026, time_in: str = "09:30", time_out: str = "18:30", reason: str = "Client Visit On Duty") -> tuple[str, str, datetime]:
+    def apply_regularization_workflow(self, user_key: str = "sanidhy", month: int = None, year: int = None, time_in: str = "09:30", time_out: str = "18:30", reason: str = "Client Visit On Duty") -> tuple[str, str, datetime]:
         """
         Employee Flow:
         1. Fetch monthly attendance via API: GET /Hrlense_Attendance/GetEmployeeMonthlyAttendanceByEmployee?month={month}&year={year}
@@ -40,6 +40,9 @@ class RegularizationWorkflow:
         5. Fill In-Time, Out-Time, Reason -> Click Apply -> Confirm.
         6. Return (employee_name, toast, selected_date).
         """
+        now = datetime.now()
+        month = month or now.month
+        year = year or now.year
         log_step("Employee Flow: Apply Regularization Request")
         self.reg_page.click_my_attendance()
         self.reg_page.click_regularization()
@@ -85,6 +88,11 @@ class RegularizationWorkflow:
         log_step("Admin Flow: Approve Regularization Request", value=employee_name)
         self.reg_page.navigate_to_admin_regularisation()
 
+        # If date range filter is blank or table shows empty, select current month range up to today
+        if not self.reg_page.get_selected_date_range() or self.reg_page.is_empty_table():
+            today_day = datetime.now().day
+            self.reg_page.select_date_range(start_day=1, end_day=today_day)
+
         toast = self.reg_page.approve_regularization(employee_name, reg_date)
         log_step("Approval Toast Notification", value=toast)
 
@@ -123,8 +131,13 @@ class RegularizationWorkflow:
     def reject_regularization_workflow(self, employee_name: str, reg_date: datetime = None, remark: str = "Rejected for testing") -> str:
         """Admin Flow: Rejects pending regularization request (REG_002, REG_009)."""
         log_step("Admin Flow: Reject Regularization Request", value=employee_name)
-        self.reg_page.click_my_attendance()
-        self.reg_page.click_regularization()
+        self.reg_page.navigate_to_admin_regularisation()
+
+        # If date range filter is blank or table shows empty, select current month range up to today
+        if not self.reg_page.get_selected_date_range() or self.reg_page.is_empty_table():
+            today_day = datetime.now().day
+            self.reg_page.select_date_range(start_day=1, end_day=today_day)
+
         toast = self.reg_page.reject_regularization(employee_name, reg_date, remark)
         log_step("Rejection Toast Notification", value=toast)
         self.refresh_page()

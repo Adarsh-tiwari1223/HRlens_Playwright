@@ -64,11 +64,12 @@ coverage.xml
 # Secrets
 *.env
 .env.*
+!.env.example
 secrets.py
+core/auth/credentials/
 credentials.json
 *.json_key
 service_account*.json
-
 
 # Playwright auth state
 .auth/
@@ -94,3 +95,5 @@ specs/
 # Scratch files
 scratch/
 TODO.md
+client_sec.json
+token.json

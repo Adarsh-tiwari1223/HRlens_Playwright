@@ -128,3 +128,31 @@ class EmployeeResignationWorkflow:
         toast = self.res_page.wait_for_toast(timeout=5000)
         logger.info(f"Employee {action_str} Revoke Toast: '{toast}'")
         return toast
+
+    def request_resignation_withdrawal_workflow(self) -> Dict[str, Union[bool, str]]:
+        """
+        Executes Employee Resignation Withdrawal workflow on /resignation:
+        [STEP 1] Navigate to Resignation -> Status tab
+        [STEP 2] Verify 'Request Withdrawal' button is visible
+        [STEP 3] Click 'Request Withdrawal' and confirm modal dialog
+        [STEP 4] Capture toast confirmation
+        """
+        logger.info("=" * 60)
+        logger.info("STARTING EMPLOYEE RESIGNATION WITHDRAWAL WORKFLOW")
+        logger.info("=" * 60)
+
+        self.res_page.navigate_to_resignation()
+        self.res_page.click_status_tab()
+
+        is_visible = self.res_page.is_withdrawal_button_visible(timeout=5000)
+        if not is_visible:
+            logger.warning("'Request Withdrawal' button is NOT visible on employee status page!")
+            return {"visible": False, "toast": "", "modal_visible": False}
+
+        result = self.res_page.click_request_withdrawal()
+        logger.info(f"Employee Resignation Withdrawal result: {result}")
+        return {
+            "visible": True,
+            "modal_visible": result.get("modal_visible", False),
+            "toast": result.get("toast", "")
+        }

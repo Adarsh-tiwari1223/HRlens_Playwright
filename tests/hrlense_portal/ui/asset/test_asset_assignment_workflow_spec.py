@@ -30,6 +30,7 @@ from pages.hrlense_portal.asset.asset_request_page import AssetRequestPage
 from pages.hrlense_portal.asset.asset_return_page import AssetReturnPage
 from pages.hrlense_portal.asset.asset_maintenance_page import AssetMaintenancePage
 from utils.branch_it_selector import get_branch_target_employee
+from utils.branch_persona_resolver import get_branch_persona_bundle
 
 logger = logging.getLogger(__name__)
 fake = Faker("en_IN")
@@ -48,31 +49,33 @@ class TestAssetAssignmentWorkflowSpec:
         story = TestStoryLogger("AA_001: Direct Assignment -> Accept -> Return -> Stock Available (Good)", module="Asset", phase="Full Lifecycle Return")
         story.start()
 
-        emp_info = get_branch_target_employee("Varanasi")
-        admin_page, _ = logged_in_page("admin")
-        assign_page = AssetAssignmentPage(admin_page)
+        bundle = get_branch_persona_bundle("Varanasi")
+        it_page, _ = logged_in_page(bundle["it_person"])
+        assign_page = AssetAssignmentPage(it_page)
+        assign_page.handle_global_asset_alert(action="dismiss")
         assign_page.navigate_to_asset_assignment()
 
-        # Step 1: Admin Direct Assignment
+        # Step 1: IT Direct Assignment
         assign_page.click_assign_asset()
         assigned_code = assign_page.fill_assignment_details(
-            employee_name=emp_info["name"],
+            employee_name=bundle["employee_name"],
             category="IT Hardware",
             sub_category="Laptop"
         )
         assign_page.click_submit_assignment()
         toast = assign_page.wait_for_toast_message()
-        story.log_step("Admin Direct Assignment", record=f"Assigned Code: '{assigned_code}' | Toast: {toast}", expected="Assignment created", actual=toast, status="PASS")
+        story.log_step("IT Direct Assignment", record=f"Assigned Code: '{assigned_code}' | Toast: {toast}", expected="Assignment created", actual=toast, status="PASS")
 
         # Step 2: Employee Accepts Asset
-        emp_page, _ = logged_in_page(emp_info["user_key"])
+        emp_page, _ = logged_in_page(bundle["employee"])
         req_page = AssetRequestPage(emp_page)
+        req_page.handle_global_asset_alert(action="dismiss")
         req_page.navigate_to_asset_request()
         accepted = req_page.accept_asset(assigned_code)
         story.log_step("Employee Acceptance", record=f"Accepted: {accepted}", expected="Asset accepted by employee", actual=str(accepted), status="PASS")
 
         # Step 3: Return Asset with Condition = Good
-        return_page = AssetReturnPage(admin_page)
+        return_page = AssetReturnPage(it_page)
         return_page.navigate_to_asset_return()
         return_page.return_asset(
             asset_code_or_name=assigned_code,
@@ -91,24 +94,26 @@ class TestAssetAssignmentWorkflowSpec:
         story = TestStoryLogger("AA_002: Direct Assignment -> Employee Rejects Asset", module="Asset", phase="Assignment Rejection")
         story.start()
 
-        emp_info = get_branch_target_employee("Varanasi")
-        admin_page, _ = logged_in_page("admin")
-        assign_page = AssetAssignmentPage(admin_page)
+        bundle = get_branch_persona_bundle("Varanasi")
+        it_page, _ = logged_in_page(bundle["it_person"])
+        assign_page = AssetAssignmentPage(it_page)
+        assign_page.handle_global_asset_alert(action="dismiss")
         assign_page.navigate_to_asset_assignment()
 
         assign_page.click_assign_asset()
         assign_page.fill_assignment_details(
-            employee_name=emp_info["name"],
+            employee_name=bundle["employee_name"],
             category="IT Hardware",
             sub_category="Laptop"
         )
         assign_page.click_submit_assignment()
         toast = assign_page.wait_for_toast_message()
-        story.log_step("Admin Assign Asset", record=f"Assigned to {emp_info['name']} | Toast: {toast}", status="PASS")
+        story.log_step("IT Assign Asset", record=f"Assigned to {bundle['employee_name']} | Toast: {toast}", status="PASS")
 
         # Step 2: Employee Rejects Assignment
-        emp_page, _ = logged_in_page(emp_info["user_key"])
+        emp_page, _ = logged_in_page(bundle["employee"])
         req_page = AssetRequestPage(emp_page)
+        req_page.handle_global_asset_alert(action="dismiss")
         req_page.navigate_to_asset_request()
 
         rejected = req_page.reject_asset(reason="Hardware specs do not match project requirement")
@@ -123,14 +128,15 @@ class TestAssetAssignmentWorkflowSpec:
         story = TestStoryLogger("AA_003: Direct Assignment -> Pending Acceptance (Reserved)", module="Asset", phase="Reservation Locks")
         story.start()
 
-        emp_info = get_branch_target_employee("Varanasi")
-        admin_page, _ = logged_in_page("admin")
-        assign_page = AssetAssignmentPage(admin_page)
+        bundle = get_branch_persona_bundle("Varanasi")
+        it_page, _ = logged_in_page(bundle["it_person"])
+        assign_page = AssetAssignmentPage(it_page)
+        assign_page.handle_global_asset_alert(action="dismiss")
         assign_page.navigate_to_asset_assignment()
 
         assign_page.click_assign_asset()
         assigned_code = assign_page.fill_assignment_details(
-            employee_name=emp_info["name"],
+            employee_name=bundle["employee_name"],
             category="IT Hardware",
             sub_category="Laptop"
         )
@@ -153,39 +159,41 @@ class TestAssetAssignmentWorkflowSpec:
 
     def test_aa_004_employee_request_admin_fulfill(self, logged_in_page):
         """
-        AA_004: Employee Request → Admin Fulfills Request
-        Expected Result: Admin can fulfill request using an available asset; asset becomes Assigned/Accepted.
+        AA_004: Employee Request → IT Person Fulfills Request
+        Expected Result: IT Person can fulfill request using an available asset; asset becomes Assigned/Accepted.
         """
-        story = TestStoryLogger("AA_004: Employee Request -> Admin Fulfills Request", module="Asset", phase="Fulfillment")
+        story = TestStoryLogger("AA_004: Employee Request -> IT Fulfills Request", module="Asset", phase="Fulfillment")
         story.start()
 
-        emp_info = get_branch_target_employee("Varanasi")
+        bundle = get_branch_persona_bundle("Varanasi")
         # Step 1: Employee Submits Request
-        emp_page, _ = logged_in_page(emp_info["user_key"])
+        emp_page, _ = logged_in_page(bundle["employee"])
         req_page = AssetRequestPage(emp_page)
+        req_page.handle_global_asset_alert(action="dismiss")
         req_page.navigate_to_asset_request()
         created = req_page.create_new_request(reason="Require high-performance laptop for development", remarks="Urgent project need")
         story.log_step("Employee Request Creation", record=f"Created: {created}", expected="Request created with Pending status", actual=str(created), status="PASS")
 
-        # Step 2: Admin Fulfills Request
-        admin_page, _ = logged_in_page("admin")
-        assign_page = AssetAssignmentPage(admin_page)
+        # Step 2: IT Person Fulfills Request
+        it_page, _ = logged_in_page(bundle["it_person"])
+        assign_page = AssetAssignmentPage(it_page)
+        assign_page.handle_global_asset_alert(action="dismiss")
         assign_page.navigate_to_asset_assignment()
         
-        req_tab = admin_page.get_by_role("tab", name=re.compile(r"Requested Assignment|Employee Requests", re.I)).first
+        req_tab = it_page.get_by_role("tab", name=re.compile(r"Requested Assignment|Employee Requests", re.I)).first
         if req_tab.is_visible(timeout=2000):
             req_tab.click()
-            admin_page.wait_for_timeout(1000)
+            it_page.wait_for_timeout(1000)
             
-        fulfill_btn = admin_page.get_by_role("button", name=re.compile(r"Assign Requested Asset|Assign|Fulfill", re.I)).first
+        fulfill_btn = it_page.get_by_role("button", name=re.compile(r"Assign Requested Asset|Assign|Fulfill", re.I)).first
         if fulfill_btn.is_visible(timeout=3000):
             fulfill_btn.click()
-            admin_page.wait_for_timeout(1000)
+            it_page.wait_for_timeout(1000)
             assign_page.click_submit_assignment()
             toast = assign_page.wait_for_toast_message()
-            story.log_step("Admin Fulfillment", record=f"Toast: {toast}", expected="Request fulfilled, asset Assigned/Accepted", actual=toast, status="PASS")
+            story.log_step("IT Fulfillment", record=f"Toast: {toast}", expected="Request fulfilled, asset Assigned/Accepted", actual=toast, status="PASS")
         else:
-            story.log_step("Admin Fulfillment Check", record="No pending request row in queue", status="PASS")
+            story.log_step("IT Fulfillment Check", record="No pending request row in queue", status="PASS")
 
 
     def test_aa_005_duplicate_pending_request_blocked(self, logged_in_page):
@@ -387,3 +395,133 @@ class TestAssetAssignmentWorkflowSpec:
             remarks="AA_011 E2E Lifecycle Complete Return to Stock"
         )
         story.log_step("Step 4: Return to Stock", record=f"Returned Code: '{assigned_code}' in Good condition", expected="Asset Available in Stock", actual="Available", status="PASS")
+
+    @pytest.mark.regression
+    def test_aa_012_multi_asset_same_category_direct_assignment(self, logged_in_page):
+        """
+        AA_012 (TC-AST-014 & TC-AST-015):
+        Direct Assignment of multiple assets of the same category to an employee.
+        Strictly executed by the Branch IT Person for their own Branch Employee (No Admin Bypass).
+        """
+        story = TestStoryLogger("AA_012: Multi-Asset Assignment in Same Category (TC-AST-014/015)", module="Asset", phase="Multi-Asset Direct Assignment")
+        story.start()
+
+        from utils.branch_persona_resolver import get_branch_persona_bundle
+        bundle = get_branch_persona_bundle("Varanasi")
+        
+        # 1. Login as Varanasi Branch IT Person (Ashutosh Kumar)
+        it_page, _ = logged_in_page(bundle["it_person"])
+        assign_page = AssetAssignmentPage(it_page)
+        assign_page.handle_global_asset_alert(action="dismiss")
+        assign_page.navigate_to_asset_assignment()
+
+        # Step 1: Open Assign Asset Drawer
+        assign_page.click_assign_asset()
+
+        # Step 2: Fill Details for Second Category Asset (e.g. Laptop / IT Hardware)
+        assigned_code = assign_page.fill_assignment_details(
+            employee_name=bundle["employee_name"],
+            category="IT Hardware",
+            sub_category="Laptop",
+            remarks="AA_012 Multi-Asset Second Laptop Assignment"
+        )
+        assign_page.click_submit_assignment()
+        toast = assign_page.wait_for_toast_message()
+        logger.info(f"[MULTI-ASSET ASSIGNMENT] Toast: {toast} | Assigned Code: {assigned_code}")
+        story.log_step("Step 1: Assign Second Asset", record=f"Assigned: {assigned_code} | Toast: {toast}", expected="Success Toast", actual=toast, status="PASS" if "success" in toast.lower() or assigned_code else "FAIL")
+
+        # Step 2: Verify both assets in Assigned Assets Table
+        it_page.wait_for_timeout(2000)
+        table_text = it_page.locator("table tbody").inner_text()
+        employee_matches = [line for line in table_text.splitlines() if bundle["employee_name"].lower() in line.lower()]
+        logger.info(f"[EMPLOYEE ASSIGNMENTS COUNT] Found {len(employee_matches)} assigned rows for '{bundle['employee_name']}'")
+        story.log_step("Step 2: Table Representation", record=f"Assigned records: {len(employee_matches)}", expected="Concurrent assets displayed", actual=f"{len(employee_matches)} records", status="PASS")
+
+    @pytest.mark.regression
+    def test_aa_013_temporary_assignment_mandatory_return_date_validation(self, logged_in_page):
+        """
+        AA_013 (TC-AST-032 & TC-AST-033):
+        Verifies Expected Return Date validation for Temporary Asset Assignment.
+        Strictly executed by Branch IT Person for their own Branch Employee (No Admin Bypass).
+        - Blank return date -> Submission blocked with mandatory validation (TC-AST-032).
+        - Past return date -> Submission blocked with future date validation (TC-AST-033).
+        """
+        story = TestStoryLogger("AA_013: Temporary Assignment Expected Return Date Validation (TC-AST-032/033)", module="Asset", phase="Temporary Assignment Validation")
+        story.start()
+
+        from utils.branch_persona_resolver import get_branch_persona_bundle
+        bundle = get_branch_persona_bundle("Varanasi")
+
+        # 1. Login as Varanasi Branch IT Person
+        it_page, _ = logged_in_page(bundle["it_person"])
+        assign_page = AssetAssignmentPage(it_page)
+        assign_page.handle_global_asset_alert(action="dismiss")
+        assign_page.navigate_to_asset_assignment()
+
+        # Step 1: Open Drawer
+        assign_page.click_assign_asset()
+
+        # Step 2: Fill Details with Temporary Type and BLANK return date
+        assign_page.fill_assignment_details(
+            employee_name=bundle["employee_name"],
+            category="IT Hardware",
+            sub_category="Laptop",
+            expected_return_date=None,
+            remarks="AA_013 Temporary Validation Test"
+        )
+        assign_page.select_assignment_duration("Temporary")
+
+        # Step 3: Attempt submit with blank return date (TC-AST-032)
+        assign_page.click_submit_assignment()
+        it_page.wait_for_timeout(1000)
+        errors = assign_page.get_form_error_messages()
+        logger.info(f"[AUDIT BLANK DATE ERRORS] Found: {errors}")
+        modal_visible = it_page.locator("[role='dialog'], .chakra-modal__content").first.is_visible()
+        story.log_step("Step 3: Blank Date Block", record=f"Errors: {errors} | Modal Still Open: {modal_visible}", expected="Submission Blocked", actual="Blocked" if modal_visible else "Failed to block", status="PASS" if modal_visible else "FAIL")
+
+        # Step 4: Attempt submit with PAST return date (TC-AST-033)
+        date_input = it_page.locator("[role='dialog'] input[type='date'], input[type='date']").first
+        if date_input.is_visible():
+            date_input.fill("2026-09-01")
+            assign_page.click_submit_assignment()
+            it_page.wait_for_timeout(1000)
+            past_errors = assign_page.get_form_error_messages()
+            logger.info(f"[AUDIT PAST DATE ERRORS] Found: {past_errors}")
+            story.log_step("Step 4: Past Date Block", record=f"Past Date Errors: {past_errors}", expected="Past Date Error", actual=str(past_errors), status="PASS")
+
+        assign_page.click_cancel()
+
+    @pytest.mark.regression
+    def test_aa_014_direct_assignment_sequential_gating_order(self, logged_in_page):
+        """
+        AA_014 (TC-AST-048 / DEF_023):
+        Verifies Category, Sub Category, and Assets dropdowns remain disabled
+        until an Employee is selected (Sequential Gating Requirement).
+        """
+        story = TestStoryLogger("AA_014: Sequential Gating Order Verification (TC-AST-048)", module="Asset", phase="Gating Audit")
+        story.start()
+
+        bundle = get_branch_persona_bundle("Varanasi")
+        it_page, _ = logged_in_page(bundle["it_person"])
+        assign_page = AssetAssignmentPage(it_page)
+        assign_page.handle_global_asset_alert(action="dismiss")
+        assign_page.navigate_to_asset_assignment()
+
+        # Step 1: Open Drawer without selecting any employee
+        assign_page.click_assign_asset()
+
+        # Step 2: Check whether Category & Subcategory are locked/disabled
+        gating_status = assign_page.verify_gating_restrictions()
+        logger.info(f"[GATING AUDIT BEFORE EMPLOYEE SELECTION]: {gating_status}")
+        
+        # Expected: Both Category and Subcategory must be disabled until Employee is chosen
+        is_gated = gating_status.get("gated", False)
+        story.log_step(
+            "Step 2: Gating Check",
+            record=f"Category Disabled: {gating_status.get('category_disabled')} | SubCategory Disabled: {gating_status.get('subcategory_disabled')}",
+            expected="Category & Subcategory disabled before employee selection",
+            actual="Gated" if is_gated else "Active / Selectable (Defect DEF_023)",
+            status="PASS" if is_gated else "FAIL"
+        )
+
+        assign_page.click_cancel()

@@ -20,25 +20,21 @@ env:
 jobs:
   create-pr:
     if: github.event_name == 'push' && github.ref_name != 'main' && github.ref_name != 'develop'
-
     runs-on: ubuntu-latest
-
     permissions:
       contents: write
       pull-requests: write
 
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v4.3.1
 
       - name: Compare & Create PR Automatically
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_EXISTS=$(gh pr list --head "${{ github.ref_name }}" --json number -q '.[0].number')
-
           if [ -z "$PR_EXISTS" ]; then
             echo "Creating automated PR comparing branch '${{ github.ref_name }}' with 'main'..."
-
             gh pr create \
               --base main \
               --head "${{ github.ref_name }}" \
@@ -51,37 +47,72 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-
     container:
-      image: mcr.microsoft.com/playwright/python:v1.49.0-jammy
+      image: adarsh7777/hrlense_playwright:latest
 
     permissions:
       contents: read
 
     steps:
-      - uses: actions/checkout@v4.2.2
+      - uses: actions/checkout@v4.3.1
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git Safe Directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: "Pre-flight: Check for Merge Conflicts with Main"
+        if: github.ref_name != 'main'
+        run: |
+          echo "🔍 Checking for merge conflicts with origin/main..."
+          git fetch origin main --quiet
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          if git merge --no-commit --no-ff origin/main; then
+            if [ -f .git/MERGE_HEAD ]; then
+              git merge --abort
+            fi
+            echo "✅ No merge conflicts detected with origin/main."
+          else
+            echo "::error::Branch has merge conflicts with origin/main! Please merge origin/main and resolve conflicts."
+            if [ -f .git/MERGE_HEAD ]; then
+              git merge --abort
+            fi
+            exit 1
+          fi
+
+      - name: "Pre-flight: Check for Conflict Markers in Code"
+        run: |
+          echo "🔍 Checking for unresolved git conflict markers..."
+          if git grep -nE "^<{7} |^={7}$|^>{7} " -- ':!*.md' ':!*.log'; then
+            echo "::error::Unresolved conflict markers found in repository files!"
+            exit 1
+          else
+            echo "✅ Zero conflict markers detected."
+          fi
 
       - name: Create .env file
         env:
-          ENV_SECRET: ${{ secrets.ENV_FILE }}
-        run: |
-          echo "Creating .env environment file..."
-          printf "%s\n" "$ENV_SECRET" > .env
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+        run: printf '%s' "$ENV_FILE" > .env
 
-      # 1. Install dependencies inside pre-built Playwright container
-      - name: Install Python dependencies
+      - name: Ensure fresh dependencies
         run: |
-          echo "::group::Installing Python Dependencies"
-          python -m pip install --quiet --upgrade pip
-
           if [ -f requirements.txt ]; then
             pip install --quiet --no-cache-dir -r requirements.txt
           fi
 
-          echo "::endgroup::"
+      - name: "Pre-flight: Test Collection & Import Validation"
+        run: |
+          echo "🔍 Validating Python syntax, test imports, and fixtures..."
+          pytest --collect-only -q || {
+            echo "::error::Pytest collection failed! Check imports or syntax errors above."
+            exit 1
+          }
+          echo "✅ All tests, POMs, workflows, and fixtures collected cleanly."
 
-      # 2. Run Test Suite
-      - name: Run Smoke Tests
+      # Run Dynamic Test Suite (-n auto)
+      - name: Run Test Suite
         run: |
           if [ "${{ github.ref_name }}" = "develop" ]; then
             MARKER="smoke or sanity"
@@ -102,7 +133,7 @@ jobs:
             --disable-warnings \
             --tb=short
 
-      # 3. Add GitHub Step Summary
+      # Add GitHub Step Summary
       - name: Add Execution Summary
         if: always()
         run: |
@@ -112,10 +143,10 @@ jobs:
           echo "- **Execution Mode**: Parallel (-n auto)" >> $GITHUB_STEP_SUMMARY
           echo "- **HTML Report & Traces**: Download artifact \`pytest-report\` to inspect execution results and Playwright \`.zip\` traces." >> $GITHUB_STEP_SUMMARY
 
-      # 4. Upload HTML Test Report, Logs, and Traces
+      # Upload HTML Test Report, Logs, and Traces
       - name: Upload Test Report & Traces
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: pytest-report
           path: |
@@ -126,16 +157,14 @@ jobs:
 
   merge:
     needs: test
-
     runs-on: ubuntu-latest
-
     permissions:
       contents: write
       pull-requests: write
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.3.1
         with:
           fetch-depth: 0
 
@@ -155,7 +184,6 @@ jobs:
               git merge FETCH_HEAD --no-ff -m "Merge PR #${{ github.event.pull_request.number }} into ${{ github.base_ref }} [skip ci]"
               git push origin ${{ github.base_ref }}
             }
-
           else
             echo "Push event on '${{ github.ref_name }}': Tests verified. Keeping feature branch active for additional commits."
           fi

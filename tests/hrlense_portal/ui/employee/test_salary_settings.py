@@ -226,3 +226,38 @@ def test_salary_boundary_one_below_threshold(salary_page, employee_context, pf_t
 
     assert salary_page.is_pf_toggle_disabled(), \
         f"PF toggle must be locked one below threshold ({pf_threshold - 1})"
+
+
+# ── Reset Button Verification ──────────────────────────────────────────────────
+
+@pytest.mark.regression
+def test_salary_drawer_reset_button_restores_db_state(salary_page):
+    """Verify that clicking the Reset button reverts modified salary fields back to the last DB state."""
+    page = salary_page.page
+    salary_page.navigate_to_employee("Sumit Pratap Singh Raghav")
+    salary_page.open_salary_edit()
+
+    drawer = page.locator("div.chakra-modal__content:has-text('Update Salary Detail'), div[role='dialog']:has-text('Update Salary Detail')").first
+    assert drawer.is_visible(timeout=5000), "Salary drawer did not open!"
+
+    gross_input = drawer.locator("input[name='salary_Per_Month']").first
+    baseline_gross = gross_input.input_value().strip()
+
+    # Modify gross
+    gross_input.fill("99999")
+    page.wait_for_timeout(1000)
+
+    # Click Reset
+    reset_btn = drawer.locator("footer button:has-text('Reset'), button.chakra-button:has-text('Reset')").first
+    assert reset_btn.is_visible(timeout=3000), "Reset button not visible in drawer!"
+    reset_btn.click(force=True)
+    page.wait_for_timeout(1000)
+
+    # Assert reverted
+    reverted_gross = gross_input.input_value().strip()
+    assert reverted_gross == baseline_gross, f"Reset failed! Expected baseline '{baseline_gross}', found '{reverted_gross}'"
+
+    # Close drawer
+    cancel_btn = drawer.locator("button:has-text('Cancel')").first
+    if cancel_btn.is_visible():
+        cancel_btn.click(force=True)

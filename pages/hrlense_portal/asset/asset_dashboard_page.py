@@ -135,4 +135,39 @@ class AssetDashboardPage(BasePage):
         logger.info("Could not extract exact 'Expiring Soon' digit; falling back to 0")
         return 0
 
+    def get_stock_manager_cards(self, branch_name: str = "Varanasi") -> dict:
+        """
+        Reads the Stock Manager cards on /asset-stock for the specified branch.
+        Extracts: All Assets, Available, Assigned, Reserved, Maintenance, Damaged, Insured.
+        """
+        logger.info(f"Extracting stock manager cards for branch: '{branch_name}' on /asset-stock")
+        self.navigate_to_asset_stock()
+
+        # If branch button is visible on the left, click it to activate its cards
+        if branch_name:
+            branch_btn = self.page.locator("button").filter(
+                has=self.page.locator("p", has_text=re.compile(rf"^{branch_name}$", re.I))
+            ).first
+            if branch_btn.is_visible(timeout=3000):
+                branch_btn.click(force=True)
+                self.page.wait_for_timeout(1000)
+
+        metrics = {}
+        expected_cards = ["All Assets", "Available", "Assigned", "Reserved", "Maintenance", "Damaged", "Insured"]
+        
+        for card_name in expected_cards:
+            btn = self.page.locator("button").filter(
+                has=self.page.locator("p", has_text=re.compile(rf"^{card_name}$", re.I))
+            ).first
+            if btn.is_visible(timeout=2000):
+                p_texts = btn.locator("p").all_inner_texts()
+                for pt in p_texts:
+                    pt_clean = pt.strip()
+                    if pt_clean.isdigit():
+                        metrics[card_name] = int(pt_clean)
+                        break
+        
+        logger.info(f"Captured Stock Manager Cards for '{branch_name}': {metrics}")
+        return metrics
+
 

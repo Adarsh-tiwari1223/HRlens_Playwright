@@ -10,7 +10,7 @@ class LoginPage(BasePage):
     def _fill_email(self, email: str):
         try:
             elem = self.page.locator("input[type='email'], input[name='email' i], input[placeholder*='email' i]").first
-            if elem.is_visible(timeout=2000):
+            if elem.is_visible(timeout=10000):
                 elem.fill(email)
                 return
         except Exception:
@@ -20,7 +20,7 @@ class LoginPage(BasePage):
     def _fill_password(self, password: str):
         try:
             elem = self.page.locator("input[type='password'], input[name='password' i]").first
-            if elem.is_visible(timeout=2000):
+            if elem.is_visible(timeout=10000):
                 elem.fill(password)
                 return
         except Exception:
@@ -115,6 +115,9 @@ class LoginPage(BasePage):
             self.page.remove_listener("requestfailed", _on_request_failed)
         except Exception:
             pass
+
+        if login_succeeded:
+            self.dismiss_all_floating_alerts()
 
         if not login_succeeded:
             # Capture any visible UI toast/error message

@@ -35,14 +35,14 @@ class AssetReturnPage(BasePage):
         self.page.wait_for_timeout(1000)
 
         # 1. Switch to 'Assigned Assets' tab (or Return Requests tab if specified)
-        tab_name = kwargs.get("tab_name", "Assigned Assets")
+        target_tab = tab_name or kwargs.get("tab_name", "Assigned Assets")
         try:
-            tab_btn = self.page.get_by_role("tab", name=re.compile(tab_name, re.I)).first
+            tab_btn = self.page.get_by_role("tab", name=re.compile(target_tab, re.I)).first
             if not tab_btn.is_visible(timeout=1000):
-                tab_btn = self.page.locator("button[role='tab']").filter(has_text=re.compile(tab_name, re.I)).first
+                tab_btn = self.page.locator("button[role='tab']").filter(has_text=re.compile(target_tab, re.I)).first
             if tab_btn.is_visible(timeout=1000):
                 tab_btn.click()
-                logger.info(f"Switched to '{tab_name}' tab on /asset-return")
+                logger.info(f"Switched to '{target_tab}' tab on /asset-return")
                 self.page.wait_for_timeout(800)
         except Exception as e:
             logger.warning(f"Tab switch note for '{tab_name}': {e}")
@@ -119,27 +119,36 @@ class AssetReturnPage(BasePage):
             except Exception as ex:
                 logger.warning(f"Condition selection note for '{condition}': {ex}")
 
-            # Handle Lost Condition Recovery Options (Recover Amount vs Waived Off)
-            if condition.lower() == "lost":
+            # Handle Recovery Options (Recover Amount vs Waived Off) for Lost, Damaged & Repair Required
+            if condition.lower() in ["lost", "damaged", "repair required"]:
                 try:
-                    recovery_mode = kwargs.get("recovery_type", "waived").lower()
-                    rec_amount = kwargs.get("recovery_amount", "5000")
+                    recovery_mode = kwargs.get("recovery_type", "recover").lower()
+                    rec_amount = kwargs.get("recovery_amount", "3500")
                     if "recover" in recovery_mode:
-                        rec_radio = dialog.locator("input[type='radio'][value*='recover' i], label:has-text('Recover Amount'), label:has-text('Recover')").first
-                        if rec_radio.is_visible(timeout=1000):
-                            rec_radio.click(force=True)
-                            logger.info("Selected Lost Recovery Option: 'Recover Amount'")
+                        rec_btn = dialog.locator(
+                            "p:has-text('Yes, recover amount'), div:has-text('Yes, recover amount'), "
+                            "label:has-text('Yes, recover amount'), input[type='radio'][value*='recover' i]"
+                        ).last
+                        if rec_btn.is_visible(timeout=2000):
+                            rec_btn.click(force=True)
+                            logger.info(f"Selected Recovery Option: 'Yes, recover amount' for condition '{condition}'")
+                            self.page.wait_for_timeout(500)
                             amt_in = dialog.locator("input[type='number'], input[placeholder*='amount' i], input[placeholder*='0' i]").first
-                            if amt_in.is_visible(timeout=1000):
+                            if not amt_in.is_visible(timeout=1000):
+                                amt_in = dialog.locator("input[type='text'], input").filter(has_not=dialog.locator("input[type='date']")).first
+                            if amt_in.is_visible(timeout=2000):
                                 amt_in.fill(str(rec_amount))
                                 logger.info(f"Entered Recovery Amount: ₹{rec_amount}")
-                    else: # Waived Off (default)
-                        waived_radio = dialog.locator("input[type='radio'][value*='waive' i], label:has-text('Waived Off'), label:has-text('Waive')").first
-                        if waived_radio.is_visible(timeout=1000):
-                            waived_radio.click(force=True)
-                            logger.info("Selected Lost Recovery Option: 'Waived Off'")
+                    else: # Waived Off
+                        waived_btn = dialog.locator(
+                            "p:has-text('No, waive it'), div:has-text('No, waive it'), "
+                            "label:has-text('No, waive it'), input[type='radio'][value*='waive' i]"
+                        ).last
+                        if waived_btn.is_visible(timeout=2000):
+                            waived_btn.click(force=True)
+                            logger.info(f"Selected Recovery Option: 'No, waive it' for condition '{condition}'")
                 except Exception as ex:
-                    logger.warning(f"Lost recovery selection note: {ex}")
+                    logger.warning(f"Recovery selection note for '{condition}': {ex}")
 
             # Media Attachment Upload (Up to 4 photos <= 5MB + 1 video ~10s if present)
             if kwargs.get("upload_media", True):
@@ -195,6 +204,9 @@ class AssetReturnPage(BasePage):
             toast = self.wait_for_toast_message()
             logger.info(f"Return confirmation toast: '{toast}'")
             self.page.wait_for_timeout(1000)
+            return {"status": "SUCCESS", "toast": toast or ""}
+
+        return {"status": "FAILED", "toast": ""}
 
     def review_and_fulfill_return(self, asset_code_or_name: str, condition: str = "Good", remarks: str = "Condition assessed by IT Admin.") -> str:
         """

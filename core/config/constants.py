@@ -13,4 +13,4 @@ LEAVE_TO_OFFSET = int(os.getenv("LEAVE_TO_OFFSET", "1"))
 LEAVE_BACK_DATE_OFFSET = int(os.getenv("LEAVE_BACK_DATE_OFFSET", "1"))
 
 # Default employee test user key
-EMPLOYEE_USER = os.getenv("EMPLOYEE_USER", "uttam_kumar")
+EMPLOYEE_USER = os.getenv("EMPLOYEE_USER", "abhishek_singh")

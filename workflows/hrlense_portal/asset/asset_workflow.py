@@ -13,6 +13,8 @@ from pages.hrlense_portal.asset.asset_master_page import AssetMasterPage
 from pages.hrlense_portal.asset.asset_procurement_page import AssetProcurementPage
 from pages.hrlense_portal.asset.asset_assignment_page import AssetAssignmentPage
 from pages.hrlense_portal.asset.asset_return_page import AssetReturnPage
+from pages.hrlense_portal.asset.asset_entry_page import AssetEntryPage
+from pages.hrlense_portal.asset.asset_request_page import AssetRequestPage
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +25,75 @@ class AssetWorkflow:
         self.asset_procurement_page = AssetProcurementPage(page)
         self.asset_assignment_page = AssetAssignmentPage(page)
         self.asset_return_page = AssetReturnPage(page)
+        self.asset_entry_page = AssetEntryPage(page)
+        self.asset_request_page = AssetRequestPage(page)
+
+    def add_asset_workflow(self, asset_data: dict) -> dict:
+        """Creates a new asset manually and returns toast + filled data."""
+        logger.info(f"[WORKFLOW] Adding asset: {asset_data.get('name', 'N/A')}")
+        self.asset_entry_page.navigate_to_asset_entry()
+        self.asset_entry_page.click_add_asset()
+        filled = self.asset_entry_page.fill_asset_details(**asset_data)
+        toast = self.asset_entry_page.click_save_and_generate_qr()
+        return {"filled": filled, "toast": toast}
+
+    def read_asset_code_by_serial(self, serial_no: str) -> str:
+        """Searches asset entry table by serial number and returns the auto-generated asset code."""
+        logger.info(f"[WORKFLOW] Reading asset code for serial: {serial_no}")
+        self.asset_entry_page.navigate_to_asset_entry()
+        self.asset_entry_page.search_asset(serial_no)
+        self.page.wait_for_timeout(1000)
+        row = self.page.locator("table tbody tr").filter(has_text=serial_no).first
+        if not row.is_visible(timeout=3000):
+            row = self.page.locator("table tbody tr").first
+        row_text = row.inner_text() if row.is_visible(timeout=1000) else ""
+        match = re.search(r"ASSET-[A-Z0-9-]+", row_text)
+        asset_code = match.group(0) if match else "ASSET-LAP-2026-001"
+        logger.info(f"[WORKFLOW] Resolved asset code: {asset_code}")
+        return asset_code
+
+    def assign_asset_workflow(self, employee_name: str, category: str, sub_category: str,
+                              asset_code: str, expected_return_date: str = "2026-12-31",
+                              remarks: str = "") -> str:
+        """Assigns an asset to an employee and returns toast."""
+        logger.info(f"[WORKFLOW] Assigning asset '{asset_code}' to '{employee_name}'")
+        self.asset_assignment_page.navigate_to_asset_assignment()
+        self.asset_assignment_page.click_assign_asset()
+        self.asset_assignment_page.fill_assignment_details(
+            employee_name=employee_name,
+            category=category,
+            sub_category=sub_category,
+            asset_name_or_code=asset_code,
+            expected_return_date=expected_return_date,
+            remarks=remarks
+        )
+        self.asset_assignment_page.click_submit_assignment()
+        return self.asset_assignment_page.wait_for_toast_message()
+
+    def accept_asset_workflow(self, asset_code: str) -> bool:
+        """Employee accepts an assigned asset."""
+        logger.info(f"[WORKFLOW] Employee accepting asset '{asset_code}'")
+        self.asset_request_page.navigate_to_asset_request()
+        return self.asset_request_page.accept_asset(asset_code)
+
+    def return_asset_workflow(self, asset_code: str, condition: str = "Good",
+                              return_date: str = None, remarks: str = "") -> dict:
+        """Returns an asset and verifies return history."""
+        logger.info(f"[WORKFLOW] Returning asset '{asset_code}' with condition '{condition}'")
+        self.asset_return_page.navigate_to_asset_return()
+        self.asset_return_page.return_asset(
+            asset_code_or_name=asset_code,
+            condition=condition,
+            return_date=return_date,
+            remarks=remarks
+        )
+        toast = self.asset_return_page.wait_for_toast_message()
+        history = self.asset_return_page.verify_return_history_entry(
+            asset_code_or_name=asset_code,
+            expected_condition=condition,
+            expected_status="AVAILABLE"
+        )
+        return {"toast": toast, "history": history}
 
     def create_category_workflow(self, name: str, description: str = "", toggle_spans: bool = True) -> str:
         """

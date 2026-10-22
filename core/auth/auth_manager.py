@@ -10,7 +10,7 @@ import logging
 from datetime import datetime
 from playwright.sync_api import Browser, BrowserContext, Page
 from core.config import settings
-from core.browser.browser_manager import create_browser_context
+from core.browser.browser_manager import create_browser_context, register_floating_alert_dismiss_handler
 from pages.login_page import LoginPage
 
 logger = logging.getLogger(__name__)
@@ -68,6 +68,48 @@ def save_storage_state(context: BrowserContext, user_key: str) -> None:
         logger.warning(f"Failed to save storage state for user '{user_key}': {e}")
 
 
+def dismiss_post_login_cards(page: Page) -> int:
+    """
+    Dismisses all floating notification cards (e.g. Asset Alert, Resignation Update, Return Approaching)
+    that appear after successful login.
+    Clicks the card's '✕' close button or 'Dismiss' button.
+    """
+    dismissed_count = 0
+    try:
+        alert_buttons = page.locator(
+            "div:has-text('Asset Alert') button:has-text('✕'), "
+            "div:has-text('Asset Alert') button:has-text('Dismiss'), "
+            "div:has-text('Resignation Update') button:has-text('✕'), "
+            "div:has-text('Return Approaching') button:has-text('✕'), "
+            "button:has-text('Dismiss')"
+        )
+        if not alert_buttons.first.is_visible(timeout=1000):
+            return 0
+
+        for _ in range(5):
+            btns = alert_buttons.all()
+            if not btns:
+                break
+            clicked = False
+            for btn in btns:
+                try:
+                    if btn.is_visible(timeout=300):
+                        btn.click(force=True)
+                        dismissed_count += 1
+                        clicked = True
+                        page.wait_for_timeout(200)
+                except Exception:
+                    pass
+            if not clicked:
+                break
+
+        if dismissed_count > 0:
+            logger.info(f"[POST-LOGIN] Successfully dismissed {dismissed_count} notification card(s).")
+    except Exception as ex:
+        logger.debug(f"Note dismissing post-login cards: {ex}")
+
+    return dismissed_count
+
 
 def authenticate_user(page: Page, user_key: str = "admin", save_state: bool = True) -> Page:
     """
@@ -75,6 +117,7 @@ def authenticate_user(page: Page, user_key: str = "admin", save_state: bool = Tr
     Includes safeguards for modal dismissal and submission latency.
     Optionally saves storage state upon successful authentication.
     """
+    register_floating_alert_dismiss_handler(page)
     creds = get_user_credentials(user_key)
 
     try:
@@ -105,6 +148,8 @@ def authenticate_user(page: Page, user_key: str = "admin", save_state: bool = Tr
         page.wait_for_load_state("domcontentloaded", timeout=5000)
     except Exception:
         pass
+
+    dismiss_post_login_cards(page)
 
     if save_state and user_key == "admin" and page.context:
         save_storage_state(page.context, user_key)
@@ -190,6 +235,7 @@ def get_authenticated_context(
 
                 if is_logged_in:
                     logger.info(f"Cached session state for '{user_key}' is active (URL: {page.url}).")
+                    dismiss_post_login_cards(page)
                     return page, context
 
                 logger.info(f"Cached session for '{user_key}' expired/invalid. Performing full UI re-authentication...")
@@ -206,5 +252,3 @@ def get_authenticated_context(
     page = context.new_page()
     authenticate_user(page, user_key=user_key, save_state=(user_key == "admin"))
     return page, context
-
-

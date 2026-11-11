@@ -262,7 +262,14 @@ class AssetEntryPage(BasePage):
             cat_select = modal.get_by_label("Category*", exact=False).first
         cat_select.wait_for(state="visible", timeout=5000)
 
-        cat_options = [o.strip() for o in cat_select.locator("option").all_inner_texts() if o.strip() and not o.lower().startswith("select")]
+        # Wait for dynamic Category options to attach and populate
+        cat_options = []
+        for _ in range(10):
+            cat_options = [o.strip() for o in cat_select.locator("option").all_inner_texts() if o.strip() and not o.lower().startswith("select")]
+            if cat_options:
+                break
+            self.page.wait_for_timeout(300)
+
         selected_category = ""
         if category and any(category.lower() in o.lower() for o in cat_options):
             for opt in cat_options:

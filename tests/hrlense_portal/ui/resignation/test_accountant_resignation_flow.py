@@ -1,6 +1,7 @@
 """
 HRlens Portal — Accountant Resignation Flow Test Suite (Test Tier).
-Contains test cases for Accountant / Finance clearance, buyout amount calculations, and offboarding settlement checks.
+Contains test cases for Accountant / Finance clearance, buyout amount calculations,
+approval and rejection lifecycles, and offboarding settlement checks.
 """
 
 import pytest
@@ -51,7 +52,7 @@ def pytest_generate_tests(metafunc):
             return
 
         k_expr = (metafunc.config.getoption("-k", default="") or "").strip()
-        ignored_keywords = {"test_", "accountant", "process", "buyout", "resignation", "ui", "and", "or", "not", "inspection", "finance", "clearance"}
+        ignored_keywords = {"test_", "accountant", "process", "buyout", "resignation", "ui", "and", "or", "not", "inspection", "finance", "clearance", "reject"}
         clean_parts = [p.replace('"', '').replace("'", "").strip() for p in k_expr.split() if p.lower() not in ignored_keywords and len(p) > 1]
 
         if clean_parts:
@@ -99,6 +100,71 @@ def test_accountant_process_buyout_flow(target_employee_name, get_accountant_res
     toast_msg = str(result.get("toast", "")).strip()
     assert toast_msg != "", "Toast message must be captured after Accountant Buyout approval"
     assert "required" not in toast_msg.lower(), f"Accountant buyout approval failed with validation error toast: '{toast_msg}'"
-    assert "approved" in toast_msg.lower() or "success" in toast_msg.lower() or "processed" in toast_msg.lower(), \
+    assert any(term in toast_msg.lower() for term in ["approved", "success", "processed"]), (
         f"Expected buyout approval success toast, got: '{toast_msg}'"
+    )
     logger.info(f"[PASS ACCOUNTANT] Accountant successfully processed Buyout for '{resolved_name}'! Toast: '{toast_msg}'")
+
+
+@pytest.mark.ui
+@pytest.mark.accountant_reject_buyout
+@pytest.mark.resignation
+def test_accountant_reject_buyout_flow(target_employee_name, get_accountant_resignation_workflow):
+    """
+    Accountant Reject Buyout Flow:
+    1. Discovers or targets eligible employee waiting in 'HR Approved' status on /accounts-buyout-processing.
+    2. Opens 'Process Buyout' modal.
+    3. Fills mandatory remarks explaining financial rejection reason.
+    4. Clicks 'Reject' button in modal footer.
+    5. Confirms rejection in 'Confirm Buyout Rejection' alert dialog.
+    """
+    acc_wf = get_accountant_resignation_workflow()
+
+    if target_employee_name == "auto":
+        resolved_name = acc_wf.get_first_eligible_buyout_employee()
+        if not resolved_name:
+            pytest.skip("No employees currently waiting in 'HR Approved' status for Accountant buyout processing.")
+    else:
+        resolved_name = target_employee_name
+
+    logger.info(f"[EXECUTION] Processing Accountant Buyout REJECTION for employee: '{resolved_name}'")
+    result = acc_wf.process_accountant_buyout_workflow(
+        employee_name=resolved_name,
+        remarks="Buyout request rejected by Finance. Employee must serve full notice period.",
+        confirm_recovery=False,
+        approve=False
+    )
+
+    assert result.get("success"), f"Failed to reject Buyout modal for '{resolved_name}'"
+    toast_msg = str(result.get("toast", "")).strip()
+    assert toast_msg != "", "Toast message must be captured after Accountant Buyout rejection"
+    logger.info(f"[PASS ACCOUNTANT] Accountant successfully rejected Buyout for '{resolved_name}'! Toast: '{toast_msg}'")
+
+
+@pytest.mark.ui
+@pytest.mark.accountant_manual_fnf
+@pytest.mark.resignation
+def test_accountant_manual_post_release_fnf_dispatch_flow(target_employee_name, get_accountant_resignation_workflow):
+    """
+    Accountant Manual Post-Release FnF Settlement Dispatch Flow:
+    Validates the exception fallback scenario where HR released an employee without
+    initiating FnF in the standard pipeline:
+    1. Accountant logs in and navigates to /released-employee.
+    2. Searches employee and opens Actions (≡) -> 'Full & Final Settlement'.
+    3. Validates letter editor and live preview synchronization.
+    4. Selects authorized Signatory and sends settlement letter to employee.
+    5. Verifies toast confirmation and validates F&F Status badge.
+    """
+    acc_wf = get_accountant_resignation_workflow()
+    resolved_name = "Adarsh Tiwari" if target_employee_name == "auto" else target_employee_name
+
+    logger.info(f"[EXECUTION] Processing Accountant Manual Post-Release FnF Dispatch for: '{resolved_name}'")
+    result = acc_wf.execute_accountant_manual_released_fnf_dispatch_workflow(
+        employee_name=resolved_name,
+        custom_remarks="Full & Final Settlement audited post-release by Finance & Accounts.",
+        signatory_index=1
+    )
+
+    assert result.get("success"), f"Failed to dispatch Full & Final Settlement for released employee '{resolved_name}': {result}"
+    toast_msg = str(result.get("toast", "")).strip()
+    logger.info(f"[PASS ACCOUNTANT] Manual FnF dispatch completed for '{resolved_name}'! Toast: '{toast_msg}' | F&F Status: {result.get('fnf_status')}")

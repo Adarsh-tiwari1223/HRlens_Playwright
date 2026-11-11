@@ -95,6 +95,11 @@ class TestStoryLogger:
         self.step_count += 1
         log_step(action, value=record)
 
+    def log_table(self, title: str, data: dict | list[dict] | None):
+        table_str = format_ascii_table(title, data)
+        print(f"\n{table_str}\n")
+        logger.info(f"\n{table_str}\n")
+
     def finish(self, status: str = "PASS"):
         from utils.logger import log_pass, log_fail, log_skip
         if status.upper() == "PASS":
@@ -602,13 +607,13 @@ class BasePage:
 
     def wait_for_modal(self, timeout: int = 5000) -> Locator:
         """Waits for and returns active Chakra Modal or Drawer dialog."""
-        modal = self.page.locator("section.chakra-modal__content, div.chakra-drawer__content, [role='dialog']").first
+        modal = self.page.locator("section.chakra-modal__content:visible, div.chakra-drawer__content:visible, [role='dialog']:visible").first
         modal.wait_for(state="visible", timeout=timeout)
         return modal
 
     def close_modal(self, modal: Locator = None, timeout: int = 3000) -> None:
         """Closes active modal/drawer via close button or Escape key and waits for it to hide."""
-        target = modal if modal else self.page.locator("section.chakra-modal__content, div.chakra-drawer__content, [role='dialog']").first
+        target = modal if modal else self.page.locator("section.chakra-modal__content:visible, div.chakra-drawer__content:visible, [role='dialog']:visible").first
         try:
             close_btn = target.locator("button.chakra-modal__close-btn, button[aria-label*='Close' i], footer button:has-text('Cancel'), footer button:has-text('Close')").first
             if close_btn.is_visible(timeout=500):

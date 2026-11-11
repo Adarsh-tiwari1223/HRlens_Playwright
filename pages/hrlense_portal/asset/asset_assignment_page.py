@@ -92,7 +92,7 @@ class AssetAssignmentPage(BasePage):
 
         
         # Modal scope
-        modal = self.page.locator("[role='dialog'], .chakra-modal__content, .chakra-drawer__content").first
+        modal = self.page.locator("[role='dialog']:visible, .chakra-modal__content:visible, .chakra-drawer__content:visible").first
         if not modal.is_visible(timeout=1000):
             modal = self.page
 

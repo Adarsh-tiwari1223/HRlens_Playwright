@@ -165,49 +165,66 @@ jobs:
         run: printf '%s' "$ENV_FILE" > .env
 
       - name: Ensure fresh dependencies
-        if: needs.rebuild-docker-if-needed.outputs.rebuild_required == 'true'
         run: |
-          if [ -f requirements.txt ]; then
-            pip install --quiet --no-cache-dir -r requirements.txt
+          if [ "${{ needs.rebuild-docker-if-needed.outputs.rebuild_required }}" = "true" ] || ! python -c "import google.oauth2, googleapiclient" >/dev/null 2>&1; then
+            echo "⚡ Installing or updating missing Python packages..."
+            pip install --quiet -r requirements.txt
+          else
+            echo "✅ Container environment dependencies are fully satisfied."
           fi
 
-      # Dynamic Suite Marker Evaluation with Smart Commit Message Override
-      - name: Determine Test Suite Marker
+      # Centralized Suite & Target Resolution from core.config.suites
+      - name: Determine Test Suite & Targets
         run: |
           COMMIT_MSG=$(git log -1 --pretty=%B)
           if echo "$COMMIT_MSG" | grep -iE "\[run regression\]"; then
-            MARKER="regression"
+            SUITE="regression"
           elif echo "$COMMIT_MSG" | grep -iE "\[run sanity\]"; then
-            MARKER="sanity"
+            SUITE="sanity"
           elif echo "$COMMIT_MSG" | grep -iE "\[run asset\]"; then
-            MARKER="asset"
+            SUITE="asset"
           elif echo "$COMMIT_MSG" | grep -iE "\[run attendance\]"; then
-            MARKER="attendance"
+            SUITE="attendance"
           elif [ "${{ github.ref_name }}" = "develop" ]; then
-            MARKER="smoke or sanity"
+            SUITE="sanity"
           elif [ "${{ github.ref_name }}" = "main" ]; then
-            MARKER="smoke or regression"
+            SUITE="regression"
           else
-            MARKER="smoke"
+            SUITE="smoke"
           fi
-          echo "Selected suite marker: $MARKER"
-          echo "MARKER=$MARKER" >> $GITHUB_ENV
+
+          python -c "
+          import os
+          from core.config.suites import SUITE_REGISTRY
+          suite_name = '$SUITE'
+          suite_info = SUITE_REGISTRY.get(suite_name, SUITE_REGISTRY['smoke'])
+          marker = suite_info.get('marker', suite_name)
+          files = ' '.join(suite_info.get('files', ['tests/']))
+          print(f'Suite: {suite_info.get(\"name\", suite_name)}')
+          print(f'Target files: {files}')
+          print(f'Marker: {marker}')
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write(f'SUITE_NAME={suite_name}\n')
+              f.write(f'SUITE_MARKER={marker}\n')
+              f.write(f'SUITE_FILES={files}\n')
+          "
 
       - name: "Pre-flight: Test Collection & Import Validation"
         run: |
-          echo "🔍 Validating syntax, imports, and collection for target suite ($MARKER)..."
-          OUTPUT=$(pytest -m "$MARKER" --collect-only -q 2>&1) || {
-            echo "::error::Pytest collection failed for marker $MARKER!"
+          echo "🔍 Validating syntax, imports, and collection for $SUITE_NAME ($SUITE_FILES)..."
+          OUTPUT=$(pytest $SUITE_FILES -m "$SUITE_MARKER" --collect-only -q 2>&1) || {
+            echo "::error::Pytest collection failed for suite $SUITE_NAME!"
             echo "$OUTPUT"
             exit 1
           }
           echo "$OUTPUT" | grep -E "tests collected|deselected" || echo "Test collection completed."
-          echo "✅ Target test suite collected cleanly."
+          echo "✅ Selected suite ($SUITE_NAME) collected cleanly."
 
       - name: Run Test Suite
         run: |
-          echo "Executing test suite (-n auto) with marker: $MARKER"
-          pytest -m "$MARKER" \
+          echo "Executing test suite (-n auto, loadgroup) on $SUITE_FILES with marker: $SUITE_MARKER"
+          pytest $SUITE_FILES \
+            -m "$SUITE_MARKER" \
             -n auto \
             --reruns 2 \
             --reruns-delay 1 \
@@ -224,7 +241,9 @@ jobs:
           echo "### 🧪 HRlens Playwright Test Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Target Environment**: \`$ENV\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Branch / Ref**: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Suite Marker**: \`$MARKER\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Suite**: \`$SUITE_NAME\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target Files**: \`$SUITE_FILES\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Marker**: \`$SUITE_MARKER\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Execution Mode**: Parallel (-n auto, loadgroup)" >> $GITHUB_STEP_SUMMARY
 
       # Upload HTML Test Report, Logs, and Traces on Failure
@@ -246,16 +265,26 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUM="${{ needs.create-pr.outputs.pr_number }}"
-          if [ -z "$PR_NUM" ]; then
-            PR_NUM=$(gh pr list --head "${{ github.ref_name }}" --json number -q '.[0].number' 2>/dev/null || echo "")
-          fi
-          if [ -n "$PR_NUM" ]; then
+          if [ -n "$PR_NUM" ] && [ -n "$GH_TOKEN" ]; then
             echo "Posting failure notification on PR #${PR_NUM}..."
-            gh pr comment "$PR_NUM" --body "### ❌ Playwright Tests Failed
-            **Automatic merge is BLOCKED.**
-            - Pre-flight or test assertions failed during containerized execution.
-            - Download the **\`pytest-report\`** artifact from this run to view the HTML report, logs, and Playwright DOM traces.
-            - Please fix the failing tests and push again to re-trigger verification." || true
+            python -c "
+            import urllib.request, json, os
+            url = 'https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUM}/comments'
+            headers = {
+                'Authorization': f'Bearer {os.environ.get(\"GH_TOKEN\", \"\")}',
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/json'
+            }
+            body = {
+                'body': '### ❌ Playwright Tests Failed\n**Automatic merge is BLOCKED.**\n- Pre-flight or test assertions failed during containerized execution.\n- Download the **\`pytest-report\`** artifact from this run to view the HTML report, logs, and Playwright DOM traces.\n- Please fix the failing tests and push again to re-trigger verification.'
+            }
+            req = urllib.request.Request(url, data=json.dumps(body).encode('utf-8'), headers=headers, method='POST')
+            try:
+                with urllib.request.urlopen(req) as resp:
+                    print('Comment posted successfully.')
+            except Exception as e:
+                print(f'Failed to post comment: {e}')
+            " || true
           fi
 
   # =========================================================================

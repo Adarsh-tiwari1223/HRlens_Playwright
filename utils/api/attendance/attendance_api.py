@@ -1,8 +1,5 @@
-from utils.api.base_api import get
-
-
 import json
-from utils.api.base_api import get
+from utils.api.base_api import get, post
 
 
 def get_regularization_approval_setting_api(user: str = "admin") -> dict:
@@ -126,3 +123,31 @@ def get_eligible_regularization_dates_api(month: int = 8, year: int = 2026, user
                     "raw": item
                 })
     return eligible
+
+
+def create_attendance_master_api(payload: dict, user: str = "admin") -> dict:
+    """
+    POST /AttandanceMaster
+    Creates or updates Attendance Master Setting with working hours, late grace,
+    half day thresholds, and short leave configurations.
+    """
+    return post("AttandanceMaster", user=user, payload=payload)
+
+
+def get_attendance_master_list_api(first: int = 0, rows: int = 20, user: str = "admin") -> list:
+    """
+    GET /AttandanceMaster?first={first}&rows={rows}
+    Fetches the persisted list of Attendance Master settings from the backend.
+    Used for independent backend-side verification after adding settings in UI.
+    """
+    try:
+        resp = get("AttandanceMaster", user=user, params={"first": first, "rows": rows})
+        if isinstance(resp, list):
+            return resp
+        elif isinstance(resp, dict):
+            return resp.get("data") or resp.get("records") or resp.get("rows") or resp.get("items") or []
+        return []
+    except Exception:
+        return []
+
+

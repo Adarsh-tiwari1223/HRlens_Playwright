@@ -29,7 +29,6 @@ from pages.hrlense_portal.asset.asset_entry_page import AssetEntryPage
 from pages.hrlense_portal.asset.asset_request_page import AssetRequestPage
 from pages.hrlense_portal.resignation.resignation_page import ResignationPage
 from workflows.hrlense_portal.resignation.employee_resignation_workflow import EmployeeResignationWorkflow
-from utils.mail.gmail_client import GmailClient
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +101,7 @@ class TestAssetAndResignationEmailLifecycle:
 
         target_emp_name = "Sanidhy Tiwari"
         target_emp_key = "sanidhy"
+        from utils.mail.gmail_client import GmailClient
         mail_client = GmailClient()
 
         # ──────────────────────────────────────────────────────────────────

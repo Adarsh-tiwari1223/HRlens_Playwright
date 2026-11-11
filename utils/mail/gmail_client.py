@@ -18,9 +18,14 @@ import webbrowser
 from typing import Optional, Dict, Any, List
 
 import requests
-from google.oauth2.credentials import Credentials
-from google.auth.transport.requests import Request
-from googleapiclient.discovery import build
+try:
+    from google.oauth2.credentials import Credentials
+    from google.auth.transport.requests import Request
+    from googleapiclient.discovery import build
+except ImportError:
+    Credentials = None
+    Request = None
+    build = None
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +94,11 @@ class GmailClient:
     """Gmail API Client tailored for HRlens email verification."""
 
     def __init__(self, token_path: Optional[str] = None, client_secret_path: Optional[str] = None):
+        if Credentials is None:
+            raise ImportError(
+                "Google client libraries not installed. Please install: "
+                "pip install google-auth google-auth-httplib2 google-api-python-client"
+            )
         self.token_path = token_path or TOKEN_PATH
         self.client_secret_path = client_secret_path or _find_client_secret_file()
         self.service = None

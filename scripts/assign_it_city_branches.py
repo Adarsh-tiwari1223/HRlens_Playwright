@@ -84,6 +84,7 @@ def run_assign_it_city_branches():
         name = target["name"]
         email = target["email"]
         city = target["city"]
+        target_branch_ids = city_branch_ids.get(city, [])
 
         # Resolve user details
         user_data = get_user_by_email_or_username(email)

@@ -9,6 +9,8 @@ Populates Categories, Subcategories, and Vendors into HRlens database:
 """
 
 import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import logging
 import requests
 from core.config import settings

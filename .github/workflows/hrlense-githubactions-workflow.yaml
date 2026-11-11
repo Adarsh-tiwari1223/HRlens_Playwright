@@ -255,6 +255,7 @@ jobs:
   # =========================================================================
   merge:
     needs: [test, create-pr]
+    if: always() && !cancelled() && needs.test.result == 'success' && (needs.create-pr.result == 'success' || needs.create-pr.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -276,6 +277,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUM="${{ github.event.pull_request.number || needs.create-pr.outputs.pr_number }}"
+          if [ -z "$PR_NUM" ]; then
+            PR_NUM=$(gh pr list --head "${{ github.ref_name }}" --json number -q '.[0].number' 2>/dev/null || echo "")
+          fi
           if [ -n "$PR_NUM" ]; then
             echo "✅ Tests passed successfully! Merging Pull Request #${PR_NUM} into main..."
             gh pr merge "$PR_NUM" --merge --delete-branch --subject "Merge PR #${PR_NUM} into main [skip ci]" || {

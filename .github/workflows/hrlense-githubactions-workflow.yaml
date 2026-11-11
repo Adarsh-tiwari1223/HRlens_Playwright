@@ -3,12 +3,10 @@ name: "Playwright Tests"
 on:
   push:
     branches: ["**"]
-  pull_request:
-    branches: ["main", "develop"]
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -240,7 +238,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          PR_NUM="${{ github.event.pull_request.number || needs.create-pr.outputs.pr_number }}"
+          PR_NUM="${{ needs.create-pr.outputs.pr_number }}"
+          if [ -z "$PR_NUM" ]; then
+            PR_NUM=$(gh pr list --head "${{ github.ref_name }}" --json number -q '.[0].number' 2>/dev/null || echo "")
+          fi
           if [ -n "$PR_NUM" ]; then
             echo "Posting failure notification on PR #${PR_NUM}..."
             gh pr comment "$PR_NUM" --body "### ❌ Playwright Tests Failed

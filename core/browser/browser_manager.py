@@ -26,18 +26,39 @@ def get_context_options() -> dict:
 
 def launch_browser(playwright: Playwright, is_headed: bool = False) -> Browser:
     """
-    Launches Chromium or system Chrome browser instance with start-maximized flag.
+    Launches Chromium or system Chrome browser instance with performance-tuned flags.
     Gracefully falls back to headless if headed mode is requested but no X-server/display is available.
     """
     headless = not (is_headed or not settings.HEADLESS)
-    print(f"\n=======================================================")
-    print(f"[BROWSER LAUNCH] is_headed={is_headed} | settings.HEADLESS={settings.HEADLESS} | computed headless={headless}")
-    print(f"=======================================================\n")
     logger.info(f"[BROWSER LAUNCH] is_headed={is_headed} | settings.HEADLESS={settings.HEADLESS} | computed headless={headless}")
+
+    chromium_args = [
+        "--start-maximized",
+        "--no-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--disable-background-networking",
+        "--disable-background-timer-throttling",
+        "--disable-backgrounding-occluded-windows",
+        "--disable-breakpad",
+        "--disable-component-update",
+        "--disable-domain-reliability",
+        "--disable-extensions",
+        "--disable-features=AudioServiceOutOfProcess",
+        "--disable-hang-monitor",
+        "--disable-ipc-flooding-protection",
+        "--disable-popup-blocking",
+        "--disable-prompt-on-repost",
+        "--disable-renderer-backgrounding",
+        "--disable-sync",
+        "--no-first-run",
+        "--password-store=basic",
+        "--use-mock-keychain",
+    ]
 
     launch_kwargs = {
         "headless": headless,
-        "args": ["--start-maximized", "--no-sandbox"],
+        "args": chromium_args,
     }
     if not headless:
         launch_kwargs["slow_mo"] = 1000  # 1 second between actions so user can inspect
@@ -55,13 +76,9 @@ def launch_browser(playwright: Playwright, is_headed: bool = False) -> Browser:
                     "Headed mode requested (HEADLESS=False) but no GUI display ($DISPLAY / X server) is available in container. "
                     "Falling back to headless mode to allow execution."
                 )
-                print(
-                    "\n[WARNING] Headed mode requested (HEADLESS=False) but no GUI display ($DISPLAY / X server) is available in this environment.\n"
-                    "          Falling back to headless mode so tests can execute without crashing.\n"
-                )
                 return playwright.chromium.launch(
                     headless=True,
-                    args=["--start-maximized"]
+                    args=chromium_args
                 )
             raise launch_err
 

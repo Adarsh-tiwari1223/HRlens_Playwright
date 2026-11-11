@@ -94,14 +94,70 @@ def pytest_configure(config):
 
 
 def pytest_collection_modifyitems(items):
-    """Reorders test collection so authentication/login tests always execute first."""
+    """
+    1. Reorders test collection so authentication/login tests always execute first.
+    2. Dynamically assigns each test to an xdist_group by domain module,
+       ensuring that when running with pytest-xdist (--dist=loadgroup):
+       - Login / Auth tests go to dedicated worker (e.g. gw0)
+       - Leave & Attendance tests go to dedicated worker (e.g. gw1)
+       - Asset management tests go to dedicated worker (e.g. gw2)
+       - Resignation tests go to dedicated worker (e.g. gw3)
+       - Master & Configuration tests go to dedicated worker
+       - Recruitment portal tests go to dedicated worker
+    """
     login_items = []
     other_items = []
+
     for item in items:
-        if "auth" in item.nodeid.lower() or "login" in item.nodeid.lower():
+        path = str(item.fspath).replace("\\", "/").lower()
+
+        # Determine module group for worker allocation
+        if "test_hr_lens_auth" in path or "login" in path:
+            group = "group_auth_login"
             login_items.append(item)
-        else:
+        elif "attendance" in path or "leave" in path or "regularization" in path:
+            group = "group_attendance"
             other_items.append(item)
+        elif "asset" in path:
+            group = "group_asset"
+            other_items.append(item)
+        elif "resignation" in path:
+            group = "group_resignation"
+            other_items.append(item)
+        elif "master" in path:
+            group = "group_master"
+            other_items.append(item)
+        elif "admin_control" in path or "absence_setting" in path:
+            group = "group_admin_control"
+            other_items.append(item)
+        elif "internal_mail" in path:
+            group = "group_internal_mail"
+            other_items.append(item)
+        elif "director" in path:
+            group = "group_director"
+            other_items.append(item)
+        elif "payroll" in path or "salary" in path:
+            group = "group_payroll"
+            other_items.append(item)
+        elif "recruitment" in path or "active_job" in path:
+            group = "group_recruitment"
+            other_items.append(item)
+        elif "meeting" in path or "interview" in path:
+            group = "group_meeting"
+            other_items.append(item)
+        elif "increment" in path:
+            group = "group_increment"
+            other_items.append(item)
+        elif "employee" in path:
+            group = "group_employee"
+            other_items.append(item)
+        else:
+            group = "group_general"
+            other_items.append(item)
+
+        # Attach xdist_group marker automatically
+        item.add_marker(pytest.mark.xdist_group(name=group))
+
     items[:] = login_items + other_items
 
 

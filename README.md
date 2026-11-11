@@ -50,7 +50,7 @@ HRlens_Playwright/
 │   ├── rules/                        # Agent execution & QA methodology rules
 │   └── workflows/                    # Standard agent verification workflows
 ├── .github/workflows/                # CI/CD & Automation Pipelines
-│   ├── playwright.yml                # Parallel test execution & automated PR pipeline
+│   ├── hrlense-githubactions-workflow.yaml # Parallel test execution & automated PR pipeline
 │   └── docker-publish.yml            # Automated Docker Hub cloud build & push pipeline
 ├── docker/                           # Production Containerization Layer
 │   ├── Dockerfile                    # Optimized Playwright Python base image
@@ -252,7 +252,7 @@ The `.github/workflows/docker-publish.yml` workflow automatically builds and pus
 - **Layer Caching**: Uses GitHub Actions cloud cache (`type=gha`) for fast builds.
 - **Authentication**: Authenticates securely using repository secrets (`DOCKERHUB_TOKEN` and `DOCKERHUB_USERNAME`).
 
-### 3. Automated Test Pipeline (`.github/workflows/playwright.yml`)
+### 3. Automated Test Pipeline (`.github/workflows/hrlense-githubactions-workflow.yaml`)
 The framework includes an enterprise GitHub Actions CI pipeline:
 - **Containerized Test Runs**: Executes tests directly inside the pre-built `adarsh7777/hrlense_playwright:latest` container on `ubuntu-latest`.
 - **Parallel Workers**: Runs parallel tests dynamically across CPU cores using `pytest-xdist` (`-n auto`).

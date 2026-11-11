@@ -1,0 +1,289 @@
+name: "Playwright Tests"
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["main", "develop"]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  ENV: stg
+  HEADLESS: "True"
+  NODE_OPTIONS: "--no-deprecation"
+  NODE_NO_WARNINGS: "1"
+  PYTHONWARNINGS: "ignore"
+
+jobs:
+  # =========================================================================
+  # JOB 1: AUTOMATICALLY CREATE PULL REQUEST ON BRANCH PUSH
+  # =========================================================================
+  create-pr:
+    if: github.event_name == 'push' && github.ref_name != 'main' && github.ref_name != 'develop'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      pr_number: ${{ steps.pr_step.outputs.pr_number }}
+
+    steps:
+      - uses: actions/checkout@v4.3.1
+
+      - name: Compare & Create PR Automatically
+        id: pr_step
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_EXISTS=$(gh pr list --head "${{ github.ref_name }}" --json number -q '.[0].number')
+          if [ -z "$PR_EXISTS" ]; then
+            echo "Creating automated PR comparing branch '${{ github.ref_name }}' with 'main'..."
+            gh pr create \
+              --base main \
+              --head "${{ github.ref_name }}" \
+              --title "Auto PR: ${{ github.ref_name }} -> main" \
+              --body "Automated Pull Request generated on branch push for \`${{ github.ref_name }}\`." \
+              || echo "::warning::To enable auto PR creation, check 'Allow GitHub Actions to create and approve pull requests' in Repository Settings -> Actions -> General -> Workflow permissions."
+            PR_NUM=$(gh pr list --head "${{ github.ref_name }}" --json number -q '.[0].number')
+            echo "pr_number=${PR_NUM}" >> $GITHUB_OUTPUT
+          else
+            echo "PR #${PR_EXISTS} already exists for branch '${{ github.ref_name }}'."
+            echo "pr_number=${PR_EXISTS}" >> $GITHUB_OUTPUT
+          fi
+
+  # =========================================================================
+  # JOB 2: REBUILD DOCKER RUNNER IF DEPENDENCY CHANGES DETECTED (PARALLEL)
+  # =========================================================================
+  rebuild-docker-if-needed:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4.3.1
+        with:
+          fetch-depth: 0
+
+      - name: Check for Dependency Changes
+        id: check_deps
+        run: |
+          git fetch origin main --quiet || true
+          CHANGED_FILES=$(git diff --name-only origin/main...HEAD 2>/dev/null || git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
+          if echo "$CHANGED_FILES" | grep -E "^requirements.txt$|^docker/"; then
+            echo "REBUILD_REQUIRED=true" >> $GITHUB_OUTPUT
+            echo "⚡ Dependency changes detected in requirements.txt or docker/!"
+          else
+            echo "REBUILD_REQUIRED=false" >> $GITHUB_OUTPUT
+            echo "✅ No dependency modifications detected."
+          fi
+
+      - name: Set up Docker Buildx
+        if: steps.check_deps.outputs.REBUILD_REQUIRED == 'true' && env.DOCKER_SECRET_PRESENT == 'true'
+        env:
+          DOCKER_SECRET_PRESENT: ${{ secrets.DOCKERHUB_TOKEN != '' }}
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        if: steps.check_deps.outputs.REBUILD_REQUIRED == 'true' && env.DOCKER_SECRET_PRESENT == 'true'
+        env:
+          DOCKER_SECRET_PRESENT: ${{ secrets.DOCKERHUB_TOKEN != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME || 'adarsh7777' }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and Push Fresh Docker Image
+        if: steps.check_deps.outputs.REBUILD_REQUIRED == 'true' && env.DOCKER_SECRET_PRESENT == 'true'
+        env:
+          DOCKER_SECRET_PRESENT: ${{ secrets.DOCKERHUB_TOKEN != '' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: true
+          tags: adarsh7777/hrlense_playwright:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # =========================================================================
+  # JOB 3: CONTAINERIZED TEST RUNNER
+  # =========================================================================
+  test:
+    needs: [create-pr, rebuild-docker-if-needed]
+    if: always() && !cancelled() && needs.create-pr.result != 'failure' && needs.rebuild-docker-if-needed.result != 'failure'
+    runs-on: ubuntu-latest
+    container:
+      image: adarsh7777/hrlense_playwright:latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4.3.1
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git Safe Directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: "Pre-flight: Check for Merge Conflicts with Main"
+        if: github.ref_name != 'main'
+        run: |
+          echo "🔍 Checking for merge conflicts with origin/main..."
+          git fetch origin main --quiet
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          if git merge --no-commit --no-ff origin/main; then
+            if [ -f .git/MERGE_HEAD ]; then
+              git merge --abort
+            fi
+            echo "✅ No merge conflicts detected with origin/main."
+          else
+            echo "::error::Branch has merge conflicts with origin/main! Please merge origin/main and resolve conflicts."
+            if [ -f .git/MERGE_HEAD ]; then
+              git merge --abort
+            fi
+            exit 1
+          fi
+
+      - name: "Pre-flight: Check for Conflict Markers in Code"
+        run: |
+          echo "🔍 Checking for unresolved git conflict markers..."
+          if git grep -nE "^<{7} |^={7}$|^>{7} " -- ':!*.md' ':!*.log'; then
+            echo "::error::Unresolved conflict markers found in repository files!"
+            exit 1
+          else
+            echo "✅ Zero conflict markers detected."
+          fi
+
+      - name: Create .env file
+        env:
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+        run: printf '%s' "$ENV_FILE" > .env
+
+      - name: Ensure fresh dependencies
+        run: |
+          if [ -f requirements.txt ]; then
+            pip install --quiet --no-cache-dir -r requirements.txt
+          fi
+
+      - name: "Pre-flight: Test Collection & Import Validation"
+        run: |
+          echo "🔍 Validating Python syntax, test imports, and fixtures..."
+          OUTPUT=$(pytest --collect-only -q 2>&1) || {
+            echo "::error::Pytest collection failed!"
+            echo "$OUTPUT"
+            exit 1
+          }
+          echo "$OUTPUT" | grep -E "tests collected|deselected" || echo "Test collection completed."
+          echo "✅ All tests, POMs, workflows, and fixtures collected cleanly."
+
+      # Dynamic Suite Marker Evaluation with Smart Commit Message Override
+      - name: Run Test Suite
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          if echo "$COMMIT_MSG" | grep -iE "\[run regression\]"; then
+            MARKER="regression"
+          elif echo "$COMMIT_MSG" | grep -iE "\[run sanity\]"; then
+            MARKER="sanity"
+          elif echo "$COMMIT_MSG" | grep -iE "\[run asset\]"; then
+            MARKER="asset"
+          elif echo "$COMMIT_MSG" | grep -iE "\[run attendance\]"; then
+            MARKER="attendance"
+          elif [ "${{ github.ref_name }}" = "develop" ]; then
+            MARKER="smoke or sanity"
+          elif [ "${{ github.ref_name }}" = "main" ]; then
+            MARKER="smoke or regression"
+          else
+            MARKER="smoke"
+          fi
+
+          echo "Executing test suite (-n auto) with marker: $MARKER"
+          pytest -m "$MARKER" \
+            -n auto \
+            --reruns 2 \
+            --reruns-delay 1 \
+            --html=reports/report.html \
+            --self-contained-html \
+            --maxfail=1 \
+            --disable-warnings \
+            --tb=short
+
+      # Add GitHub Step Summary
+      - name: Add Execution Summary
+        if: always()
+        run: |
+          echo "### 🧪 HRlens Playwright Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target Environment**: \`$ENV\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch / Ref**: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Execution Mode**: Parallel (-n auto)" >> $GITHUB_STEP_SUMMARY
+          echo "- **HTML Report & Traces**: Download artifact \`pytest-report\` to inspect execution results and Playwright \`.zip\` traces." >> $GITHUB_STEP_SUMMARY
+
+      # Upload HTML Test Report, Logs, and Traces
+      - name: Upload Test Report & Traces
+        if: always()
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: pytest-report
+          path: |
+            reports/
+            logs/
+            .pytest_cache/
+            test-results/
+
+      # Post Failure Comment Directly to PR on Test Failure
+      - name: Post Failure Comment on PR
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUM="${{ github.event.pull_request.number || needs.create-pr.outputs.pr_number }}"
+          if [ -n "$PR_NUM" ]; then
+            echo "Posting failure notification on PR #${PR_NUM}..."
+            gh pr comment "$PR_NUM" --body "### ❌ Playwright Tests Failed
+            **Automatic merge is BLOCKED.**
+            - Pre-flight or test assertions failed during containerized execution.
+            - Download the **\`pytest-report\`** artifact from this run to view the HTML report, logs, and Playwright DOM traces.
+            - Please fix the failing tests and push again to re-trigger verification." || true
+          fi
+
+  # =========================================================================
+  # JOB 4: PASS -> AUTO-MERGE & BRANCH DELETE | FAIL -> BLOCK MERGE
+  # =========================================================================
+  merge:
+    needs: [test, create-pr]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.3.1
+        with:
+          fetch-depth: 0
+
+      - name: Set Git Identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Auto-Merge PR & Delete Feature Branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUM="${{ github.event.pull_request.number || needs.create-pr.outputs.pr_number }}"
+          if [ -n "$PR_NUM" ]; then
+            echo "✅ Tests passed successfully! Merging Pull Request #${PR_NUM} into main..."
+            gh pr merge "$PR_NUM" --merge --delete-branch --subject "Merge PR #${PR_NUM} into main [skip ci]" || {
+              echo "CLI auto-merge fallback: merging directly..."
+              git checkout main
+              git merge FETCH_HEAD --no-ff -m "Merge PR #${PR_NUM} into main [skip ci]"
+              git push origin main
+            }
+          else
+            echo "Push event on '${{ github.ref_name }}': Tests verified. Keeping feature branch active."
+          fi

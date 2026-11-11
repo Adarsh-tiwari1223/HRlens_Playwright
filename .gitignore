@@ -89,8 +89,16 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 
-# Documentation and Specs
+# Documentation, Manuals and Flowcharts
 specs/
+*.docx
+!testdata/static/**/*.docx
+*flow*.md
+*user_manual*.md
+module_wise_workflow_image/
+screenshots/
+downloads/
+*.har
 
 # Scratch files
 scratch/

@@ -60,6 +60,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    outputs:
+      rebuild_required: ${{ steps.check_deps.outputs.REBUILD_REQUIRED }}
     steps:
       - uses: actions/checkout@v4.3.1
         with:
@@ -163,24 +165,14 @@ jobs:
         run: printf '%s' "$ENV_FILE" > .env
 
       - name: Ensure fresh dependencies
+        if: needs.rebuild-docker-if-needed.outputs.rebuild_required == 'true'
         run: |
           if [ -f requirements.txt ]; then
             pip install --quiet --no-cache-dir -r requirements.txt
           fi
 
-      - name: "Pre-flight: Test Collection & Import Validation"
-        run: |
-          echo "🔍 Validating Python syntax, test imports, and fixtures..."
-          OUTPUT=$(pytest --collect-only -q 2>&1) || {
-            echo "::error::Pytest collection failed!"
-            echo "$OUTPUT"
-            exit 1
-          }
-          echo "$OUTPUT" | grep -E "tests collected|deselected" || echo "Test collection completed."
-          echo "✅ All tests, POMs, workflows, and fixtures collected cleanly."
-
       # Dynamic Suite Marker Evaluation with Smart Commit Message Override
-      - name: Run Test Suite
+      - name: Determine Test Suite Marker
         run: |
           COMMIT_MSG=$(git log -1 --pretty=%B)
           if echo "$COMMIT_MSG" | grep -iE "\[run regression\]"; then
@@ -198,7 +190,22 @@ jobs:
           else
             MARKER="smoke"
           fi
+          echo "Selected suite marker: $MARKER"
+          echo "MARKER=$MARKER" >> $GITHUB_ENV
 
+      - name: "Pre-flight: Test Collection & Import Validation"
+        run: |
+          echo "🔍 Validating syntax, imports, and collection for target suite ($MARKER)..."
+          OUTPUT=$(pytest -m "$MARKER" --collect-only -q 2>&1) || {
+            echo "::error::Pytest collection failed for marker $MARKER!"
+            echo "$OUTPUT"
+            exit 1
+          }
+          echo "$OUTPUT" | grep -E "tests collected|deselected" || echo "Test collection completed."
+          echo "✅ Target test suite collected cleanly."
+
+      - name: Run Test Suite
+        run: |
           echo "Executing test suite (-n auto) with marker: $MARKER"
           pytest -m "$MARKER" \
             -n auto \
@@ -217,20 +224,20 @@ jobs:
           echo "### 🧪 HRlens Playwright Test Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Target Environment**: \`$ENV\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Branch / Ref**: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Execution Mode**: Parallel (-n auto)" >> $GITHUB_STEP_SUMMARY
-          echo "- **HTML Report & Traces**: Download artifact \`pytest-report\` to inspect execution results and Playwright \`.zip\` traces." >> $GITHUB_STEP_SUMMARY
+          echo "- **Suite Marker**: \`$MARKER\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Execution Mode**: Parallel (-n auto, loadgroup)" >> $GITHUB_STEP_SUMMARY
 
-      # Upload HTML Test Report, Logs, and Traces
-      - name: Upload Test Report & Traces
-        if: always()
+      # Upload HTML Test Report, Logs, and Traces on Failure
+      - name: Upload Test Report & Traces on Failure
+        if: failure()
         uses: actions/upload-artifact@v4.6.2
         with:
           name: pytest-report
           path: |
             reports/
             logs/
-            .pytest_cache/
             test-results/
+          retention-days: 14
 
       # Post Failure Comment Directly to PR on Test Failure
       - name: Post Failure Comment on PR

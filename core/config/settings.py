@@ -34,13 +34,14 @@ logger = logging.getLogger(__name__)
 # Active Headless configuration (CLI or environment variable override)
 HEADLESS = os.getenv("HEADLESS", "False").lower() == "true" or os.getenv("CI", "false").lower() == "true"
 
-# Print startup banner matching existing behavior
-print("\n" + "=" * 50)
-print("HRlens Playwright - Active Configuration")
-print("=" * 50)
-print(f"ENV:        {ENV}")
-print(f"API URL:    {API_BASE_URL}")
-print("=" * 50 + "\n")
+# Print startup banner when verbose config is requested or in direct execution
+if os.getenv("VERBOSE_CONFIG", "").lower() in ("1", "true"):
+    print("\n" + "=" * 50)
+    print("HRlens Playwright - Active Configuration")
+    print("=" * 50)
+    print(f"ENV:        {ENV}")
+    print(f"API URL:    {API_BASE_URL}")
+    print("=" * 50 + "\n")
 
 logger.info(f"Active ENV: {ENV}")
 logger.info(f"Active API URL: {API_BASE_URL}")

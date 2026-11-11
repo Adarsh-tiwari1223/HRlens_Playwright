@@ -164,17 +164,23 @@ jobs:
           ENV_FILE: ${{ secrets.ENV_FILE }}
         run: printf '%s' "$ENV_FILE" > .env
 
-      - name: Ensure fresh dependencies
+      - name: Verify & Prepare Dependencies
         run: |
-          if [ "${{ needs.rebuild-docker-if-needed.outputs.rebuild_required }}" = "true" ] || ! python -c "import google.oauth2, googleapiclient" >/dev/null 2>&1; then
-            echo "⚡ Installing or updating missing Python packages..."
-            pip install --quiet -r requirements.txt
+          export PIP_ROOT_USER_ACTION=ignore
+          export PIP_DISABLE_PIP_VERSION_CHECK=1
+          export PIP_NO_CACHE_DIR=1
+          if [ "${{ needs.rebuild-docker-if-needed.outputs.rebuild_required }}" = "true" ]; then
+            echo "⚡ Upgrading requirements from requirements.txt..."
+            pip install --quiet --no-warn-script-location -r requirements.txt
+          elif ! python -c "import google.oauth2, googleapiclient" >/dev/null 2>&1; then
+            echo "⚡ Installing optional integrations..."
+            pip install --quiet --no-warn-script-location google-auth google-api-python-client google-auth-httplib2
           else
             echo "✅ Container environment dependencies are fully satisfied."
           fi
 
       # Centralized Suite & Target Resolution from core.config.suites
-      - name: Determine Test Suite & Targets
+      - name: Resolve Target Test Suite
         run: |
           COMMIT_MSG=$(git log -1 --pretty=%B)
           if echo "$COMMIT_MSG" | grep -iE "\[run regression\]"; then
@@ -197,14 +203,21 @@ jobs:
           import os
           from core.config.suites import SUITE_REGISTRY
           suite_name = '$SUITE'
-          suite_info = SUITE_REGISTRY.get(suite_name, SUITE_REGISTRY['smoke'])
-          marker = suite_info.get('marker', suite_name)
-          files = ' '.join(suite_info.get('files', ['tests/']))
-          print(f'Suite: {suite_info.get(\"name\", suite_name)}')
-          print(f'Target files: {files}')
-          print(f'Marker: {marker}')
+          info = SUITE_REGISTRY.get(suite_name, SUITE_REGISTRY['smoke'])
+          marker = info.get('marker', suite_name)
+          files = ' '.join(info.get('files', ['tests/']))
+          desc = info.get('description', '')
+          name = info.get('name', suite_name)
+          print(f'::notice title=Suite Selected::{name} ({marker})')
+          print('=' * 65)
+          print(f'🎯 Selected Suite : {name}')
+          print(f'📌 Pytest Marker  : {marker}')
+          print(f'📝 Description    : {desc}')
+          print(f'📂 Target Files   : {files}')
+          print('=' * 65)
           with open(os.environ['GITHUB_ENV'], 'a') as f:
               f.write(f'SUITE_NAME={suite_name}\n')
+              f.write(f'SUITE_TITLE={name}\n')
               f.write(f'SUITE_MARKER={marker}\n')
               f.write(f'SUITE_FILES={files}\n')
           "
@@ -222,11 +235,12 @@ jobs:
 
       - name: Run Test Suite
         run: |
-          echo "Executing test suite (-n auto, loadgroup) on $SUITE_FILES with marker: $SUITE_MARKER"
+          echo "🚀 Executing $SUITE_TITLE in parallel (-n auto, loadfile)..."
           pytest $SUITE_FILES \
             -m "$SUITE_MARKER" \
             -n auto \
-            --reruns 2 \
+            --dist=loadfile \
+            --reruns 1 \
             --reruns-delay 1 \
             --html=reports/report.html \
             --self-contained-html \
@@ -234,17 +248,19 @@ jobs:
             --disable-warnings \
             --tb=short
 
-      # Add GitHub Step Summary
+      # Executive GitHub Step Summary
       - name: Add Execution Summary
         if: always()
         run: |
-          echo "### 🧪 HRlens Playwright Test Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- **Target Environment**: \`$ENV\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Branch / Ref**: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Suite**: \`$SUITE_NAME\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Target Files**: \`$SUITE_FILES\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Marker**: \`$SUITE_MARKER\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Execution Mode**: Parallel (-n auto, loadgroup)" >> $GITHUB_STEP_SUMMARY
+          echo "## 🧪 HRlens Playwright Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Target Environment** | \`$ENV\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Branch / Ref** | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Suite** | **$SUITE_TITLE** |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Marker Filter** | \`$SUITE_MARKER\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Distribution** | \`loadfile\` (Isolated Per Module) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Target Files** | \`$SUITE_FILES\` |" >> $GITHUB_STEP_SUMMARY
 
       # Upload HTML Test Report, Logs, and Traces on Failure
       - name: Upload Test Report & Traces on Failure

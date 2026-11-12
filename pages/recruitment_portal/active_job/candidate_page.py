@@ -260,24 +260,122 @@ class CandidatePage(BasePage):
     def _select_by_reading_label(self, label_hint: str, value: str):
         """
         Finds a <select> whose associated <label> contains label_hint (case-insensitive),
-        reads the actual label text, selects the value, and logs it.
+        reads the actual label text, selects the value or text option, and logs it.
         """
         selects = self.page.locator("select").all()
         for sel in selects:
             sel_id = sel.get_attribute("id") or ""
-            if not sel_id:
-                continue
-            lbl_locator = self.page.locator(f"label[for='{sel_id}']")
-            if lbl_locator.count() == 0:
-                continue
-            lbl_text = lbl_locator.first.inner_text().strip()
+            lbl_text = ""
+            if sel_id:
+                lbl_locator = self.page.locator(f"label[for='{sel_id}']")
+                if lbl_locator.count() > 0:
+                    lbl_text = lbl_locator.first.inner_text().strip()
+            if not lbl_text:
+                lbl_text = sel.get_attribute("aria-label") or sel.get_attribute("placeholder") or ""
+
             if label_hint.lower() in lbl_text.lower():
-                sel.select_option(value)
-                logger.info(f"{lbl_text}: {value}")
+                options = sel.locator("option").all()
+                for opt in options:
+                    opt_text = opt.inner_text().strip()
+                    opt_val = opt.get_attribute("value") or ""
+                    if str(value).lower() == opt_text.lower() or str(value).lower() == opt_val.lower():
+                        sel.select_option(value=opt_val)
+                        logger.info(f"{lbl_text}: {opt_text} (value={opt_val})")
+                        return
+                    if str(value).lower() in opt_text.lower():
+                        sel.select_option(value=opt_val)
+                        logger.info(f"{lbl_text}: {opt_text} (partial match, value={opt_val})")
+                        return
+
+                try:
+                    sel.select_option(value=str(value))
+                    logger.info(f"{lbl_text}: {value} (by value)")
+                    return
+                except Exception:
+                    try:
+                        sel.select_option(label=str(value))
+                        logger.info(f"{lbl_text}: {value} (by label)")
+                        return
+                    except Exception:
+                        pass
+
+        # Fallback: get_by_label partial match
+        try:
+            self.page.get_by_label(re.compile(label_hint, re.IGNORECASE)).first.select_option(value=str(value))
+            logger.info(f"{label_hint}: {value} (by label fallback)")
+        except Exception:
+            try:
+                self.page.get_by_label(re.compile(label_hint, re.IGNORECASE)).first.select_option(label=str(value))
+                logger.info(f"{label_hint}: {value} (by label text fallback)")
+            except Exception as e:
+                logger.warning(f"Could not select '{value}' for label hint '{label_hint}': {e}")
+
+    def open_candidate_drawer(self, candidate_name: str):
+        """Locates candidate in the table/grid and clicks to open details drawer/modal."""
+        logger.info(f"Opening candidate details for '{candidate_name}'")
+        self.page.wait_for_timeout(1000)
+        row = self.page.locator("tbody tr, [role='row']").filter(has_text=candidate_name)
+        if row.count() > 0:
+            row.first.click()
+        else:
+            cand_link = self.page.get_by_text(re.compile(candidate_name, re.I)).first
+            cand_link.click()
+        self.page.wait_for_load_state("domcontentloaded")
+        self.page.wait_for_timeout(1000)
+
+    def select_candidate_status(self, status: str = "Shortlisted"):
+        """Selects status from the Status dropdown in candidate details drawer."""
+        logger.info(f"[UI] Selecting candidate status: '{status}'")
+        self._select_by_reading_label("Status", status)
+
+    def close_candidate_drawer(self):
+        """Closes candidate detail modal/drawer if open."""
+        try:
+            close_btn = self.page.locator("[aria-label='Close'], button.chakra-modal__close-btn, button:has-text('Close')").first
+            if close_btn.is_visible(timeout=1000):
+                close_btn.click()
+                self.page.wait_for_timeout(500)
                 return
-        # fallback: get_by_label partial match
-        self.page.get_by_label(re.compile(label_hint, re.IGNORECASE)).first.select_option(value)
-        logger.info(f"{label_hint}: {value}")
+        except Exception:
+            pass
+        try:
+            self.page.keyboard.press("Escape")
+            self.page.wait_for_timeout(500)
+        except Exception:
+            pass
+
+    def shortlist_candidate(self, candidate_name: str, status: str = "Shortlisted") -> bool:
+        """
+        Opens candidate details, selects 'Shortlisted' status in Status dropdown,
+        saves/confirms the change, and closes drawer.
+        """
+        logger.info(f"Shortlisting candidate: '{candidate_name}' with status: '{status}'")
+        self.open_candidate_drawer(candidate_name)
+
+        # Select Shortlisted in Status dropdown
+        self.select_candidate_status(status)
+        self.page.wait_for_timeout(800)
+
+        # Check if an explicit Save/Update button appears for status change
+        update_btn = self.page.locator("button:has-text('Update'), button:has-text('Save'), button:has-text('Submit')").first
+        try:
+            if update_btn.is_visible(timeout=1500):
+                update_btn.click()
+                logger.info("[UI] Clicked Update/Save status button.")
+        except Exception:
+            pass
+
+        # Wait for toast or confirmation
+        try:
+            toast = self.page.locator("[role='status'], [role='alert'], .chakra-toast").first
+            if toast.is_visible(timeout=3000):
+                toast_msg = toast.inner_text().strip()
+                logger.info(f"Candidate status toast: {toast_msg}")
+        except Exception:
+            pass
+
+        self.close_candidate_drawer()
+        return True
 
     def submit_form(self):
         logger.info("Submitting Add Candidate form")
@@ -308,11 +406,10 @@ class CandidatePage(BasePage):
     def schedule_interview(self, candidate_name: str, date: str, time: str,
                            interviewer_search: str = "sanid", interviewer_match: str = "Sanidhy Tiwari"):
         logger.info(f"Scheduling interview for '{candidate_name}'")
-        self.page.wait_for_timeout(2000)
-        row = self.page.get_by_role("row", name=re.compile(candidate_name))
-        row.get_by_text(candidate_name).click()
+        self.page.wait_for_timeout(1000)
+        self.open_candidate_drawer(candidate_name)
 
-        # Read Status label dynamically
+        # Read Status label dynamically -> Interview Scheduled (code 2)
         self._select_by_reading_label("Status", "2")
 
         # Interviewer

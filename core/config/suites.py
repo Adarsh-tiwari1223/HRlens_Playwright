@@ -72,6 +72,19 @@ SUITE_REGISTRY: Dict[str, Dict[str, Any]] = {
         ],
         "test_names": [],
     },
+    "recruitment": {
+        "name": "Recruitment Domain Suite",
+        "description": "Job openings, candidate addition, shortlisting, interview scheduling, and LOI generation",
+        "marker": "recruitment",
+        "files": [
+            "tests/recruitment_portal/ui/active_job/test_recruitment_flow.py",
+            "tests/recruitment_portal/ui/active_job/test_add_candidate.py",
+            "tests/recruitment_portal/ui/active_job/test_candidate_loi_filter.py",
+        ],
+        "test_names": [
+            "test_end_to_end_recruitment_flow",
+        ],
+    },
     "regression": {
         "name": "Full Regression Suite",
         "description": "Complete test coverage across all portals, workflows, and APIs",

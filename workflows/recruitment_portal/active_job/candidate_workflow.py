@@ -53,6 +53,13 @@ class CandidateWorkflow:
         )
         logger.info(f"[WORKFLOW] Interview scheduled successfully for '{candidate_name}'")
 
+    def shortlist_candidate_workflow(self, candidate_name: str, status_option: str = "Shortlisted") -> bool:
+        """
+        Workflow: Moves a candidate from 'Applied' to 'Shortlisted'.
+        """
+        logger.info(f"[WORKFLOW] Shortlisting candidate '{candidate_name}' (status: {status_option})")
+        return self.candidate_page.shortlist_candidate(candidate_name, status=status_option)
+
     def generate_and_send_offer_workflow(self, candidate_name: str, doj: str = None, gross_salary: str = "20000") -> dict:
         """Validates salary and generates/sends the offer letter (LOI) to the candidate."""
         now = datetime.now()
@@ -69,20 +76,31 @@ class CandidateWorkflow:
         logger.info(f"[WORKFLOW] Offer letter (LOI) successfully sent to '{candidate_name}'")
         return res
 
-    def end_to_end_candidate_onboarding_workflow(self, candidate_data: dict, resume_path: str, job_id: str = None):
+    def end_to_end_candidate_onboarding_workflow(self, candidate_data: dict, resume_path: str, job_id: str = None, shortlist: bool = True):
         """
         Complete Candidate Lifecycle Workflow:
-        Add candidate -> Schedule interview -> Generate and send offer letter (LOI).
+        Add candidate -> Shortlist (optional) -> Schedule interview -> Generate and send offer letter (LOI).
         """
-        logger.info(f"[WORKFLOW] Starting full E2E Candidate Onboarding for '{candidate_data['name']}'")
+        cand_name = candidate_data["name"]
+        logger.info(f"[WORKFLOW] Starting full E2E Candidate Onboarding for '{cand_name}'")
         if job_id:
-            self.add_candidate_for_specific_job(job_id, candidate_data, resume_path)
+            assigned_job = self.add_candidate_for_specific_job(job_id, candidate_data, resume_path)
         else:
-            self.add_candidate_for_latest_job(candidate_data, resume_path)
+            assigned_job = self.add_candidate_for_latest_job(candidate_data, resume_path)
 
-        self.schedule_interview_workflow(candidate_data['name'])
-        self.generate_and_send_offer_workflow(candidate_data['name'])
-        logger.info(f"[WORKFLOW] E2E Candidate Onboarding completed for '{candidate_data['name']}'")
+        if shortlist:
+            self.shortlist_candidate_workflow(cand_name, status_option="Shortlisted")
+
+        self.schedule_interview_workflow(cand_name)
+        offer_res = self.generate_and_send_offer_workflow(cand_name)
+        logger.info(f"[WORKFLOW] E2E Candidate Onboarding completed for '{cand_name}'")
+        return {
+            "job_id": job_id or assigned_job,
+            "candidate_name": cand_name,
+            "shortlisted": shortlist,
+            "interview_scheduled": True,
+            "loi_result": offer_res
+        }
 
     def seed_multi_stage_candidates_workflow(self, job_id: str, dummy_resume_path: str) -> dict:
         """

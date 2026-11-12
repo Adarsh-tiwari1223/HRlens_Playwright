@@ -223,6 +223,32 @@ class JobOpeningWorkflow:
         latest_id = self.job_page.get_latest_job_id()
         return latest_id
 
+    def get_existing_active_job_workflow(self) -> str:
+        """
+        Navigates to Active Jobs and retrieves the first/latest available active job code.
+        """
+        self.navigate_to_active_jobs()
+        latest_job_id = self.job_page.get_latest_job_id()
+        logger.info(f"[WORKFLOW] Selected existing active job: {latest_job_id}")
+        return latest_job_id
+
+    def get_or_create_job_opening_workflow(self, create_new: bool = False, summary_text: str = None) -> str:
+        """
+        Unified helper: Creates a new job if create_new=True, otherwise reuses an existing active job.
+        If no existing active job is found, automatically falls back to creating a new one.
+        """
+        if create_new:
+            return self.create_manual_job_opening_workflow(summary_text=summary_text)
+
+        try:
+            job_id = self.get_existing_active_job_workflow()
+            if job_id and job_id.startswith("JOB_POSTING-"):
+                return job_id
+        except Exception as e:
+            logger.warning(f"Could not retrieve existing active job ({e}), creating a new one instead.")
+
+        return self.create_manual_job_opening_workflow(summary_text=summary_text)
+
     def create_job_with_ai_jd_workflow(self) -> dict:
         """
         Business Workflow: Fills mandatory fields, generates AI JD summary, and publishes the job.

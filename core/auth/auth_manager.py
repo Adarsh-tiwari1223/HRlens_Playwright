@@ -125,6 +125,13 @@ def authenticate_user(page: Page, user_key: str = "admin", save_state: bool = Tr
     except Exception:
         page.goto(settings.BASE_URL, timeout=30000, wait_until="commit")
 
+    page_title = (page.title() or "").strip()
+    if any(err in page_title.lower() for err in ["403 - forbidden", "server error", "502 bad gateway", "503 service"]):
+        import pytest
+        pytest.fail(
+            f"[ENVIRONMENT OUTAGE] Target STG server at {page.url} is returning '{page_title}'. Staging server is down."
+        )
+
     try:
         page.get_by_text("Please enter your Login Details", exact=True).wait_for(state="visible", timeout=30000)
     except Exception:

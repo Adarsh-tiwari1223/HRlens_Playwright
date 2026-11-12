@@ -1,4 +1,6 @@
 import logging
+import re
+import pytest
 from pages.base_page import BasePage
 from playwright.sync_api import expect
 
@@ -8,27 +10,60 @@ logger = logging.getLogger(__name__)
 class LoginPage(BasePage):
 
     def _fill_email(self, email: str):
-        try:
-            elem = self.page.locator("input[type='email'], input[name='email' i], input[placeholder*='email' i]").first
-            if elem.is_visible(timeout=10000):
-                elem.fill(email)
-                return
-        except Exception:
-            pass
+        selectors = [
+            "input[type='email']",
+            "input[name='email' i]",
+            "input[placeholder*='email' i]",
+            "input#email",
+        ]
+        for sel in selectors:
+            try:
+                elem = self.page.locator(sel).first
+                if elem.is_visible(timeout=1500):
+                    elem.fill(email)
+                    return
+            except Exception:
+                continue
         self.page.get_by_label("Email").fill(email)
 
     def _fill_password(self, password: str):
-        try:
-            elem = self.page.locator("input[type='password'], input[name='password' i]").first
-            if elem.is_visible(timeout=10000):
-                elem.fill(password)
-                return
-        except Exception:
-            pass
+        selectors = [
+            "input[type='password']",
+            "input[name='password' i]",
+            "input[placeholder*='password' i]",
+            "input#password",
+        ]
+        for sel in selectors:
+            try:
+                elem = self.page.locator(sel).first
+                if elem.is_visible(timeout=1500):
+                    elem.fill(password)
+                    return
+            except Exception:
+                continue
         self.page.get_by_label("Password").fill(password)
 
     def login(self, email: str, password: str):
         logger.info(f"[UI] Log In As               : {email}")
+
+        # Fast detection of environment outage / infrastructure errors (e.g. 403 Forbidden, 502 Bad Gateway)
+        page_title = (self.page.title() or "").strip()
+        body_sample = ""
+        try:
+            body_sample = self.page.locator("body").inner_text(timeout=1000) or ""
+        except Exception:
+            pass
+
+        if any(err in page_title.lower() for err in ["403 - forbidden", "server error", "502 bad gateway", "503 service"]) or \
+           any(err in body_sample.lower() for err in ["403 - forbidden", "access is denied", "502 bad gateway", "503 service unavailable"]):
+            err_msg = (
+                f"[ENVIRONMENT OUTAGE] Target STG server at {self.page.url} is down / inaccessible!\n"
+                f"Page Title: '{page_title}' | Server Status: 403 Forbidden / Server Error.\n"
+                f"Please verify staging server health."
+            )
+            logger.critical(err_msg)
+            pytest.fail(err_msg)
+
         try:
             self.page.wait_for_selector("input, label:has-text('Email')", timeout=15000)
         except Exception:

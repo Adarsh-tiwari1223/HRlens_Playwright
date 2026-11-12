@@ -234,6 +234,31 @@ jobs:
           echo "$OUTPUT" | grep -E "tests collected|deselected" || echo "Test collection completed."
           echo "✅ Selected suite ($SUITE_NAME) collected cleanly."
 
+      - name: "Pre-flight: Staging Environment Health Check"
+        run: |
+          python -c "
+          import urllib.request, ssl, sys
+          from core.config import settings
+
+          url = settings.BASE_URL
+          print(f'Checking target STG environment: {url}')
+          ctx = ssl.create_default_context()
+          ctx.check_hostname = False
+          ctx.verify_mode = ssl.CERT_NONE
+          req = urllib.request.Request(
+              url,
+              headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+          )
+          try:
+              with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
+                  print(f'✅ STG environment is UP and reachable (HTTP {resp.status}).')
+          except urllib.error.HTTPError as e:
+              print(f'::warning title=STG Environment Outage::Target STG environment ({url}) returned HTTP {e.code} ({e.reason})!')
+              print(f'⚠️ ALERT: Staging server is returning HTTP {e.code} {e.reason}. Test failures may be due to environment downtime.')
+          except Exception as e:
+              print(f'::warning title=STG Environment Unreachable::Could not connect to {url}: {e}')
+          "
+
       - name: Run Test Suite
         run: |
           echo "🚀 Executing $SUITE_TITLE in parallel (-n auto, loadfile)..."

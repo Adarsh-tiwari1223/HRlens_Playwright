@@ -6,6 +6,11 @@ from core.config import settings
 @pytest.fixture
 def login_page(page):
     page.goto(settings.BASE_URL, timeout=60000, wait_until="domcontentloaded")
+    page_title = (page.title() or "").strip()
+    if any(err in page_title.lower() for err in ["403 - forbidden", "server error", "502 bad gateway", "503 service"]):
+        pytest.fail(
+            f"[ENVIRONMENT OUTAGE] Target STG server at {page.url} returned '{page_title}'. Staging server is down."
+        )
     return LoginPage(page)
 
 

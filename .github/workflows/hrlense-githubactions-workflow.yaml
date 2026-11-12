@@ -284,24 +284,12 @@ jobs:
           PR_NUM="${{ needs.create-pr.outputs.pr_number }}"
           if [ -n "$PR_NUM" ] && [ -n "$GH_TOKEN" ]; then
             echo "Posting failure notification on PR #${PR_NUM}..."
-            python -c "
-import urllib.request, json, os
-url = 'https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUM}/comments'
-headers = {
-    'Authorization': f'Bearer {os.environ.get(\"GH_TOKEN\", \"\")}',
-    'Accept': 'application/vnd.github.v3+json',
-    'Content-Type': 'application/json'
-}
-body = {
-    'body': '### ❌ Playwright Tests Failed\n**Automatic merge is BLOCKED.**\n- Pre-flight or test assertions failed during containerized execution.\n- Download the **\`pytest-report\`** artifact from this run to view the HTML report, logs, and Playwright DOM traces.\n- Please fix the failing tests and push again to re-trigger verification.'
-}
-req = urllib.request.Request(url, data=json.dumps(body).encode('utf-8'), headers=headers, method='POST')
-try:
-    with urllib.request.urlopen(req) as resp:
-        print('Comment posted successfully.')
-except Exception as e:
-    print(f'Failed to post comment: {e}')
-" || true
+            curl -s -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github.v3+json" \
+              -H "Content-Type: application/json" \
+              https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUM}/comments \
+              -d '{"body":"### ❌ Playwright Tests Failed\n**Automatic merge is BLOCKED.**\n- Pre-flight or test assertions failed during containerized execution.\n- Download the **`pytest-report`** artifact from this run to view the HTML report, logs, and Playwright DOM traces.\n- Please fix the failing tests and push again to re-trigger verification."}' || true
           fi
 
   # =========================================================================

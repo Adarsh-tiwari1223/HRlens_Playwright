@@ -97,8 +97,95 @@ def test_end_to_end_recruitment_flow(logged_in_page, dummy_resume_path, create_n
     )
     redirect_url = offer_info.get("candidate_form_url", "") if isinstance(offer_info, dict) else ""
     if redirect_url:
-        print(f"  • Captured Candidate Details Form Link: {redirect_url}")
+        print(f"  • Captured Candidate Details Form Link from UI/API: {redirect_url}")
     print(f"  • Offer / LOI dispatched successfully for '{candidate_name}'.")
+
+    # 6. Verify LOI Email Delivery & Extract Candidate Verification URL
+    print(f"\n[STEP 6] Checking Inbox for LOI Email to '{candidate_data['email']}'...")
+    verification_url = redirect_url
+    try:
+        from utils.mail.gmail_client import GmailClient
+        mail_client = GmailClient()
+        loi_email = mail_client.wait_for_email(
+            subject_keyword="Intent",
+            employee_name=candidate_name,
+            timeout_sec=30,
+            poll_interval=5
+        )
+
+        if loi_email:
+            print(f"  • [INBOX VERIFIED] Found LOI Email: '{loi_email.get('subject')}'")
+            print(f"  • Date: {loi_email.get('date')}")
+            print(f"  • Snippet: {loi_email.get('snippet')}")
+            email_body = loi_email.get("body", "")
+            found_urls = re.findall(r'https?://[^\s<>"\']+', email_body)
+            print(f"  • Links in Email Body: {found_urls}")
+            for u in found_urls:
+                if any(k in u.lower() for k in ["otp", "verification", "candidate", "jobvritta"]):
+                    verification_url = u
+                    print(f"  • [VERIFICATION LINK FOUND] Candidate Verification URL: {u}")
+                    break
+        else:
+            print(f"  • [INBOX NOTE] LOI email not received within 30s. Using direct verification link: '{verification_url}'")
+
+        if verification_url:
+            # 7. Candidate Acceptance & 5-Stepper Onboarding Flow
+            print("\n[STEP 7/7] Executing Candidate Acceptance & 5-Stepper Onboarding in clean candidate context...")
+            cand_context = page.context.browser.new_context(viewport={"width": 1920, "height": 1080})
+            cand_page = cand_context.new_page()
+            try:
+                from pages.recruitment_portal.candidate_acceptance_page import CandidateAcceptancePage
+                cand_workflow = CandidateWorkflow(cand_page)
+                acceptance_page = CandidateAcceptancePage(cand_page)
+
+                import time
+                session_start = time.time()
+                acceptance_page.navigate_to_verification_url(verification_url)
+
+                # Fetch fresh OTP dispatched for this session
+                time.sleep(8)
+                otp_code = mail_client.get_candidate_otp(since_epoch_sec=session_start, timeout_sec=45)
+                assert otp_code, f"Failed to retrieve OTP from candidate inbox for {candidate_data['email']}"
+                print(f"  • [GMAIL OTP AUTO-FETCHED] Extracted active session OTP: '{otp_code}'")
+
+                # Enter OTP and proceed
+                acceptance_page.verify_otp_and_proceed(otp_code)
+                cand_page.wait_for_timeout(3000)
+
+                # Review & Accept Offer
+                if acceptance_page.is_offer_review_visible():
+                    summary = acceptance_page.get_offer_summary()
+                    print(f"  • Candidate Offer Details: {summary}")
+                    acceptance_page.accept_offer()
+                    print("  • Offer Accepted successfully by Candidate.")
+
+                # Complete 5-Stepper Wizard
+                onboarding_success = cand_workflow.complete_candidate_onboarding_stepper_workflow()
+                assert onboarding_success, "Candidate Onboarding Stepper was not successfully submitted!"
+                print("  • [ONBOARDING COMPLETE] Successfully submitted 5-stepper form with all details and documents!")
+            finally:
+                cand_page.close()
+                cand_context.close()
+
+            # 8. Verify Candidate appears in Admin Onboarding Candidate List (/onboardingCandidateList)
+            print(f"\n[STEP 8/9] Verifying '{candidate_name}' on Onboarding Candidate List (/onboardingCandidateList)...")
+            onboarding_record = candidate_workflow.verify_candidate_in_onboarding_list_workflow(
+                candidate_name=candidate_name,
+                expected_status="Accepted"
+            )
+            print(f"  • [VERIFIED ON ONBOARDING LIST] Name: '{onboarding_record.get('name')}' | Status: '{onboarding_record.get('status')}' | Profile: '{onboarding_record.get('job_profile')}' | DOJ: '{onboarding_record.get('doj')}'")
+
+            # 9. HR Review & Approval (Approve All & Verify)
+            print(f"\n[STEP 9/9] Performing HR Review and Approval for '{candidate_name}'...")
+            hr_review_result = candidate_workflow.hr_review_and_approve_candidate_workflow(
+                candidate_name=candidate_name
+            )
+            assert hr_review_result.get("approval_success"), f"HR Review approval failed for candidate '{candidate_name}'!"
+            print(f"  • [HR REVIEW APPROVED] Candidate '{candidate_name}' successfully approved and verified by HR!")
+            print(f"  • Header Summary: {hr_review_result.get('header_summary')}")
+    except Exception as mail_err:
+        print(f"  • [ERROR] Candidate Verification / Onboarding failed: {mail_err}")
+        raise mail_err
 
     print("\n" + "=" * 70)
     print(f"  [SUCCESS] Full Recruitment Flow Completed for '{candidate_name}' on '{target_job_id}'!")

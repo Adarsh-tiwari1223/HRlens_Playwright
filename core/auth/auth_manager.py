@@ -199,63 +199,62 @@ def get_authenticated_context(
     - Normal employees & IT persons: Always perform full UI authentication without cached session state.
     Returns (page, context) tuple.
     """
-    # Only admin is permitted to use cached session storage state
-    if user_key == "admin":
-        auth_path = get_auth_state_path(user_key)
-        state_exists = is_auth_state_fresh(auth_path)
+    # Use cached session storage state if available and fresh
+    auth_path = get_auth_state_path(user_key)
+    state_exists = is_auth_state_fresh(auth_path)
 
-        if state_exists:
+    if state_exists:
+        try:
+            with open(auth_path, "r", encoding="utf-8") as f:
+                saved_data = json.load(f)
+
+            session_storage_data = saved_data.get("sessionStorage", {})
+
+            logger.info(f"Reusing cached storage state for '{user_key}' from {auth_path}")
+            context = create_browser_context(browser, custom_options={"storage_state": auth_path}, har_path=har_path)
+
+            if session_storage_data:
+                ss_json = json.dumps(session_storage_data)
+                context.add_init_script(f"""
+                    try {{
+                        const data = {ss_json};
+                        for (const [k, v] of Object.entries(data)) {{
+                            sessionStorage.setItem(k, v);
+                        }}
+                    }} catch (e) {{}}
+                """)
+
+            page = context.new_page()
             try:
-                with open(auth_path, "r", encoding="utf-8") as f:
-                    saved_data = json.load(f)
+                page.goto(settings.BASE_URL, timeout=30000, wait_until="domcontentloaded")
+            except Exception:
+                page.goto(settings.BASE_URL, timeout=30000, wait_until="commit")
 
-                session_storage_data = saved_data.get("sessionStorage", {})
+            # Check if login modal/prompt is present or URL has /login
+            has_login_modal = False
+            try:
+                has_login_modal = page.get_by_text("Please enter your Login Details", exact=True).is_visible(timeout=2500)
+            except Exception:
+                pass
 
-                logger.info(f"Reusing cached storage state for '{user_key}' from {auth_path}")
-                context = create_browser_context(browser, custom_options={"storage_state": auth_path}, har_path=har_path)
+            is_logged_in = ("/login" not in page.url) and not has_login_modal
 
-                if session_storage_data:
-                    ss_json = json.dumps(session_storage_data)
-                    context.add_init_script(f"""
-                        try {{
-                            const data = {ss_json};
-                            for (const [k, v] of Object.entries(data)) {{
-                                sessionStorage.setItem(k, v);
-                            }}
-                        }} catch (e) {{}}
-                    """)
+            if is_logged_in:
+                logger.info(f"Cached session state for '{user_key}' is active (URL: {page.url}).")
+                dismiss_post_login_cards(page)
+                return page, context
 
-                page = context.new_page()
-                try:
-                    page.goto(settings.BASE_URL, timeout=30000, wait_until="domcontentloaded")
-                except Exception:
-                    page.goto(settings.BASE_URL, timeout=30000, wait_until="commit")
+            logger.info(f"Cached session for '{user_key}' expired/invalid. Performing full UI re-authentication...")
+            try:
+                context.close()
+            except Exception:
+                pass
+        except Exception as err:
+            logger.warning(f"Error loading auth state for '{user_key}': {err}")
 
-                # Check if login modal/prompt is present or URL has /login
-                has_login_modal = False
-                try:
-                    has_login_modal = page.get_by_text("Please enter your Login Details", exact=True).is_visible(timeout=2500)
-                except Exception:
-                    pass
-
-                is_logged_in = ("/login" not in page.url) and not has_login_modal
-
-                if is_logged_in:
-                    logger.info(f"Cached session state for '{user_key}' is active (URL: {page.url}).")
-                    dismiss_post_login_cards(page)
-                    return page, context
-
-                logger.info(f"Cached session for '{user_key}' expired/invalid. Performing full UI re-authentication...")
-                try:
-                    context.close()
-                except Exception:
-                    pass
-            except Exception as err:
-                logger.warning(f"Error loading auth state for '{user_key}': {err}")
-
-    # For normal employees, IT persons, or admin cache miss: perform full UI authentication
-    logger.info(f"Performing direct UI login for user: '{user_key}' (cached session disabled)")
+    # For cache miss: perform full UI authentication and persist storage state
+    logger.info(f"Performing direct UI login for user: '{user_key}'")
     context = create_browser_context(browser, har_path=har_path)
     page = context.new_page()
-    authenticate_user(page, user_key=user_key, save_state=(user_key == "admin"))
+    authenticate_user(page, user_key=user_key, save_state=True)
     return page, context

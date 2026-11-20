@@ -13,6 +13,10 @@ import logging
 from datetime import datetime, timedelta
 from playwright.sync_api import Page
 from pages.recruitment_portal.active_job.candidate_page import CandidatePage
+from pages.recruitment_portal.candidate_acceptance_page import CandidateAcceptancePage
+from pages.recruitment_portal.candidate_onboarding_stepper_page import CandidateOnboardingStepperPage
+from pages.recruitment_portal.onboarding_candidate_list_page import OnboardingCandidateListPage
+from pages.recruitment_portal.hr_review_onboarding_page import HrReviewOnboardingPage
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +79,139 @@ class CandidateWorkflow:
         )
         logger.info(f"[WORKFLOW] Offer letter (LOI) successfully sent to '{candidate_name}'")
         return res
+
+    def verify_candidate_acceptance_workflow(self, verification_url: str, otp_code: str, accept: bool = True) -> dict:
+        """
+        Workflow: Candidate accesses the verification link, verifies acceptance via 6-digit OTP,
+        and optionally accepts/confirms the offer.
+        Returns dict containing extracted offer summary.
+        """
+        logger.info(f"[WORKFLOW] Navigating to Candidate Verification page: {verification_url}")
+        acceptance_page = CandidateAcceptancePage(self.page)
+        acceptance_page.navigate_to_verification_url(verification_url)
+        acceptance_page.verify_otp_and_proceed(otp_code)
+        logger.info("[WORKFLOW] Candidate OTP verification submitted.")
+
+        offer_summary = {}
+        if acceptance_page.is_offer_review_visible():
+            offer_summary = acceptance_page.get_offer_summary()
+            if accept:
+                acceptance_page.accept_offer()
+                logger.info("[WORKFLOW] Offer accepted by candidate.")
+            else:
+                acceptance_page.reject_offer()
+                logger.info("[WORKFLOW] Offer rejected by candidate.")
+
+        return offer_summary
+
+    def complete_candidate_onboarding_stepper_workflow(self, onboarding_data: dict = None) -> bool:
+        """
+        Executes the full 5-Stepper Candidate Onboarding Wizard:
+        Step 1: Basic Details
+        Step 2: Family Details
+        Step 3: Education Details
+        Step 4: Identity & Bank Details
+        Step 5: Document Upload & Final Submission Confirmation
+        Returns True if success card ('Thank You !') is verified.
+        """
+        data = onboarding_data or {}
+        stepper_page = CandidateOnboardingStepperPage(self.page)
+
+        logger.info("[WORKFLOW] Starting 5-Stepper Candidate Onboarding Wizard...")
+
+        # Step 1: Basic Details
+        stepper_page.fill_step_1_basic_details(data.get("basic_details"))
+        stepper_page.click_save_and_next()
+
+        # Step 2: Family Details
+        stepper_page.fill_step_2_family_details(data.get("family_details"))
+        stepper_page.click_save_and_next()
+
+        # Step 3: Education Details
+        stepper_page.fill_step_3_education_details(data.get("education_details"))
+        stepper_page.click_save_and_next()
+
+        # Step 4: Identity & Bank Details
+        stepper_page.fill_step_4_identity_bank_details(data.get("bank_details"))
+        stepper_page.click_save_and_next()
+
+        # Step 5: Document Upload & Final Submit
+        stepper_page.fill_step_5_document_upload(data.get("document_details"))
+        stepper_page.click_save_and_submit()
+        stepper_page.confirm_submission()
+
+        # Verify Success Page
+        is_submitted = stepper_page.is_submission_successful()
+        logger.info(f"[WORKFLOW] Candidate Onboarding Stepper Completed: Success={is_submitted}")
+        return is_submitted
+
+    def verify_candidate_in_onboarding_list_workflow(self, candidate_name: str, expected_status: str = "Accepted") -> dict:
+        """
+        Workflow: Navigates to Onboarding Candidate List (/onboardingCandidateList),
+        searches for the candidate, verifies their status (e.g. 'Accepted'),
+        and returns the candidate's row details dictionary.
+        """
+        logger.info(f"[WORKFLOW] Verifying Candidate '{candidate_name}' in Onboarding Candidate List with status '{expected_status}'...")
+        list_page = OnboardingCandidateListPage(self.page)
+        list_page.navigate_to_onboarding_list()
+        list_page.search_candidate(candidate_name)
+
+        is_present = list_page.is_candidate_present(candidate_name)
+        assert is_present, f"Candidate '{candidate_name}' not found in Onboarding Candidate List table!"
+
+        details = list_page.get_candidate_details(candidate_name)
+        actual_status = details.get("status", "")
+        logger.info(f"[WORKFLOW] Candidate '{candidate_name}' record extracted: {details}")
+        assert actual_status.strip().lower() == expected_status.strip().lower(), \
+            f"Candidate status mismatch in Onboarding List! Expected '{expected_status}', got '{actual_status}'"
+
+        logger.info(f"[WORKFLOW] Candidate '{candidate_name}' successfully verified with status '{expected_status}' in Onboarding List.")
+        return details
+
+    def hr_review_and_approve_candidate_workflow(self, candidate_name: str, review_tabs: bool = True) -> dict:
+        """
+        HR Review Workflow:
+        1. Navigates to Onboarding Candidate List (/onboardingCandidateList).
+        2. Searches for candidate and clicks the Action Arrow.
+        3. Verifies 'HR Review - Candidate On Boarding' page is loaded.
+        4. Extracts Candidate Header Summary (Candidate ID, Salary, Joining Date, Review Status).
+        5. Optionally reviews all 4 detail tabs:
+           - Candidate Details
+           - Identify and Banking
+           - Employment & Experience
+           - View Document
+        6. Checks 'Approve All' and clicks 'Verify'.
+        7. Returns review summary and approval confirmation.
+        """
+        logger.info(f"[WORKFLOW] Starting HR Review and Approval for candidate '{candidate_name}'...")
+        list_page = OnboardingCandidateListPage(self.page)
+        list_page.navigate_to_onboarding_list()
+        list_page.search_candidate(candidate_name)
+        list_page.click_candidate_action(candidate_name)
+
+        hr_review = HrReviewOnboardingPage(self.page)
+        is_loaded = hr_review.is_page_loaded(timeout=15000)
+        assert is_loaded, f"HR Review page failed to load for candidate '{candidate_name}'!"
+
+        summary = hr_review.get_header_summary()
+        logger.info(f"[WORKFLOW] Candidate Header Summary in HR Review: {summary}")
+
+        if review_tabs:
+            for tab_name in ["Candidate Details", "Identify and Banking", "Employment & Experience", "View Document"]:
+                try:
+                    hr_review.select_tab(tab_name)
+                except Exception as tab_err:
+                    logger.warning(f"[WORKFLOW] Non-blocking warning reviewing tab '{tab_name}': {tab_err}")
+
+        # Approve All and Verify
+        approval_success = hr_review.approve_all_and_verify()
+        logger.info(f"[WORKFLOW] HR Review Approval finished: Success={approval_success}")
+
+        return {
+            "candidate_name": candidate_name,
+            "header_summary": summary,
+            "approval_success": approval_success
+        }
 
     def end_to_end_candidate_onboarding_workflow(self, candidate_data: dict, resume_path: str, job_id: str = None, shortlist: bool = True):
         """

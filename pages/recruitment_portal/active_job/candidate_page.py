@@ -275,27 +275,30 @@ class CandidatePage(BasePage):
 
             if label_hint.lower() in lbl_text.lower():
                 options = sel.locator("option").all()
+                opt_info = []
                 for opt in options:
                     opt_text = opt.inner_text().strip()
                     opt_val = opt.get_attribute("value") or ""
+                    opt_info.append((opt_val, opt_text))
                     if str(value).lower() == opt_text.lower() or str(value).lower() == opt_val.lower():
                         sel.select_option(value=opt_val)
                         logger.info(f"{lbl_text}: {opt_text} (value={opt_val})")
-                        return
+                        return True
                     if str(value).lower() in opt_text.lower():
                         sel.select_option(value=opt_val)
                         logger.info(f"{lbl_text}: {opt_text} (partial match, value={opt_val})")
-                        return
+                        return True
 
+                logger.info(f"Available options for '{lbl_text}': {opt_info}")
                 try:
                     sel.select_option(value=str(value))
                     logger.info(f"{lbl_text}: {value} (by value)")
-                    return
+                    return True
                 except Exception:
                     try:
                         sel.select_option(label=str(value))
                         logger.info(f"{lbl_text}: {value} (by label)")
-                        return
+                        return True
                     except Exception:
                         pass
 
@@ -303,30 +306,45 @@ class CandidatePage(BasePage):
         try:
             self.page.get_by_label(re.compile(label_hint, re.IGNORECASE)).first.select_option(value=str(value))
             logger.info(f"{label_hint}: {value} (by label fallback)")
+            return True
         except Exception:
             try:
                 self.page.get_by_label(re.compile(label_hint, re.IGNORECASE)).first.select_option(label=str(value))
                 logger.info(f"{label_hint}: {value} (by label text fallback)")
+                return True
             except Exception as e:
                 logger.warning(f"Could not select '{value}' for label hint '{label_hint}': {e}")
+                return False
 
     def open_candidate_drawer(self, candidate_name: str):
         """Locates candidate in the table/grid and clicks to open details drawer/modal."""
         logger.info(f"Opening candidate details for '{candidate_name}'")
         self.page.wait_for_timeout(1000)
-        row = self.page.locator("tbody tr, [role='row']").filter(has_text=candidate_name)
+        row = self.page.get_by_role("row", name=re.compile(candidate_name, re.I))
+        if row.count() == 0:
+            row = self.page.locator("tbody tr, [role='row']").filter(has_text=candidate_name)
+
         if row.count() > 0:
-            row.first.click()
+            name_cell = row.first.get_by_text(re.compile(candidate_name, re.I)).first
+            if name_cell.count() > 0:
+                name_cell.click()
+            else:
+                row.first.click()
         else:
             cand_link = self.page.get_by_text(re.compile(candidate_name, re.I)).first
             cand_link.click()
+
         self.page.wait_for_load_state("domcontentloaded")
         self.page.wait_for_timeout(1000)
+        try:
+            self.page.locator("select, [role='dialog'], [role='region']").first.wait_for(state="visible", timeout=8000)
+        except Exception:
+            pass
 
     def select_candidate_status(self, status: str = "Shortlisted"):
         """Selects status from the Status dropdown in candidate details drawer."""
         logger.info(f"[UI] Selecting candidate status: '{status}'")
-        self._select_by_reading_label("Status", status)
+        return self._select_by_reading_label("Status", status)
 
     def close_candidate_drawer(self):
         """Closes candidate detail modal/drawer if open."""
@@ -454,30 +472,18 @@ class CandidatePage(BasePage):
     def open_candidate_offer_form(self, candidate_name: str):
         """Find candidate in list and open their offer form."""
         logger.info(f"Opening offer form for '{candidate_name}'")
-        
-        # Try to find candidate by name in the table/list
-        candidate_rows = self.page.locator("tbody tr").all()
-        for row in candidate_rows:
-            row_text = row.inner_text()
-            if candidate_name in row_text:
-                # Found the candidate, now find and click the action button (usually an icon)
-                # Look for a button/action menu in this row
-                action_btn = row.locator("button[title*='action'], button[title*='menu'], svg").first
-                if action_btn.is_visible():
-                    row.click()
+        row = self.page.locator("tbody tr, [role='row']").filter(has_text=candidate_name)
+        if row.count() > 0:
+            action_arrow = row.locator("td:nth-child(10) img, td:nth-child(10), button, svg").first
+            try:
+                if action_arrow.is_visible(timeout=2000):
+                    action_arrow.click()
                     self.page.wait_for_load_state("domcontentloaded")
                     self.page.wait_for_timeout(1000)
                     return
-        
-        # If no table found, try looking for candidate name in any list item and click it
-        candidate_link = self.page.get_by_text(re.compile(candidate_name, re.IGNORECASE)).first
-        if candidate_link.is_visible():
-            candidate_link.click()
-            self.page.wait_for_load_state("domcontentloaded")
-            self.page.wait_for_timeout(1000)
-            return
-        
-        logger.warning(f"Could not locate candidate '{candidate_name}' in list")
+            except Exception:
+                pass
+        self.open_candidate_drawer(candidate_name)
 
     def generate_and_send_loi(self, candidate_name: str, doj: str, gross_salary: str = "15000") -> dict:
         """
@@ -576,6 +582,17 @@ class CandidatePage(BasePage):
                                             candidate_redirect_url = str(data_obj[key])
                                             logger.info(f"[API SUCCESS] Found Candidate Form Redirect URL in nested data ('{key}'): '{candidate_redirect_url}'")
                                             break
+                                # If direct redirect URL not in body, construct from job_Posting_Id and email
+                                if not candidate_redirect_url:
+                                    j_id = body.get("job_Posting_Id") or (body.get("data", {}).get("job_Posting_Id") if isinstance(body.get("data"), dict) else None)
+                                    c_email = body.get("email") or (body.get("data", {}).get("email") if isinstance(body.get("data"), dict) else None)
+                                    if j_id and c_email:
+                                        import base64
+                                        import urllib.parse
+                                        job_b64 = base64.b64encode(str(j_id).encode()).decode()
+                                        email_enc = urllib.parse.quote(str(c_email))
+                                        candidate_redirect_url = f"https://stg-hrlense.jobvritta.com/otp-verification?email={email_enc}&job={job_b64}"
+                                        logger.info(f"[URL CONSTRUCTED] Generated Candidate Verification URL: {candidate_redirect_url}")
                         except Exception:
                             pass
             except Exception:

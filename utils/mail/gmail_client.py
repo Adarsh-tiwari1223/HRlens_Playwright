@@ -159,14 +159,18 @@ class GmailClient:
             print(f"Opening browser link: {auth_url}")
             print("=" * 70 + "\n")
 
-            # Start local server to receive auth code
+            # Start local server to receive auth code (with 5-minute timeout for user authorization)
             server = HTTPServer(("localhost", port), _OAuthCallbackHandler)
+            server.timeout = 300
             _OAuthCallbackHandler.auth_code = None
             _OAuthCallbackHandler.error = None
 
-            webbrowser.open(auth_url)
+            try:
+                webbrowser.open(auth_url)
+            except Exception:
+                pass
 
-            # Wait for callback
+            # Wait for callback or timeout
             server.handle_request()
             server.server_close()
 
@@ -278,6 +282,7 @@ class GmailClient:
         return {
             "id": message_id,
             "threadId": msg.get("threadId"),
+            "internalDate": int(msg.get("internalDate", 0)),
             "subject": headers.get("subject", ""),
             "from": headers.get("from", ""),
             "to": headers.get("to", ""),
@@ -291,12 +296,13 @@ class GmailClient:
         self,
         subject_keyword: str,
         employee_name: Optional[str] = None,
+        since_epoch_sec: Optional[float] = None,
         timeout_sec: int = 60,
-        poll_interval: int = 5
+        poll_interval: int = 4
     ) -> Optional[Dict[str, Any]]:
         """
         Polls Gmail until an email matching subject_keyword (and optionally employee_name) arrives.
-        Returns the parsed message details or None if timed out.
+        If since_epoch_sec is specified, only returns messages received after that timestamp.
         """
         query_parts = [f"subject:{subject_keyword}"]
         if employee_name:
@@ -308,15 +314,58 @@ class GmailClient:
 
         while time.time() - start_time < timeout_sec:
             messages = self.search_messages(query=query, max_results=5)
-            if messages:
-                latest_msg_id = messages[0]["id"]
-                detail = self.get_message_detail(latest_msg_id)
-                logger.info(f"[MAIL POLLER] Matched email! Subject: '{detail['subject']}' | From: '{detail['from']}'")
+            for m in messages:
+                detail = self.get_message_detail(m["id"])
+                msg_time_sec = detail["internalDate"] / 1000.0
+                if since_epoch_sec and msg_time_sec < (since_epoch_sec - 5):
+                    # Message is older than the current session request, ignore it
+                    continue
+                logger.info(f"[MAIL POLLER] Matched fresh email! Subject: '{detail['subject']}' | Date: '{detail['date']}'")
                 return detail
 
             time.sleep(poll_interval)
 
         logger.warning(f"[MAIL POLLER] Timed out waiting for email matching '{query}' after {timeout_sec}s")
+        return None
+
+    def get_candidate_otp(self, candidate_name: Optional[str] = None, since_epoch_sec: Optional[float] = None, timeout_sec: int = 45) -> Optional[str]:
+        """
+        Polls Gmail for the latest 'Your One-Time Password (OTP) for Hrlense Access' email
+        and extracts the 6-digit OTP code using regex.
+        If since_epoch_sec is provided, ensures only a newly dispatched OTP is accepted.
+        """
+        import re
+        logger.info(f"[GMAIL OTP] Searching for OTP email (candidate: {candidate_name}, since: {since_epoch_sec})...")
+        msg = self.wait_for_email(
+            subject_keyword="One-Time Password",
+            employee_name=candidate_name,
+            since_epoch_sec=since_epoch_sec,
+            timeout_sec=timeout_sec,
+            poll_interval=3
+        )
+        if not msg and not since_epoch_sec:
+            # Fallback: Search latest from estaffing
+            msgs = self.search_messages(query="from:estaffing@tekinspirations.com", max_results=3)
+            if msgs:
+                msg = self.get_message_detail(msgs[0]["id"])
+
+        if msg:
+            text = f"{msg.get('body', '')} {msg.get('snippet', '')}"
+            # Match <strong>(\d{6})</strong> or "Your OTP: 123456" or any 6 digits
+            otp_match = re.search(r"Your OTP:\s*(?:<[^>]+>)*\s*(\d{6})", text, re.IGNORECASE)
+            if not otp_match:
+                otp_match = re.search(r"<strong>(\d{6})</strong>", text, re.IGNORECASE)
+            if not otp_match:
+                matches = re.findall(r"\b(\d{6})\b", text)
+                otp_code = matches[0] if matches else None
+            else:
+                otp_code = otp_match.group(1)
+
+            if otp_code:
+                logger.info(f"[GMAIL OTP SUCCESS] Extracted 6-digit OTP: '{otp_code}' (Date: {msg.get('date')})")
+                return otp_code
+
+        logger.warning("[GMAIL OTP] Could not locate or extract 6-digit OTP from email.")
         return None
 
 

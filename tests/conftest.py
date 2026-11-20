@@ -47,6 +47,10 @@ def pytest_addoption(parser):
             "--headed", action="store_true", default=False,
             help="Run browser in headed mode (visible GUI window)"
         )
+        parser.addoption(
+            "--slowmo", action="store", type=int, default=None,
+            help="Slow down Playwright operations by the specified amount of milliseconds"
+        )
     except Exception:
         pass
 
@@ -287,8 +291,9 @@ def browser(pytestconfig):
     Configured with start-maximized and proper headed/headless mode.
     """
     is_headed = getattr(pytestconfig.option, "headed", False) or not settings.HEADLESS
+    slow_mo = getattr(pytestconfig.option, "slowmo", None)
     with sync_playwright() as p:
-        browser_instance = launch_browser(p, is_headed=is_headed)
+        browser_instance = launch_browser(p, is_headed=is_headed, slow_mo=slow_mo)
         yield browser_instance
         try:
             for ctx in list(browser_instance.contexts):

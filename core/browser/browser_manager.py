@@ -3,6 +3,7 @@ Browser and Context lifecycle manager for Playwright.
 """
 
 import logging
+from typing import Optional, Dict, Any, List
 from playwright.sync_api import Playwright, Browser, BrowserContext, Page
 from core.config import settings
 
@@ -24,13 +25,16 @@ def get_context_options() -> dict:
     return options
 
 
-def launch_browser(playwright: Playwright, is_headed: bool = False) -> Browser:
+def launch_browser(playwright: Playwright, is_headed: bool = False, slow_mo: Optional[int] = None) -> Browser:
     """
     Launches Chromium or system Chrome browser instance with performance-tuned flags.
     Gracefully falls back to headless if headed mode is requested but no X-server/display is available.
+    Supports slow motion via `slow_mo` parameter or SLOW_MO environment variable.
     """
+    import os
     headless = not (is_headed or not settings.HEADLESS)
-    logger.info(f"[BROWSER LAUNCH] is_headed={is_headed} | settings.HEADLESS={settings.HEADLESS} | computed headless={headless}")
+    active_slow_mo = slow_mo if slow_mo is not None else int(os.getenv("SLOW_MO", "1000" if not headless else "0"))
+    logger.info(f"[BROWSER LAUNCH] is_headed={is_headed} | settings.HEADLESS={settings.HEADLESS} | computed headless={headless} | slow_mo={active_slow_mo}ms")
 
     chromium_args = [
         "--start-maximized",
@@ -42,8 +46,8 @@ def launch_browser(playwright: Playwright, is_headed: bool = False) -> Browser:
         "headless": headless,
         "args": chromium_args,
     }
-    if not headless:
-        launch_kwargs["slow_mo"] = 1000  # 1 second between actions so user can inspect
+    if active_slow_mo > 0:
+        launch_kwargs["slow_mo"] = active_slow_mo
 
     try:
         return playwright.chromium.launch(**launch_kwargs)

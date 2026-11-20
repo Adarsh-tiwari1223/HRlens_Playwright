@@ -313,7 +313,7 @@ class TestMasterInductionPolicy:
         print(f"  Tier 4 Department:  Badge='{res['tier4_department']['badge']}' | Scope='{res['tier4_department']['scope']}'")
         print(f"  Restored Baseline:  Badge='{res['restored_global']['badge']}'")
 
-    def test_defect_company_banner_upload_pollutes_global_scope(self, admin_page):
+    def test_company_banner_upload_scope_isolation_from_global(self, admin_page):
         """
         CRITICAL DEFECT INVESTIGATION: Scope Isolation Leak / Data Pollution
         
@@ -382,7 +382,7 @@ class TestMasterInductionPolicy:
             f"Company SRC='{company_src}', Global SRC='{global_src_after}'"
         )
 
-    def test_audit_api_network_payloads_for_scope_parameters(self, admin_page):
+    def test_api_network_payloads_for_scope_parameters(self, admin_page):
         """
         API / NETWORK FORENSIC AUDIT:
         Inspects exact HTTP request methods, URLs, query parameters, and FormData payloads
@@ -519,7 +519,7 @@ class TestMasterInductionPolicy:
 
         print("=" * 90 + "\n")
 
-    def test_audit_table_content_filter_and_api(self, admin_page):
+    def test_table_content_filter_and_scope_api(self, admin_page):
         """
         TABLE CONTENT FILTER BAR AUDIT:
         Validates the table scoping filter bar (.css-7tivie):
@@ -620,7 +620,7 @@ class TestMasterInductionPolicy:
             print(f"    [{call['method']}] {call['url']} -> Params: {call['params']}")
         print("=" * 90 + "\n")
 
-    def test_investigate_step_video_scoping_and_upload_api(self, admin_page):
+    def test_step_video_scoping_and_upload_api(self, admin_page):
         """
         STEP VIDEO SCOPING & UPLOAD FORENSIC AUDIT:
         Validates the 'Confirm Video Upload' modal and inspects whether audience scoping
@@ -744,7 +744,7 @@ class TestMasterInductionPolicy:
 
         print("=" * 90 + "\n")
 
-    def test_audit_edit_content_modal_payload_for_scope_parameters(self, admin_page):
+    def test_edit_content_modal_payload_for_scope_parameters(self, admin_page):
         """
         EDIT CONTENT MODAL / FORM FORENSIC AUDIT:
         Inspects whether the Edit Induction Content form passes Company, Branch,

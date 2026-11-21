@@ -82,7 +82,8 @@ class InductionPage(BasePage):
         logger.info(f"[UI] Navigating to Induction Module: {self.url}")
         self.page.goto(self.url, wait_until="domcontentloaded", timeout=25000)
         self.page.wait_for_timeout(1500)
-        assert "/induction" in self.page.url, f"Failed to load induction page. Current: {self.page.url}"
+        if "/induction" not in self.page.url:
+            raise RuntimeError(f"Failed to load induction page. Current: {self.page.url}")
 
     def is_welcome_slide_visible(self) -> bool:
         """Checks if the initial welcome slide is visible."""

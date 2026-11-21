@@ -332,5 +332,3 @@ class AssetDisposalPage(BasePage):
         logger.info(f"Asset '{clean_code}' was NOT found in Disposal Requests table.")
         return False
 
-    def wait_for_toast_message(self) -> str:
-        return self.wait_for_toast(self.TOAST)

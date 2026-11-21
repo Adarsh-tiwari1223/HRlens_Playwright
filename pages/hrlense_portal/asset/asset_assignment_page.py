@@ -215,7 +215,8 @@ class AssetAssignmentPage(BasePage):
                     if selected_code:
                         break
 
-        assert selected_code, f"[ASSIGNMENT FAILED] Could not select an available asset from dropdown for '{employee_name}'! Ensure available stock exists in the branch."
+        if not selected_code:
+            raise RuntimeError(f"[ASSIGNMENT FAILED] Could not select an available asset from dropdown for '{employee_name}'! Ensure available stock exists in the branch.")
 
         # Expected Return Date
         if expected_return_date:
@@ -816,6 +817,3 @@ class AssetAssignmentPage(BasePage):
             "toast": toast
         }
 
-    def wait_for_toast_message(self) -> str:
-        """Waits for and returns the text of any top-right Chakra toast."""
-        return self.wait_for_toast(self.TOAST)

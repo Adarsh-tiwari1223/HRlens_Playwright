@@ -30,10 +30,11 @@ class AppointmentLetterTemplatePage(BasePage):
         Available companies are defined in testdata/static/companies.py.
         Fails immediately if the company name is not in the known list.
         """
-        assert company_name in COMPANIES, (
-            f"Company '{company_name}' is not in the known company list. "
-            f"Available: {COMPANIES}"
-        )
+        if company_name not in COMPANIES:
+            raise ValueError(
+                f"Company '{company_name}' is not in the known company list. "
+                f"Available: {COMPANIES}"
+            )
         self.page.locator(self.TEMPLATE_SELECT_BTN).click()
         self.page.get_by_role("combobox").select_option(label=company_name)
         self.page.wait_for_load_state("networkidle")

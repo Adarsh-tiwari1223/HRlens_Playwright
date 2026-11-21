@@ -37,10 +37,13 @@ def launch_browser(playwright: Playwright, is_headed: bool = False, slow_mo: Opt
     logger.info(f"[BROWSER LAUNCH] is_headed={is_headed} | settings.HEADLESS={settings.HEADLESS} | computed headless={headless} | slow_mo={active_slow_mo}ms")
 
     chromium_args = [
-        "--start-maximized",
         "--no-sandbox",
         "--disable-dev-shm-usage",
+        "--disable-web-security",
+        "--ignore-certificate-errors",
     ]
+    if not headless:
+        chromium_args.insert(0, "--start-maximized")
 
     launch_kwargs = {
         "headless": headless,

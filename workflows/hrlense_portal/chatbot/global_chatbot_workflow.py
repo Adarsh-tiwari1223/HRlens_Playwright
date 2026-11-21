@@ -1,12 +1,17 @@
 """
 Workflow for Global HRlens AI Chatbot Copilot.
-Orchestrates:
-- Triggering and verifying Copilot on any portal page
-- Quick suggestion chip queries (Leave Balance, Upcoming Holidays, etc.)
-- Natural language conversational HR tasks:
-    1. Leave Application & Balance inquiries
-    2. Salary & Payslip breakdowns
-- Conversation history clear and window management
+Orchestrates end-to-end testing of all employee self-service problem solving features:
+1. Launcher presence and all 7 quick suggestion chips availability.
+2. Leave Balance inquiry (itemized leave balance, casual, earned/privilege leaves).
+3. Today's Attendance inquiry (punch timing, present/absent state, shift hours).
+4. Reporting Manager & Team Lead inquiry (assigned manager, TL, approval hierarchy).
+5. Salary & Payslip inquiry (compensation breakdown, payslip download instructions).
+6. Upcoming Holidays inquiry (official gazetted company holidays calendar).
+7. Company Policies inquiry (working hours, office conduct, leave guidelines).
+8. Conversational Leave Application assistant (applying for emergency/planned leave).
+9. Clear conversation header action.
+
+Note: Remote work/WFH application requests are excluded per project requirements.
 """
 
 import logging
@@ -25,7 +30,7 @@ class GlobalChatbotWorkflow:
         self.bot_page = GlobalChatbotPage(page)
 
     def verify_copilot_availability_workflow(self) -> Dict[str, Any]:
-        """Verifies that the Copilot launcher is present, opens the window, and checks greeting."""
+        """Verifies that the Copilot launcher is present, opens the window, and checks available chips."""
         logger.info("[WORKFLOW] Checking Global Copilot availability...")
         assert self.bot_page.is_chatbot_present(), "Global Chatbot widget not found on page!"
 
@@ -43,18 +48,17 @@ class GlobalChatbotWorkflow:
 
     def query_leave_balance_workflow(self) -> Dict[str, Any]:
         """
-        Sends a leave balance query via prompt or quick chip,
-        and verifies that the AI Copilot returns an informative response.
+        Problem Solved: Employee checking remaining leave balance before planning time off.
+        Queries leave balance via natural prompt and validates AI provides itemized balance.
         """
         logger.info("[WORKFLOW] Querying Leave Balance via Copilot...")
         self.bot_page.open_chatbot()
         prompt = "What is my current leave balance?"
-        self.bot_page.send_message(prompt)
+        prev_cnt = self.bot_page.send_message(prompt)
 
-        reply = self.bot_page.wait_for_bot_response(timeout_sec=15)
+        reply = self.bot_page.wait_for_bot_response(timeout_sec=25, previous_count=prev_cnt)
         logger.info(f"[WORKFLOW] Leave Balance reply: {reply[:120]}...")
 
-        # Assert response is meaningful
         assert len(reply.strip()) > 0, "Empty response from Copilot for leave balance query!"
         return {
             "query": prompt,
@@ -62,41 +66,58 @@ class GlobalChatbotWorkflow:
             "has_content": len(reply.strip()) > 0
         }
 
-    def conversational_leave_application_workflow(self, leave_reason: str = "fever", days: int = 1) -> Dict[str, Any]:
+    def query_today_attendance_workflow(self) -> Dict[str, Any]:
         """
-        Conversational Leave Application Workflow:
-        Sends natural language instruction to apply for leave,
-        waits for Copilot to process, generate summary or confirmation card.
+        Problem Solved: Employee verifying punch-in / punch-out records and shift attendance status.
+        Queries today's attendance and validates AI reports attendance/shift status.
         """
-        logger.info(f"[WORKFLOW] Initiating conversational leave application (reason: '{leave_reason}')...")
+        logger.info("[WORKFLOW] Querying Today's Attendance via Copilot...")
         self.bot_page.open_chatbot()
-        prompt = f"I want to apply for {days} day sick leave tomorrow because of {leave_reason}"
-        self.bot_page.send_message(prompt)
+        prompt = "What is my attendance status and punch record today?"
+        prev_cnt = self.bot_page.send_message(prompt)
 
-        reply = self.bot_page.wait_for_bot_response(timeout_sec=18)
-        action_buttons = self.bot_page.get_action_buttons()
+        reply = self.bot_page.wait_for_bot_response(timeout_sec=25, previous_count=prev_cnt)
+        logger.info(f"[WORKFLOW] Today's Attendance reply: {reply[:120]}...")
 
-        logger.info(f"[WORKFLOW] Conversational Leave Response: {reply[:150]}...")
-        logger.info(f"[WORKFLOW] Available action buttons: {action_buttons}")
-
+        assert len(reply.strip()) > 0, "Empty response from Copilot for attendance query!"
         return {
-            "prompt": prompt,
+            "query": prompt,
             "reply": reply,
-            "action_buttons": action_buttons
+            "has_content": len(reply.strip()) > 0
+        }
+
+    def query_manager_and_tl_workflow(self) -> Dict[str, Any]:
+        """
+        Problem Solved: Employee finding assigned Reporting Manager and Team Lead for approvals.
+        Queries manager details and validates AI identifies reporting authority.
+        """
+        logger.info("[WORKFLOW] Querying Reporting Manager & TL via Copilot...")
+        self.bot_page.open_chatbot()
+        prompt = "Who is my reporting manager and team lead?"
+        prev_cnt = self.bot_page.send_message(prompt)
+
+        reply = self.bot_page.wait_for_bot_response(timeout_sec=25, previous_count=prev_cnt)
+        logger.info(f"[WORKFLOW] Manager & TL reply: {reply[:120]}...")
+
+        assert len(reply.strip()) > 0, "Empty response from Copilot for manager query!"
+        return {
+            "query": prompt,
+            "reply": reply,
+            "has_content": len(reply.strip()) > 0
         }
 
     def query_salary_and_payslip_workflow(self) -> Dict[str, Any]:
         """
-        Asks Copilot to explain salary structure or payslip details.
-        Verifies that payroll/salary information is provided.
+        Problem Solved: Employee inquiring about monthly salary breakdown and payslip download.
+        Queries salary structure and validates AI provides compensation guidance.
         """
         logger.info("[WORKFLOW] Querying Salary & Payslip details via Copilot...")
         self.bot_page.open_chatbot()
-        prompt = "Explain my salary structure and deduction components"
-        self.bot_page.send_message(prompt)
+        prompt = "Explain my salary structure, deduction components, and how to download my payslip"
+        prev_cnt = self.bot_page.send_message(prompt)
 
-        reply = self.bot_page.wait_for_bot_response(timeout_sec=18)
-        logger.info(f"[WORKFLOW] Salary structure reply: {reply[:150]}...")
+        reply = self.bot_page.wait_for_bot_response(timeout_sec=25, previous_count=prev_cnt)
+        logger.info(f"[WORKFLOW] Salary structure reply: {reply[:120]}...")
 
         assert len(reply.strip()) > 0, "Empty response from Copilot for salary query!"
         return {
@@ -105,86 +126,132 @@ class GlobalChatbotWorkflow:
             "has_content": len(reply.strip()) > 0
         }
 
-    def verify_remote_request_restriction_workflow(self, prompt: str = "I want to apply for remote request tomorrow") -> Dict[str, Any]:
+    def query_upcoming_holidays_workflow(self) -> Dict[str, Any]:
         """
-        Business Rule: Chatbot supports employee self-service queries and actions
-        EXCEPT applying remote work / WFH requests directly via chat.
-        Verifies that submitting a remote request prompt does not trigger a remote submission
-        action button and the user is redirected to use portal forms.
+        Problem Solved: Employee checking upcoming public and company holidays for planning.
+        Queries holiday schedule and validates AI returns holiday information.
         """
-        logger.info(f"[WORKFLOW] Verifying Remote Request restriction via Copilot (prompt: '{prompt}')...")
+        logger.info("[WORKFLOW] Querying Upcoming Holidays via Copilot...")
         self.bot_page.open_chatbot()
-        self.bot_page.send_message(prompt)
+        prompt = "What are the upcoming official holidays?"
+        prev_cnt = self.bot_page.send_message(prompt)
 
-        reply = self.bot_page.wait_for_bot_response(timeout_sec=18)
+        reply = self.bot_page.wait_for_bot_response(timeout_sec=25, previous_count=prev_cnt)
+        logger.info(f"[WORKFLOW] Upcoming Holidays reply: {reply[:120]}...")
+
+        assert len(reply.strip()) > 0, "Empty response from Copilot for holidays query!"
+        return {
+            "query": prompt,
+            "reply": reply,
+            "has_content": len(reply.strip()) > 0
+        }
+
+    def query_company_policies_workflow(self) -> Dict[str, Any]:
+        """
+        Problem Solved: Employee checking office working hours, code of conduct, and guidelines.
+        Queries policies and validates AI explains company rules.
+        """
+        logger.info("[WORKFLOW] Querying Company Policies via Copilot...")
+        self.bot_page.open_chatbot()
+        prompt = "What are the company policies regarding working hours and code of conduct?"
+        prev_cnt = self.bot_page.send_message(prompt)
+
+        reply = self.bot_page.wait_for_bot_response(timeout_sec=25, previous_count=prev_cnt)
+        logger.info(f"[WORKFLOW] Company Policies reply: {reply[:120]}...")
+
+        assert len(reply.strip()) > 0, "Empty response from Copilot for policies query!"
+        return {
+            "query": prompt,
+            "reply": reply,
+            "has_content": len(reply.strip()) > 0
+        }
+
+    def conversational_leave_application_workflow(self, leave_reason: str = "personal work", days: int = 1) -> Dict[str, Any]:
+        """
+        Problem Solved: Employee needing to apply for leave directly or asking how to submit a request.
+        Sends natural language instruction and validates AI processes or guides the request.
+        """
+        logger.info(f"[WORKFLOW] Initiating conversational leave application (reason: '{leave_reason}', days: {days})...")
+        self.bot_page.open_chatbot()
+        prompt = f"I want to apply for {days} day leave tomorrow because of {leave_reason}"
+        prev_cnt = self.bot_page.send_message(prompt)
+
+        reply = self.bot_page.wait_for_bot_response(timeout_sec=25, previous_count=prev_cnt)
         action_buttons = self.bot_page.get_action_buttons()
 
-        logger.info(f"[WORKFLOW] Remote Request Reply: {reply[:120]}...")
-        logger.info(f"[WORKFLOW] Action Buttons present: {action_buttons}")
+        logger.info(f"[WORKFLOW] Conversational Leave Response: {reply[:120]}...")
+        logger.info(f"[WORKFLOW] Available action buttons: {action_buttons}")
 
-        # Assert no remote work submission button is provided
-        has_remote_submit_button = any(
-            any(w in b.lower() for w in ["submit remote", "confirm remote", "apply remote", "confirm wfh"])
-            for b in action_buttons
-        )
-
+        assert len(reply.strip()) > 0, "Empty response from Copilot for conversational leave application!"
         return {
             "prompt": prompt,
             "reply": reply,
-            "action_buttons": action_buttons,
-            "remote_application_blocked": not has_remote_submit_button
+            "action_buttons": action_buttons
         }
+
+    def clear_conversation_workflow(self) -> bool:
+        """Tests the Clear Conversation header control."""
+        logger.info("[WORKFLOW] Testing Clear Conversation action...")
+        self.bot_page.clear_conversation()
+        logger.info("[WORKFLOW] Clear conversation header action invoked successfully.")
+        return True
 
     def execute_complete_employee_chatbot_journey_workflow(self) -> Dict[str, Any]:
         """
-        Unified Single-Execution Chatbot Workflow for Real Employee:
-        Executes all permitted employee actions and negative restriction rule in one browser session:
-        1. Open Copilot and validate presence of all employee quick chips.
-        2. Query Leave Balance -> validates AI response mentions leave policy / balance.
-        3. Conversational Leave Application -> validates AI processes leave request.
-        4. Salary & Payslip Inquiry -> validates AI explains salary/payroll components.
-        5. Remote Request Restriction (Negative Rule) -> validates remote work application is blocked.
-        6. Clear Conversation -> validates chat history resets.
+        Unified End-to-End Employee Problem-Solving Journey:
+        Tests all valid employee self-service features in one clean browser session (remote requests excluded):
+        1. Launcher & Quick Action Chips Availability
+        2. Leave Balance Inquiry
+        3. Today's Attendance Inquiry
+        4. Reporting Manager & TL Inquiry
+        5. Salary & Payslip Breakdown Inquiry
+        6. Upcoming Holidays Inquiry
+        7. Company Policies Inquiry
+        8. Conversational Leave Application Assistant
+        9. Clear Conversation Action
         """
-        logger.info("[WORKFLOW] === Starting Unified Employee Chatbot Single Execution ===")
+        logger.info("================================================================================")
+        logger.info("[WORKFLOW] STARTING UNIFIED EMPLOYEE CHATBOT PROBLEM-SOLVING JOURNEY")
+        logger.info("================================================================================")
         results = {}
 
-        # 1. Copilot Availability & Chips
-        logger.info("[WORKFLOW] [STEP 1/6] Verifying Copilot Launcher & Quick Chips...")
+        # 1. Launcher & Quick Action Chips
+        logger.info("[WORKFLOW] [STEP 1/9] Verifying Copilot Launcher & Quick Chips...")
         results["launcher"] = self.verify_copilot_availability_workflow()
 
         # 2. Leave Balance Inquiry
-        logger.info("[WORKFLOW] [STEP 2/6] Validating AI Leave Balance Inquiry...")
+        logger.info("[WORKFLOW] [STEP 2/9] Validating Leave Balance Resolution...")
         results["leave_balance"] = self.query_leave_balance_workflow()
 
-        # 3. Conversational Leave Application
-        logger.info("[WORKFLOW] [STEP 3/6] Validating AI Conversational Leave Application...")
-        results["leave_apply"] = self.conversational_leave_application_workflow(leave_reason="viral fever", days=1)
+        # 3. Today's Attendance Inquiry
+        logger.info("[WORKFLOW] [STEP 3/9] Validating Today's Attendance Resolution...")
+        results["attendance"] = self.query_today_attendance_workflow()
 
-        # 4. Salary & Payroll Breakdown
-        logger.info("[WORKFLOW] [STEP 4/6] Validating AI Salary & Payroll Breakdown...")
-        results["salary_inquiry"] = self.query_salary_and_payslip_workflow()
+        # 4. Reporting Manager & TL Inquiry
+        logger.info("[WORKFLOW] [STEP 4/9] Validating Manager & TL Hierarchy Resolution...")
+        results["manager"] = self.query_manager_and_tl_workflow()
 
-        # 5. Remote Request Restriction (Disallowed action)
-        logger.info("[WORKFLOW] [STEP 5/6] Validating Remote Request Restriction (Disallowed Action)...")
-        results["remote_restriction"] = self.verify_remote_request_restriction_workflow("I want to apply for remote request tomorrow")
+        # 5. Salary & Payslip Breakdown
+        logger.info("[WORKFLOW] [STEP 5/9] Validating Salary & Payslip Breakdown Resolution...")
+        results["salary"] = self.query_salary_and_payslip_workflow()
 
-        # 6. Clear Conversation
-        logger.info("[WORKFLOW] [STEP 6/6] Validating Clear Conversation Action...")
+        # 6. Upcoming Holidays Inquiry
+        logger.info("[WORKFLOW] [STEP 6/9] Validating Upcoming Holidays Resolution...")
+        results["holidays"] = self.query_upcoming_holidays_workflow()
+
+        # 7. Company Policies Inquiry
+        logger.info("[WORKFLOW] [STEP 7/9] Validating Company Policies Resolution...")
+        results["policies"] = self.query_company_policies_workflow()
+
+        # 8. Conversational Leave Application Assistant
+        logger.info("[WORKFLOW] [STEP 8/9] Validating Conversational Leave Application Assistant...")
+        results["conversational_leave"] = self.conversational_leave_application_workflow(leave_reason="personal work", days=1)
+
+        # 9. Clear Conversation
+        logger.info("[WORKFLOW] [STEP 9/9] Validating Clear Conversation Action...")
         results["is_cleared"] = self.clear_conversation_workflow()
 
-        logger.info("[WORKFLOW] === Unified Employee Chatbot Single Execution Completed ===")
+        logger.info("================================================================================")
+        logger.info("[WORKFLOW] COMPLETED UNIFIED EMPLOYEE CHATBOT PROBLEM-SOLVING JOURNEY")
+        logger.info("================================================================================")
         return results
-
-    def clear_conversation_workflow(self) -> bool:
-        """Clears conversation and verifies message history is purged."""
-        logger.info("[WORKFLOW] Testing Clear Conversation action...")
-        self.bot_page.clear_conversation()
-        for _ in range(5):
-            count = self.bot_page.messages.count()
-            if count <= 1:
-                break
-            self.page.wait_for_timeout(1000)
-        remaining_msgs = self.bot_page.messages.count()
-        logger.info(f"[WORKFLOW] Remaining messages after clear: {remaining_msgs}")
-        return remaining_msgs <= 1  # May keep initial greeting

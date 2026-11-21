@@ -35,12 +35,13 @@ class GlobalChatbotPage(BasePage):
 
         # Quick Suggestion Chips
         self.quick_chips = self.page.locator("button.ai-quick-chip")
-        self.chip_leave_balance = self.page.locator("button.ai-quick-chip:has-text('Leave Balance')").first
-        self.chip_attendance = self.page.locator("button.ai-quick-chip:has-text(\"Today's Attendance\")").first
-        self.chip_salary_payslip = self.page.locator("button.ai-quick-chip:has-text('Salary & Payslip')").first
-        self.chip_holidays = self.page.locator("button.ai-quick-chip:has-text('Upcoming Holidays')").first
-        self.chip_apply_leave = self.page.locator("button.ai-quick-chip:has-text('Apply Leave')").first
-        self.chip_policies = self.page.locator("button.ai-quick-chip:has-text('Company Policies')").first
+        self.chip_leave_balance = self.quick_chips.filter(has_text="Leave Balance").first
+        self.chip_attendance = self.quick_chips.filter(has_text="Today's Attendance").first
+        self.chip_manager = self.quick_chips.filter(has_text="My Manager & TL").first
+        self.chip_salary_payslip = self.quick_chips.filter(has_text="Salary & Payslip").first
+        self.chip_holidays = self.quick_chips.filter(has_text="Upcoming Holidays").first
+        self.chip_apply_leave = self.quick_chips.filter(has_text="Apply Leave").first
+        self.chip_policies = self.quick_chips.filter(has_text="Company Policies").first
 
         # Input & Send
         self.input_field = self.page.locator(".ai-chatbot-wrapper input[placeholder*='Ask HRlense AI' i], .ai-chat-footer input").first
@@ -88,19 +89,31 @@ class GlobalChatbotPage(BasePage):
         self.clear_button.click(force=True)
         self.page.wait_for_timeout(1500)
 
-    def click_quick_chip(self, chip_title: str):
-        """Clicks a quick chip by text title."""
+    def click_quick_chip(self, chip_title: str) -> int:
+        """Clicks a quick chip by text title. Returns bot message count before click."""
         self.open_chatbot()
-        logger.info(f"[UI] Clicking quick chip: '{chip_title}'...")
-        chip = self.page.locator(f"button.ai-quick-chip:has-text('{chip_title}')").first
+        initial_bot_count = self.bot_messages.count()
+        logger.info(f"[UI] Clicking quick chip: '{chip_title}' (initial bot count: {initial_bot_count})...")
+        chip = self.quick_chips.filter(has_text=chip_title).first
         chip.wait_for(state="visible", timeout=5000)
         chip.click(force=True)
-        self.page.wait_for_timeout(1500)
+        self.page.wait_for_timeout(800)
+        # If clicking the chip populated the input field, submit it via Enter
+        try:
+            val = self.input_field.input_value().strip()
+            if val:
+                logger.info(f"[UI] Chip populated input with '{val}', submitting via Enter...")
+                self.input_field.press("Enter")
+                self.page.wait_for_timeout(800)
+        except Exception:
+            pass
+        return initial_bot_count
 
-    def send_message(self, message: str):
-        """Types message into the input field and sends it."""
+    def send_message(self, message: str) -> int:
+        """Types message into the input field and sends it. Returns bot message count before send."""
         self.open_chatbot()
-        logger.info(f"[UI] Sending prompt to Global Chatbot: '{message}'...")
+        initial_bot_count = self.bot_messages.count()
+        logger.info(f"[UI] Sending prompt to Global Chatbot: '{message}' (initial bot count: {initial_bot_count})...")
         self.input_field.wait_for(state="visible", timeout=5000)
         self.input_field.fill(message)
         self.page.wait_for_timeout(300)
@@ -110,25 +123,36 @@ class GlobalChatbotPage(BasePage):
         except Exception:
             self.send_button.click(force=True)
         self.page.wait_for_timeout(1000)
+        return initial_bot_count
 
-    def wait_for_bot_response(self, timeout_sec: int = 20) -> str:
+    def wait_for_bot_response(self, timeout_sec: int = 25, previous_count: Optional[int] = None) -> str:
         """
         Waits for the bot response to finish generating and returns the latest bot message.
+        Ensures placeholder dots ('...') or empty responses are resolved before returning.
         """
-        logger.info(f"[UI] Waiting for Global Chatbot response (timeout={timeout_sec}s)...")
-        # Give initial delay for generation
-        self.page.wait_for_timeout(4000)
+        import time
+        logger.info(f"[UI] Waiting for Global Chatbot response (timeout={timeout_sec}s, prev_count={previous_count})...")
+        start_time = time.time()
+        latest_reply = ""
 
-        # Wait until loading / typing indicator ceases
-        for _ in range(timeout_sec):
-            typing = self.page.locator(".ai-message:has-text('typing'), .ai-typing-indicator, .ai-chat-messages .dot")
-            if not typing.is_visible():
-                break
+        while time.time() - start_time < timeout_sec:
             self.page.wait_for_timeout(1000)
+            bot_count = self.bot_messages.count()
+            if previous_count is not None and bot_count <= previous_count:
+                continue
 
-        bot_msgs = self.bot_messages.all_inner_texts()
-        latest_reply = bot_msgs[-1] if bot_msgs else ""
-        logger.info(f"[UI] Bot Response received: {latest_reply[:120]}...")
+            if bot_count > 0:
+                last_msg = self.bot_messages.last.inner_text().strip()
+                # Verify message is not just placeholder dots or typing indicator
+                cleaned = last_msg.replace(".", "").replace("•", "").replace("…", "").strip()
+                if len(cleaned) > 2 and "typing" not in last_msg.lower():
+                    latest_reply = last_msg
+                    break
+
+        if not latest_reply and self.bot_messages.count() > 0:
+            latest_reply = self.bot_messages.last.inner_text().strip()
+
+        logger.info(f"[UI] Bot Response received ({len(latest_reply)} chars): {latest_reply[:120]}...")
         return latest_reply
 
     def get_action_buttons(self) -> List[str]:

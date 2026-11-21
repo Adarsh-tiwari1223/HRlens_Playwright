@@ -83,7 +83,8 @@ class OnboardingApprovalPage(BasePage):
             self.page.goto(self.url, wait_until="domcontentloaded", timeout=35000)
         self.table.wait_for(state="visible", timeout=20000)
         self.page.wait_for_timeout(1000)
-        assert "/onboarding-approval" in self.page.url, f"Failed to load /onboarding-approval. Current URL: {self.page.url}"
+        if "/onboarding-approval" not in self.page.url:
+            raise RuntimeError(f"Failed to load /onboarding-approval. Current URL: {self.page.url}")
         logger.info("[UI] Onboarding Approval dashboard loaded successfully.")
 
     def get_metrics(self) -> Dict[str, str]:
@@ -231,10 +232,12 @@ class OnboardingApprovalPage(BasePage):
         3. Clicks 'Confirm Rejection'.
         """
         self.select_decision("Rejected")
-        assert len(mandatory_remarks) > 0, "Rejection remarks are mandatory!"
+        if not mandatory_remarks:
+            raise ValueError("Rejection remarks are mandatory!")
         self.enter_remarks(mandatory_remarks)
         logger.info("[UI] Clicking 'Confirm Rejection'...")
         self.modal_confirm_rejection_button.wait_for(state="visible", timeout=5000)
-        assert not self.is_confirm_rejection_disabled(), "'Confirm Rejection' button is unexpectedly disabled!"
+        if self.is_confirm_rejection_disabled():
+            raise RuntimeError("'Confirm Rejection' button is unexpectedly disabled!")
         self.modal_confirm_rejection_button.click()
         self.page.wait_for_timeout(2500)

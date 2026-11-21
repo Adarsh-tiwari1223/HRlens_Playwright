@@ -399,6 +399,8 @@ class LeavePage(BasePage):
             if search_inp.is_visible(timeout=1000):
                 search_inp.click(force=True)
                 search_inp.fill(employee_name)
+                search_inp.press("Enter")
+                self.page.wait_for_timeout(1000)
         except Exception:
             pass
 
@@ -413,16 +415,16 @@ class LeavePage(BasePage):
                 row_txt = row.inner_text().strip()
                 if employee_name.lower() in row_txt.lower():
                     if trigger == "view":
-                        link = row.locator("p.view, p:has-text('View'), a:has-text('View'), td:has-text('View')").first
+                        link = row.locator("p.view, p:has-text('View'), a:has-text('View'), td:has-text('View'), button:has-text('View')").first
                     else:
-                        link = row.locator("td:nth-child(2) a, td:nth-child(2) button, td a, a").first
+                        link = row.locator("td:nth-child(2) a, td:nth-child(2) button, td a, button:has-text('View'), a").first
                     
                     if not link.is_visible(timeout=1000):
-                        link = row.locator("a, button, p").first
+                        link = row.locator("p:has-text('View'), button, a").first
 
                     link.click(force=True)
 
-                    drawer_header = self.page.get_by_text("Employee Leave Application", exact=True)
+                    drawer_header = self.page.locator("[role='dialog'], .chakra-drawer__content, header, h2").filter(has_text=re.compile(r"Leave|Application|Employee", re.I)).first
                     drawer_header.wait_for(state="visible", timeout=5000)
                     logger.info("[VERIFY] Employee Leave Application drawer opened cleanly!")
 
@@ -475,6 +477,8 @@ class LeavePage(BasePage):
             if search_inp.is_visible(timeout=1000):
                 search_inp.click(force=True)
                 search_inp.fill(employee_name)
+                search_inp.press("Enter")
+                self.page.wait_for_timeout(1000)
         except Exception:
             pass
 

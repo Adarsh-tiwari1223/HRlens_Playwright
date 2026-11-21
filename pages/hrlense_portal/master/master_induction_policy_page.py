@@ -114,7 +114,8 @@ class MasterInductionPolicyPage(BasePage):
                 self.page.wait_for_timeout(2000)
                 self.page.goto(self.url, wait_until="domcontentloaded", timeout=60000)
         self.page.wait_for_timeout(2000)
-        assert "/master/induction-policy" in self.page.url, f"Failed to load induction policy. Current: {self.page.url}"
+        if "/master/induction-policy" not in self.page.url:
+            raise RuntimeError(f"Failed to load induction policy. Current: {self.page.url}")
 
     def switch_to_settings_welcome_tab(self):
         """Switches to Tab 1: Settings & Welcome Screen if present."""
@@ -132,7 +133,8 @@ class MasterInductionPolicyPage(BasePage):
 
     def select_step(self, step_number: int):
         """Clicks on the specified step button (1 to 5)."""
-        assert step_number in self.step_buttons, f"Invalid step number: {step_number}. Must be 1 to 5."
+        if step_number not in self.step_buttons:
+            raise ValueError(f"Invalid step number: {step_number}. Must be 1 to 5.")
         self.switch_to_step_content_tab()
         btn = self.step_buttons[step_number]
         logger.info(f"[UI] Selecting Induction Policy Step {step_number}...")
@@ -511,7 +513,8 @@ class MasterInductionPolicyPage(BasePage):
 
     def get_slide_image_src(self, slide_number: int) -> Optional[str]:
         """Returns the preview image src URL of Slide {slide_number} if custom, else None."""
-        assert 1 <= slide_number <= 7, f"Invalid slide_number: {slide_number}."
+        if not (1 <= slide_number <= 7):
+            raise ValueError(f"Invalid slide_number: {slide_number}.")
         card = self.get_slide_card(slide_number)
         img = card.locator("img").first
         if img.is_visible():
@@ -524,7 +527,8 @@ class MasterInductionPolicyPage(BasePage):
         Supports both initial upload ('Upload Banner') and replacement ('Replace').
         Waits for upload completion and card state update.
         """
-        assert 1 <= slide_number <= 7, f"Invalid slide_number: {slide_number}. Must be between 1 and 7."
+        if not (1 <= slide_number <= 7):
+            raise ValueError(f"Invalid slide_number: {slide_number}. Must be between 1 and 7.")
         logger.info(f"[UI] Uploading banner photo for Slide {slide_number}: '{image_path}'...")
         card = self.get_slide_card(slide_number)
         card.wait_for(state="visible", timeout=8000)
@@ -555,7 +559,8 @@ class MasterInductionPolicyPage(BasePage):
         Sequentially uploads banner images to all 7 slide cards (Slide 1 to 7).
         Guarantees that each slide completes upload before proceeding to the next.
         """
-        assert len(images) >= 7, f"Expected at least 7 images, got {len(images)}"
+        if len(images) < 7:
+            raise ValueError(f"Expected at least 7 images, got {len(images)}")
         results = []
         for idx in range(1, 8):
             img_path = images[idx - 1]
@@ -575,7 +580,8 @@ class MasterInductionPolicyPage(BasePage):
         """
         Reverts a customized slide banner back to the corporate default fallback.
         """
-        assert 1 <= slide_number <= 7, f"Invalid slide_number: {slide_number}. Must be between 1 and 7."
+        if not (1 <= slide_number <= 7):
+            raise ValueError(f"Invalid slide_number: {slide_number}. Must be between 1 and 7.")
         logger.info(f"[UI] Reverting Slide {slide_number} banner to default corporate fallback...")
         card = self.get_slide_card(slide_number)
         card.scroll_into_view_if_needed()

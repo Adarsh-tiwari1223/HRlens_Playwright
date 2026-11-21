@@ -206,7 +206,8 @@ class BranchPage(BasePage):
         """
         import os
         target_path = file_path or os.path.abspath(self.DEFAULT_SIGNATURE_PATH)
-        assert os.path.exists(target_path), f"Signature file not found at: {target_path}"
+        if not os.path.exists(target_path):
+            raise FileNotFoundError(f"Signature file not found at: {target_path}")
 
         modal = self.get_modal()
         file_input = modal.locator(self.FILE_INPUT).nth(block_index)

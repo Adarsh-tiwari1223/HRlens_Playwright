@@ -791,8 +791,5 @@ class AssetProcurementPage(BasePage):
         except Exception as e:
             logger.debug(f"Option select note: {e}")
 
-    def wait_for_toast_message(self) -> str:
-        return self.wait_for_toast("#chakra-toast-manager-top-right")
-
     def get_pop_msg(self) -> str:
         return self.wait_for_toast_message()

@@ -775,9 +775,11 @@ class AssetMasterPage(BasePage):
             row_text = row_locator.inner_text().strip()
             logger.info(f"Located Sub-Category Table Row: '{row_text}'")
 
-            assert category_name.lower() in row_text.lower(), f"Category '{category_name}' not found in row text '{row_text}'"
-            assert sub_category_name.lower() in row_text.lower(), f"Sub-Category '{sub_category_name}' not found in row text '{row_text}'"
-            assert code_prefix.lower() in row_text.lower(), f"Code Prefix '{code_prefix}' not found in row text '{row_text}'"
+            if (category_name.lower() not in row_text.lower() or 
+                sub_category_name.lower() not in row_text.lower() or 
+                code_prefix.lower() not in row_text.lower()):
+                logger.error(f"[ROW MISMATCH] Category='{category_name}', Sub='{sub_category_name}', Code='{code_prefix}' not in '{row_text}'")
+                return False
             
             logger.info(f"[VERIFIED TABLE ROW] Category='{category_name}', SubCategory='{sub_category_name}', Code='{code_prefix}', Status='{expected_status}'")
             return True
@@ -885,7 +887,8 @@ class AssetMasterPage(BasePage):
                     code_prefix=sub_code,
                     expected_status="Active"
                 )
-                assert is_verified, f"Verification failed for Sub-Category '{sub_name}' under Category '{category_name}'!"
+                if not is_verified:
+                    raise RuntimeError(f"Verification failed for Sub-Category '{sub_name}' under Category '{category_name}'!")
                 verified_subs.append({"name": sub_name, "code_prefix": sub_code, "verified": is_verified})
 
             logger.info(f"[FLOWCHART BRANCH A PASSED] Created NEW Category '{category_name}' with {len(verified_subs)} Sub-Categories!")
@@ -925,7 +928,8 @@ class AssetMasterPage(BasePage):
                     code_prefix=sub_code,
                     expected_status="Active"
                 )
-                assert is_verified, f"Relationship verification failed for '{sub_name}' under '{parent_cat}'!"
+                if not is_verified:
+                    raise RuntimeError(f"Relationship verification failed for '{sub_name}' under '{parent_cat}'!")
                 verified_subs.append({"name": sub_name, "code_prefix": sub_code, "verified": is_verified})
 
             logger.info(f"[FLOWCHART BRANCH B PASSED] Initialized Category '{parent_cat}' with {len(verified_subs)} Sub-Categories!")

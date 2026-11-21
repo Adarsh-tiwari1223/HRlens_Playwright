@@ -147,7 +147,8 @@ class AssetMaintenancePage(BasePage):
                 logger.info("[MAINTENANCE FALLBACK] Selecting top maintenance request row")
                 row = all_rows[0]
 
-        assert row.is_visible(timeout=3000), f"No maintenance request row visible for '{clean_code}' on /asset-maintenance table!"
+        if not (row and row.is_visible(timeout=3000)):
+            raise LookupError(f"No maintenance request row visible for '{clean_code}' on /asset-maintenance table!")
 
         # 3. Click 'Approve' button in Action column (<button class="chakra-button css-18yci02">Approve</button>)
         approve_btn = row.locator("button.chakra-button, button").filter(has_text=re.compile(r"^Approve$", re.I)).first
@@ -282,7 +283,8 @@ class AssetMaintenancePage(BasePage):
             if (not row or not row.is_visible()) and all_rows:
                 row = all_rows[0]
 
-        assert row.is_visible(timeout=3000), f"No maintenance queue row visible for '{clean_code}' on /asset-maintenance!"
+        if not (row and row.is_visible(timeout=3000)):
+            raise LookupError(f"No maintenance queue row visible for '{clean_code}' on /asset-maintenance!")
 
         # 3. Click the Eye icon on the row
         eye_btn = row.locator("button:has(svg), td:last-child button, td:last-child svg, svg").first
@@ -301,7 +303,8 @@ class AssetMaintenancePage(BasePage):
         if not modal.is_visible(timeout=3000):
             modal = self.page.locator("div.chakra-modal__content, [role='dialog']").first
 
-        assert modal.is_visible(timeout=5000), "Maintenance Details modal did not appear!"
+        if not (modal and modal.is_visible(timeout=5000)):
+            raise TimeoutError("Maintenance Details modal did not appear!")
 
         # 5. Select Status radio ('Completed' / 'Beyond Repair' / 'In Progress')
         try:
@@ -402,6 +405,4 @@ class AssetMaintenancePage(BasePage):
             remarks=remarks or "Display/Keyboard replaced and restored to stock."
         )
 
-    def wait_for_toast_message(self) -> str:
-        return self.wait_for_toast(self.TOAST)
 

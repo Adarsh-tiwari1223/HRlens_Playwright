@@ -273,4 +273,4 @@ class EmployeePage(BasePage):
         self.page.locator(self.SUBMIT_BTN).click()
 
         toast = self.wait_for_toast(self.TOAST)
-        assert "successfully" in toast.lower(), f"Employee creation failed. Toast: {toast}"
+        return toast

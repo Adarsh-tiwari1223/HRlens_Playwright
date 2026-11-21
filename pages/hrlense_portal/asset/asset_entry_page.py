@@ -624,9 +624,6 @@ class AssetEntryPage(BasePage):
     def click_cancel(self):
         self.page.locator(self.CANCEL_BTN).click()
 
-    def wait_for_toast_message(self) -> str:
-        return self.wait_for_toast(self.TOAST)
-
     def click_edit_asset(self, asset_identifier: str = None) -> dict:
         """
         Locates an asset row (by code/name or first visible row),

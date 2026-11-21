@@ -145,8 +145,8 @@ class LeaveWorkflow:
         # [STEP 2] Search Leave Request
         logger.info(f"[STEP 2] Search Leave Request for : {employee_name}")
 
-        # [ACTION] Approve / Reject via selected mode (Randomized among 3 methods if mode is auto/random)
-        if mode in ("random", "auto"):
+        # [ACTION] Approve / Reject via selected mode (Randomized among 3 methods if mode is 'random')
+        if mode == "random":
             chosen_mode = random.choice(["dropdown", "emp_code_drawer", "view_link_drawer"])
             logger.info(f"[RANDOM SELECTION] Randomly selected approval method: '{chosen_mode}'")
         else:
